@@ -2873,3 +2873,42 @@ button.cx-composer {
     animation: none;
   }
 }
+
+/* ⋯ menu on post cards */
+.cx-post-head > .cx-person {
+  flex: 1;
+  min-width: 0;
+}
+.cx-post-menu {
+  flex: none;
+  margin: -6px -10px -6px -4px;
+}
+.cx-menu-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+}
+.cx-menu-list .cx-danger {
+  color: #c62828;
+}
+.cx-caption-link {
+  display: block;
+  color: inherit;
+}
+/* Names wrap their badges to the next line instead of squashing them */
+.cx-person-name {
+  flex-wrap: wrap;
+  row-gap: 3px;
+}
+.cx-badge,
+.cx-sample,
+.cx-tag {
+  white-space: nowrap;
+  flex: none;
+}
+/* Phones: the violet edge already marks Community posts, so drop the tag */
+@media (max-width: 520px) {
+  .cx-post-community .cx-post-head > .cx-tag {
+    display: none;
+  }
+}

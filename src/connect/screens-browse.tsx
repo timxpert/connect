@@ -8,7 +8,7 @@ import { navigate } from './router';
 import { play } from './sounds';
 import { socialUrl, timeAgo } from './media';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
-import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, visiblePhase } from './ui';
+import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, visiblePhase, POST_DELETED } from './ui';
 
 /* ================= Feed ================= */
 type FeedName = 'community' | 'everyone' | 'connections';
@@ -50,11 +50,14 @@ export function Feed() {
       setPosts((list) => (list && !list.some((x) => x.id === post.id) ? [{ ...post, fresh: true } as Post, ...list] : list));
     };
     const failed = () => setPending(null);
+    const gone = (e: Event) => setPosts((list) => list && list.filter((x) => x.id !== (e as CustomEvent<string>).detail));
+    window.addEventListener(POST_DELETED, gone);
     window.addEventListener(POST_START, start);
     window.addEventListener(POST_PROGRESS, prog);
     window.addEventListener(POST_DONE, done);
     window.addEventListener(POST_FAIL, failed);
     return () => {
+      window.removeEventListener(POST_DELETED, gone);
       window.removeEventListener(POST_START, start);
       window.removeEventListener(POST_PROGRESS, prog);
       window.removeEventListener(POST_DONE, done);
@@ -263,8 +266,20 @@ export function ProfileScreen({ handle }: { handle: string }) {
       setPosts((list) => (list && !list.some((x) => x.id === post.id) ? [post, ...list] : list));
       setCounts((c) => ({ ...c, posts: c.posts + 1 }));
     };
+    const gone = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      setPosts((list) => {
+        if (!list || !list.some((x) => x.id === id)) return list;
+        setCounts((c) => ({ ...c, posts: Math.max(0, c.posts - 1) }));
+        return list.filter((x) => x.id !== id);
+      });
+    };
     window.addEventListener(POST_DONE, done);
-    return () => window.removeEventListener(POST_DONE, done);
+    window.addEventListener(POST_DELETED, gone);
+    return () => {
+      window.removeEventListener(POST_DONE, done);
+      window.removeEventListener(POST_DELETED, gone);
+    };
   }, [p]);
 
   if (p === undefined) return <Loading label="Loading profile" />;

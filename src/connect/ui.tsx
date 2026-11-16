@@ -314,14 +314,75 @@ export function SaveButton({ post }: { post: Post }) {
   );
 }
 
+export const POST_DELETED = 'cx:post-deleted';
+
+/** ⋯ on a post: delete for its author and moderators, report for other members */
+export function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => void }) {
+  const { api, me, toast, ask } = useConnect();
+  const [open, setOpen] = useState(false);
+  if (!me || !(me.is_student || me.is_sensei || me.is_moderator)) return null;
+  const own = me.id === post.author_id;
+  const canDelete = own || me.is_moderator || me.is_sensei;
+
+  const remove = async () => {
+    setOpen(false);
+    if (!(await ask({ title: 'Delete this post?', body: 'Its likes and comments go too. This can’t be undone.', confirm: 'Delete', danger: true }))) return;
+    try {
+      await api.deletePost(post.id);
+      window.dispatchEvent(new CustomEvent(POST_DELETED, { detail: post.id }));
+      toast('Post deleted');
+      onDeleted?.();
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  const report = async () => {
+    setOpen(false);
+    const reason = await ask({ title: 'Report this post', body: 'A moderator will look at it. The member won’t see who reported them.', input: 'What’s wrong?', confirm: 'Send report' });
+    if (!reason) return;
+    await api.report('post', post.id, reason);
+    toast('Thanks. A moderator will take a look.');
+  };
+
+  return (
+    <div className="cx-menu cx-post-menu">
+      <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Post options" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <Icon name="more" />
+      </button>
+      {open && (
+        <>
+          <div className="cx-menu-scrim" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="cx-menu-list" role="menu">
+            {canDelete && (
+              <button type="button" role="menuitem" className="cx-danger" onClick={remove}>
+                Delete post
+              </button>
+            )}
+            {!own && (
+              <button type="button" role="menuitem" onClick={report}>
+                Report post
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function PostCard({ post }: { post: Post }) {
   return (
     <article className={['cx-post', post.community ? 'cx-post-community' : '', (post as Post & { fresh?: boolean }).fresh ? 'cx-post-fresh' : ''].filter(Boolean).join(' ')}>
       <header className="cx-post-head">
         <PersonLine p={post.author} when={post.created_at} />
         {post.community ? <span className="cx-tag">Community</span> : post.tag === 'feedback' && <span className="cx-tag">Wants feedback</span>}
+        <PostMenu post={post} />
       </header>
-      {post.caption && <p className="cx-caption">{post.caption}</p>}
+      {post.caption && (
+        <A path={`/p/${post.id}`} className="cx-caption-link">
+          <p className="cx-caption">{post.caption}</p>
+        </A>
+      )}
       {post.kind === 'image' ? (
         <A path={`/p/${post.id}`} className="cx-post-media" aria-label="Open post">
           <Media post={post} />
