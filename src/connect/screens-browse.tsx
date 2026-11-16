@@ -388,8 +388,12 @@ export function ProfileScreen({ handle }: { handle: string }) {
           <Loading />
         ) : posts.length === 0 ? (
           <p className="cx-pf-empty">
-            {p.is_student ? (mine ? 'You haven’t posted any work yet.' : 'No work posted yet.') : 'Only Keyframe Ninjas post work.'}{' '}
-            {mine && p.is_student && <A path="/new">Share your first piece</A>}
+            {p.is_student || p.is_sensei
+              ? mine
+                ? 'You haven’t posted anything yet.'
+                : 'Nothing posted yet.'
+              : 'Only Keyframe Ninjas post work.'}{' '}
+            {mine && (p.is_student || p.is_sensei) && <A path="/new">{p.is_sensei ? 'Write your first post' : 'Share your first piece'}</A>}
           </p>
         ) : (
           <ul className="cx-thumbs">

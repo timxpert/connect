@@ -134,7 +134,8 @@ function Shell({ route }: { route: Route }) {
           <A path="/" className="cx-logo" aria-label="Motion Dojo Connect, home">
             <img src="/assets/favicon-128.png" alt="" width={32} height={32} />
             <span>
-              Motion Dojo <em>Connect</em>
+              <b className="cx-logo-md">Motion Dojo </b>
+              <em>Connect</em>
             </span>
           </A>
           <nav className="cx-nav" aria-label="Connect">

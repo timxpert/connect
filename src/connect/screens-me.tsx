@@ -11,7 +11,9 @@ import { A, Avatar, Empty, Icon, Loading, Media, NinjaBadge, SampleTag } from '.
 /* ================= Sign in ================= */
 export function Login() {
   const { api, signedIn, me } = useConnect();
+  const [mode, setMode] = useState<'student' | 'link'>('student');
   const [email, setEmail] = useState('');
+  const [studentId, setStudentId] = useState('');
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -25,10 +27,16 @@ export function Login() {
     e.preventDefault();
     setErr('');
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Enter a valid email address.');
+    if (mode === 'student' && studentId.replace(/[^a-z0-9]/gi, '').length < 8)
+      return setErr('Enter your student ID, for example MD-7KQ2-X9PB.');
     setBusy(true);
     try {
-      await api.signIn(email.trim());
-      setSent(true);
+      if (mode === 'student') {
+        await api.studentSignIn(email.trim(), studentId);
+      } else {
+        await api.signIn(email.trim());
+        setSent(true);
+      }
     } catch (e2) {
       setErr((e2 as Error).message);
     } finally {
@@ -36,10 +44,24 @@ export function Login() {
     }
   };
 
+  const switchTo = (m: 'student' | 'link') => {
+    setMode(m);
+    setErr('');
+    setSent(false);
+  };
+
   return (
     <div className="cx-narrow">
       <div className="cx-panel">
         <h1 className="cx-h1">Sign in to Connect</h1>
+        <div className="cx-tabs cx-login-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={mode === 'student'} className={mode === 'student' ? 'is-on' : ''} onClick={() => switchTo('student')}>
+            Keyframe Ninja
+          </button>
+          <button type="button" role="tab" aria-selected={mode === 'link'} className={mode === 'link' ? 'is-on' : ''} onClick={() => switchTo('link')}>
+            Everyone else
+          </button>
+        </div>
         {sent ? (
           <p className="cx-lead">
             Check <strong>{email}</strong> for a sign-in link. It works once and expires after an hour.
@@ -47,21 +69,37 @@ export function Login() {
         ) : (
           <>
             <p className="cx-lead">
-              We’ll email you a link, no password needed. Students: use the email you enrolled with and your Keyframe Ninja badge
-              turns on automatically.
+              {mode === 'student'
+                ? 'Use the email you enrolled with and the student ID you got after paying.'
+                : 'We’ll email you a sign-in link, no password needed.'}
             </p>
             <form className="cx-form" onSubmit={submit} noValidate>
               <label className="field">
                 <span>Email address</span>
                 <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </label>
+              {mode === 'student' && (
+                <label className="field">
+                  <span>Student ID</span>
+                  <input
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    placeholder="MD-XXXX-XXXX"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value.toUpperCase())}
+                    required
+                  />
+                  <small>Lost it? Ask the community manager on WhatsApp, or use “Everyone else” to get an email link.</small>
+                </label>
+              )}
               {err && (
                 <p className="cx-error" role="alert">
                   {err}
                 </p>
               )}
               <button type="submit" className="btn btn-primary" disabled={busy}>
-                {busy ? 'Sending…' : 'Email me a sign-in link'}
+                {mode === 'student' ? (busy ? 'Signing in…' : 'Sign in') : busy ? 'Sending…' : 'Email me a sign-in link'}
               </button>
             </form>
           </>

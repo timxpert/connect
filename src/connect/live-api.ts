@@ -4,6 +4,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { PAYMENT_NOTE } from './safety';
+import { prepareImage } from './resize';
 import type { Comment, ConnectApi, ConnectionStatus, Conversation, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 const POST_SELECT = '*, author:profiles!posts_author_id_fkey(*)';
@@ -66,6 +67,20 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
       fail(error);
     },
+    async studentSignIn(email, studentId) {
+      const res = await fetch('/api/student-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, studentId }),
+      });
+      const data = (await res.json().catch(() => null)) as { token_hash?: string; message?: string } | null;
+      if (!res.ok || !data?.token_hash) throw new Error(data?.message || 'We couldn’t sign you in. Try again.');
+      const { error } = await sb.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' });
+      if (error) {
+        const retry = await sb.auth.verifyOtp({ token_hash: data.token_hash, type: 'email' });
+        if (retry.error) throw new Error('That sign-in didn’t go through. Try again.');
+      }
+    },
     async signOut() {
       await sb.auth.signOut();
     },
@@ -100,8 +115,9 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
       return Boolean(data);
     },
-    async uploadImage(file, folder) {
+    async uploadImage(original, folder) {
       const id = await needUid();
+      const file = await prepareImage(original, folder);
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
       const path = `${id}/${folder}/${Date.now()}.${ext}`;
       const { error } = await sb.storage.from('media').upload(path, file, { upsert: false, contentType: file.type });

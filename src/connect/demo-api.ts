@@ -117,6 +117,9 @@ export function createDemoApi(): ConnectApi {
     async signIn() {
       throw new Error('Email sign-in works once Supabase is connected. In this preview, use the sample accounts below.');
     },
+    async studentSignIn() {
+      throw new Error('Student ID sign-in works once Supabase is connected. In this preview, use the sample accounts below.');
+    },
     async demoSignIn(as) {
       current = as === 'student' ? 's1' : as === 'sensei' ? 'g1' : 'v1';
       emit();

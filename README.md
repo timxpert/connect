@@ -35,9 +35,15 @@ npm run dev
 1. **Supabase:** create a project at [supabase.com](https://supabase.com). In SQL Editor, paste all of `supabase/schema.sql` and run it.
 2. **Supabase → Authentication → URL Configuration:** set the Site URL to your Connect domain and add it to Redirect URLs.
 3. **Supabase → Authentication → SMTP:** connect an email service (for example Resend). The built-in sender only sends a few sign-in emails per hour.
-4. **Vercel:** import this repo as a new project. In Settings → Environment Variables add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and optionally `NEXT_PUBLIC_MAIN_SITE_URL`. Add your Connect domain under Domains.
+4. **Vercel:** import this repo as a new project. In Settings → Environment Variables add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and optionally `NEXT_PUBLIC_MAIN_SITE_URL` (all as Config), plus `SUPABASE_SERVICE_ROLE_KEY` (the `sb_secret_…` key, as Secret) for student ID sign-in. Add your Connect domain under Domains.
 5. **Grand sensei:** sign in to Connect once, then in Supabase → Table Editor → `profiles`, tick `is_sensei` on your row.
 6. **Moderators:** tick `is_moderator` on their rows. They can remove any post or comment and read `reports`.
+
+## Signing in
+
+- **Keyframe Ninjas:** email + student ID (`MD-XXXX-XXXX`). Every row in `enrolments` gets an ID automatically. Students see theirs after paying on the Motion Dojo site; to look one up, run `select email, student_id from enrolments;`. The check runs in `src/app/api/student-login` and no email is sent.
+- **Everyone else** (and students who lost their ID): an email sign-in link.
+- Already ran the schema before student IDs existed? Run `supabase/update-student-ids.sql` once.
 
 ## Student verification
 
