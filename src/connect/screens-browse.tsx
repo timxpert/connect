@@ -360,7 +360,6 @@ export function ProfileScreen({ handle }: { handle: string }) {
       <div className="cx-pf-inner">
         <div className="cx-pf-top">
           <span className="cx-pf-avatar">
-            {p.is_sensei && <span className="cx-pf-ring" aria-hidden="true" />}
             <Avatar p={p} size={136} />
           </span>
           <div className="cx-pf-actions">
@@ -441,9 +440,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
           {p.bio && <p className="cx-bio">{p.bio}</p>}
 
           <ul className="cx-pf-meta">
-            {p.is_sensei ? (
-              <li>Grand Sensei, Motion Dojo</li>
-            ) : p.is_student ? (
+            {p.is_sensei ? null : p.is_student ? (
               <li>Keyframe Ninja{visiblePhase(p, me) ? `, phase ${visiblePhase(p, me)}: ${PHASES[visiblePhase(p, me)! - 1]}` : ''}</li>
             ) : (
               <li>Community member</li>
@@ -528,11 +525,11 @@ function SenseiCover() {
     <svg viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice">
       <defs>
         <radialGradient id="sg1" cx="18%" cy="10%" r="70%">
-          <stop offset="0" stopColor="#6d32e8" stopOpacity="0.75" />
+          <stop offset="0" stopColor="#6d32e8" stopOpacity="0.4" />
           <stop offset="1" stopColor="#6d32e8" stopOpacity="0" />
         </radialGradient>
         <radialGradient id="sg2" cx="88%" cy="95%" r="55%">
-          <stop offset="0" stopColor="#c8ff3d" stopOpacity="0.28" />
+          <stop offset="0" stopColor="#c8ff3d" stopOpacity="0.1" />
           <stop offset="1" stopColor="#c8ff3d" stopOpacity="0" />
         </radialGradient>
         <linearGradient id="sline" x1="0" x2="1">
@@ -540,9 +537,6 @@ function SenseiCover() {
           <stop offset="0.55" stopColor="#a77bff" />
           <stop offset="1" stopColor="#c8ff3d" />
         </linearGradient>
-        <filter id="sglow" x="-10%" y="-50%" width="120%" height="200%">
-          <feGaussianBlur stdDeviation="6" />
-        </filter>
         <pattern id="sdots" width="24" height="24" patternUnits="userSpaceOnUse">
           <circle cx="2" cy="2" r="1" fill="#fff" opacity="0.07" />
         </pattern>
@@ -551,7 +545,6 @@ function SenseiCover() {
       <rect width="1200" height="300" fill="url(#sg1)" />
       <rect width="1200" height="300" fill="url(#sg2)" />
       <rect width="1200" height="300" fill="url(#sdots)" />
-      <path d="M-20 250 C 240 255, 380 60, 620 110 S 990 250, 1220 40" fill="none" stroke="url(#sline)" strokeWidth="10" opacity="0.55" filter="url(#sglow)" />
       <path className="cx-sensei-curve" d="M-20 250 C 240 255, 380 60, 620 110 S 990 250, 1220 40" fill="none" stroke="url(#sline)" strokeWidth="3" strokeLinecap="round" />
       <g fill="#c8ff3d">
         <rect x="610" y="100" width="20" height="20" rx="4" transform="rotate(45 620 110)" />
