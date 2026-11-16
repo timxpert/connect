@@ -2097,9 +2097,6 @@ details[open] > :not(summary) {
 .cx-act.is-saved {
   color: var(--violet);
 }
-.cx-post-community {
-  box-shadow: inset 0 0 0 2px var(--violet), var(--panel-shadow);
-}
 
 /* ---------- Connect: counts, bell, connection rows, notifications ---------- */
 .cx-dot {
@@ -2313,9 +2310,6 @@ details[open] > :not(summary) {
   border-radius: 0;
   box-shadow: none;
   border-bottom: 1px solid var(--line);
-}
-.cx-post-community {
-  box-shadow: inset 3px 0 0 var(--violet);
 }
 .cx-stream .cx-empty,
 .cx-stream .cx-loading {
@@ -2905,10 +2899,4 @@ button.cx-composer {
 .cx-tag {
   white-space: nowrap;
   flex: none;
-}
-/* Phones: the violet edge already marks Community posts, so drop the tag */
-@media (max-width: 520px) {
-  .cx-post-community .cx-post-head > .cx-tag {
-    display: none;
-  }
 }
