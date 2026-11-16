@@ -9,7 +9,7 @@ import { describeLink, legacyLinks } from './links';
 import { play } from './sounds';
 import { timeAgo } from './media';
 import { PHASES, SKILLS, type Conversation, type Message, type Profile } from './types';
-import { A, Avatar, BELTS, Empty, Icon, Loading, NinjaBadge, SampleTag } from './ui';
+import { A, Avatar, BELTS, Empty, Icon, Loading, BeltBadge, SampleTag } from './ui';
 
 /* ================= Welcome: are you a member? ================= */
 export function Welcome() {
@@ -17,7 +17,7 @@ export function Welcome() {
     <div className="cx-welcome">
       <img src="/assets/favicon-128.png" alt="" width={64} height={64} />
       <h1 className="cx-welcome-title">Are you a member?</h1>
-      <p className="cx-lead">Members are Keyframe Ninjas, the students of Black Belt in Motion Design.</p>
+      <p className="cx-lead">Members are students of Black Belt in Motion Design.</p>
       <div className="cx-welcome-btns">
         <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>
           Yes, sign me in
@@ -155,7 +155,7 @@ export function Login() {
             </p>
             <div className="cx-demo-btns">
               <button type="button" className="btn btn-lime btn-sm" onClick={() => api.demoSignIn!('student')}>
-                Sample Keyframe Ninja
+                Sample student
               </button>
               <button type="button" className="btn btn-light btn-sm" onClick={() => api.demoSignIn!('visitor')}>
                 Sample visitor
@@ -274,6 +274,8 @@ export function Settings() {
     if (!f.name.trim()) return setErr('Add your name.');
     if (handle.length < 3) return setErr('Your username needs at least 3 letters or numbers.');
     if (hasPaymentTalk(f.bio, f.name)) return setErr(PAYMENT_NOTE);
+    // Students are known by their belt, so the phase is required
+    if (me?.is_student && !me.is_sensei && !f.phase) return setErr('Choose your phase. Your badge shows your belt.');
     setBusy(true);
     try {
       // Wait for any photo still uploading, then save its real address (not the on-phone preview)
@@ -306,12 +308,12 @@ export function Settings() {
   const checkStudent = async () => {
     const ok = await api.refreshStudentStatus();
     await refreshMe();
-    toast(ok ? 'You’re verified as a Keyframe Ninja.' : 'We couldn’t find an enrolment for this email yet.');
+    toast(ok ? 'You’re verified as a student.' : 'We couldn’t find an enrolment for this email yet.');
   };
   const useInvite = async () => {
     const ok = await api.redeemInvite(invite);
     await refreshMe();
-    toast(ok ? 'Invite accepted. You’re a Keyframe Ninja.' : 'That code didn’t work. Check it with the community manager.');
+    toast(ok ? 'Invite accepted. You’re verified as a student.' : 'That code didn’t work. Check it with the community manager.');
   };
 
   return (
@@ -365,9 +367,11 @@ export function Settings() {
 
         {me?.is_student && !me.is_sensei && (
           <label className="field">
-            <span>Your Black Belt phase</span>
-            <select value={f.phase ?? ''} onChange={(e) => set('phase', e.target.value ? Number(e.target.value) : null)}>
-              <option value="">Prefer not to show</option>
+            <span>Your phase</span>
+            <select required value={f.phase ?? ''} onChange={(e) => set('phase', e.target.value ? Number(e.target.value) : null)}>
+              <option value="" disabled>
+                Choose your phase
+              </option>
               {PHASES.map((t, i) => (
                 <option key={t} value={i + 1}>
                   Phase {i + 1}: {t} ({BELTS[i]})
@@ -379,7 +383,7 @@ export function Settings() {
         {me?.is_student && !me.is_sensei && f.phase && (
           <label className="cx-check">
             <input type="checkbox" checked={f.phase_public} onChange={(e) => set('phase_public', e.target.checked)} />
-            <span>Show my phase and belt to other students</span>
+            <span>Show my belt to other students</span>
           </label>
         )}
 

@@ -262,12 +262,12 @@ export function visiblePhase(p: Pick<Profile, 'id' | 'phase' | 'phase_public'>, 
   return p.phase_public === false ? null : p.phase;
 }
 
-export function NinjaBadge({ p, small = false }: { p: Pick<Profile, 'id' | 'phase' | 'phase_public'>; small?: boolean }) {
+export function BeltBadge({ p, small = false }: { p: Pick<Profile, 'id' | 'phase' | 'phase_public'>; small?: boolean }) {
   const { me } = useConnect();
   const phase = visiblePhase(p, me);
   const belt = phase ? BELTS[phase - 1] : null;
-  const label = belt ?? 'Keyframe Ninja';
-  const title = belt ? `${belt}: Keyframe Ninja in phase ${phase}, ${PHASES[phase! - 1]}` : 'Keyframe Ninja: a student on Black Belt in Motion Design';
+  const label = belt ?? 'Student';
+  const title = belt ? `${belt}: phase ${phase}, ${PHASES[phase! - 1]}` : 'Student on Black Belt in Motion Design';
   const cls = ['cx-badge', small ? 'cx-badge-sm' : '', belt ? `cx-belt cx-belt-${phase}` : ''].filter(Boolean).join(' ');
   return (
     <span className={cls} title={title}>
@@ -332,7 +332,7 @@ export function PersonLine({ p, when }: { p: Profile; when?: string }) {
         <span className="cx-person-name">
           {p.name}
           {p.is_sensei && <SenseiBadge />}
-          {p.is_student && !p.is_sensei && <NinjaBadge p={p} small />}
+          {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
           {p.sample && <SampleTag />}
         </span>
         <span className="cx-person-meta">

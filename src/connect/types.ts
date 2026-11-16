@@ -120,7 +120,7 @@ export interface ConnectApi {
   session(): Promise<{ userId: string; email: string } | null>;
   onAuthChange(cb: () => void): () => void;
   signIn(email: string): Promise<void>;
-  /** Keyframe Ninjas: email + the student ID they got when they enrolled */
+  /** Students: email + the student ID they got when they enrolled */
   studentSignIn(email: string, studentId: string): Promise<void>;
   /** Preview only: sign in instantly as a sample student or a sample visitor */
   demoSignIn?(as: 'student' | 'visitor' | 'sensei'): Promise<void>;

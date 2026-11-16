@@ -217,7 +217,7 @@ export function Composer() {
             className="cx-cmp-text"
             maxLength={1000}
             value={text}
-            placeholder={sensei ? 'What do you want to tell the Ninjas?' : 'What are you working on?'}
+            placeholder={sensei ? 'What do you want to tell your students?' : 'What are you working on?'}
             onChange={(e) => setText(e.target.value)}
           />
           {preview}

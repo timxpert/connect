@@ -347,7 +347,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const me = await needUid();
       const { data, error } = await sb.from('posts').insert({ ...input, author_id: me }).select(POST_SELECT).single();
       if (error?.message.includes('row-level security')) {
-        throw new Error(input.community ? 'Only the grand sensei can post to the Community feed.' : 'Only Keyframe Ninjas can post work.');
+        throw new Error(input.community ? 'Only the grand sensei can post to the Community feed.' : 'Only students can post work.');
       }
       fail(error);
       // A brand-new post has no likes, comments or saves: skip the extra queries

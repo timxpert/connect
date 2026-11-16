@@ -257,7 +257,7 @@ export function createDemoApi(): ConnectApi {
       assertNoPaymentTalk(input.caption);
       const community = Boolean(input.community);
       if (community && !me.is_sensei) throw new Error('Only the grand sensei can post to the Community feed.');
-      if (!community && !me.is_student && !me.is_sensei) throw new Error('Only Keyframe Ninjas can post work.');
+      if (!community && !me.is_student && !me.is_sensei) throw new Error('Only students can post work.');
       const p: RawPost = { id: nid(), author_id: me.id, created_at: new Date().toISOString(), ...input, community };
       posts = [p, ...posts];
       if (community) people.filter((x) => x.is_student).forEach((x) => notify(x.id, 'community_post', me.id, p.id));

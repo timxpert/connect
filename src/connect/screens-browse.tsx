@@ -9,7 +9,7 @@ import { play } from './sounds';
 import { timeAgo } from './media';
 import { profileLinks } from './links';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
-import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, visiblePhase, POST_DELETED } from './ui';
+import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, BeltBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, visiblePhase, POST_DELETED } from './ui';
 
 /* ================= Feed ================= */
 type FeedName = 'community' | 'everyone' | 'connections';
@@ -117,12 +117,12 @@ export function Feed() {
         <Empty title="Nothing here yet">
           {tab === 'connections' ? (
             <p>
-              Connect with Ninjas from the <A path="/students">students page</A> and their work shows up here.
+              Connect with students from the <A path="/students">Students page</A> and their work shows up here.
             </p>
           ) : tab === 'community' ? (
             <p>Posts from the grand sensei will appear here.</p>
           ) : (
-            <p>When Keyframe Ninjas share their work, it appears here.</p>
+            <p>When students share their work, it appears here.</p>
           )}
         </Empty>
       ) : (
@@ -160,8 +160,8 @@ export function Students() {
   return (
     <div className="cx-col">
       <div className="cx-intro">
-        <h1 className="cx-h1">Keyframe Ninjas</h1>
-        <p>Students of Black Belt in Motion Design.</p>
+        <h1 className="cx-h1">Students</h1>
+        <p>Everyone on Black Belt in Motion Design.</p>
       </div>
 
       {member && (
@@ -210,7 +210,7 @@ export function Students() {
                 <span className="cx-person-row-text">
                   <span className="cx-person-name">
                     {p.name}
-                    <NinjaBadge p={p} />
+                    <BeltBadge p={p} />
                     {p.sample && <SampleTag />}
                   </span>
                   <span className="cx-person-meta">
@@ -427,7 +427,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
         <div className="cx-pf-info">
           <h1 className="cx-pf-name">
             {p.name}
-            {p.is_sensei ? <SenseiBadge /> : p.is_student && <NinjaBadge p={p} />}
+            {p.is_sensei ? <SenseiBadge /> : p.is_student && <BeltBadge p={p} />}
             {p.sample && <SampleTag />}
           </h1>
           <p className="cx-pf-handle">
@@ -438,7 +438,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
 
           <ul className="cx-pf-meta">
             {p.is_sensei ? null : p.is_student ? (
-              <li>Keyframe Ninja{visiblePhase(p, me) ? `, phase ${visiblePhase(p, me)}: ${PHASES[visiblePhase(p, me)! - 1]}` : ''}</li>
+              visiblePhase(p, me) ? <li>Phase {visiblePhase(p, me)}: {PHASES[visiblePhase(p, me)! - 1]}</li> : null
             ) : (
               <li>Community member</li>
             )}
@@ -482,7 +482,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
               ? mine
                 ? 'You haven’t posted anything yet.'
                 : 'Nothing posted yet.'
-              : 'Only Keyframe Ninjas post work.'}{' '}
+              : 'Only students post work.'}{' '}
             {mine && (p.is_student || p.is_sensei) && (
               <button type="button" className="cx-link-btn" onClick={openComposer}>
                 {p.is_sensei ? 'Write your first post' : 'Share your first piece'}
@@ -731,7 +731,7 @@ export function PostScreen({ id }: { id: string }) {
                       {c.author.name}
                     </A>
                     {c.author.is_sensei && <SenseiBadge />}
-                    {c.author.is_student && !c.author.is_sensei && <NinjaBadge p={c.author} small />} {c.body}
+                    {c.author.is_student && !c.author.is_sensei && <BeltBadge p={c.author} small />} {c.body}
                   </p>
                   <p className="cx-comment-meta">
                     <time dateTime={c.created_at}>{timeAgo(c.created_at)}</time>

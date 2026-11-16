@@ -5,7 +5,7 @@ import { useConnect } from './context';
 import { navigate } from './router';
 import { timeAgo } from './media';
 import type { Notice, Post, Profile } from './types';
-import { A, Avatar, Empty, Icon, Loading, NinjaBadge, PostCard, SampleTag, SenseiBadge } from './ui';
+import { A, Avatar, Empty, Icon, Loading, BeltBadge, PostCard, SampleTag, SenseiBadge } from './ui';
 
 function Gate({ profile = false }: { profile?: boolean }) {
   return (
@@ -25,7 +25,7 @@ function Who({ p }: { p: Profile }) {
         <span className="cx-person-name">
           {p.name}
           {p.is_sensei && <SenseiBadge />}
-          {p.is_student && !p.is_sensei && <NinjaBadge p={p} small />}
+          {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
           {p.sample && <SampleTag />}
         </span>
         <span className="cx-person-meta">
@@ -146,9 +146,9 @@ export function Connections() {
             <Icon name="link2" size={30} />
           </span>
           <p className="cx-inbox-empty-title">No connections yet</p>
-          <p>Tap Connect on a Ninja’s profile. Once they accept, you can message each other.</p>
+          <p>Tap Connect on a student’s profile. Once they accept, you can message each other.</p>
           <A path="/students" className="btn btn-primary btn-sm">
-            Find Ninjas
+            Find students
           </A>
         </div>
       ) : (

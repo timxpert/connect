@@ -18,7 +18,7 @@ type Ask = { title: string; body?: string; input?: string; confirm: string; dang
 
 const ConnectCtx = createContext<Ctx | null>(null);
 
-/** Members: Keyframe Ninjas, the grand sensei and moderators. Everyone else browses Students only. */
+/** Members: students, the grand sensei and moderators. Everyone else browses Students only. */
 export const isMember = (p: Profile | null | undefined) => Boolean(p && (p.is_student || p.is_sensei || p.is_moderator));
 
 export function ConnectProvider({ api, children }: { api: ConnectApi; children: React.ReactNode }) {

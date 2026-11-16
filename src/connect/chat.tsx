@@ -6,7 +6,7 @@ import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { play } from './sounds';
 import type { Attachment, Conversation, Message, Profile } from './types';
-import { A, Avatar, Empty, Icon, Loading, NinjaBadge } from './ui';
+import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 
 /* ------------------------------------------------------------------
    One conversation, WhatsApp-style:
@@ -418,7 +418,7 @@ export function Chat({ id }: { id: string }) {
           <span className="cx-person-text">
             <span className="cx-person-name">
               {other.name}
-              {other.is_student && <NinjaBadge p={other} small />}
+              {other.is_student && <BeltBadge p={other} small />}
             </span>
             <span className="cx-person-meta">@{other.handle}</span>
           </span>
@@ -631,10 +631,10 @@ export function Inbox() {
             <Icon name="chat" size={30} />
           </span>
           <p className="cx-inbox-empty-title">No messages yet</p>
-          <p>{people.length ? 'Tap someone above to start a chat.' : 'Connect with other Ninjas, then message them here.'}</p>
+          <p>{people.length ? 'Tap someone above to start a chat.' : 'Connect with other students, then message them here.'}</p>
           {!people.length && (
             <A path="/students" className="btn btn-primary btn-sm">
-              Find Ninjas
+              Find students
             </A>
           )}
         </div>
@@ -653,7 +653,7 @@ export function Inbox() {
                     <span className="cx-inbox-top">
                       <span className="cx-person-name">
                         {c.other.name}
-                        {c.other.is_sensei ? null : c.other.is_student && <NinjaBadge p={c.other} small />}
+                        {c.other.is_sensei ? null : c.other.is_student && <BeltBadge p={c.other} small />}
                       </span>
                       <span className="cx-inbox-time">{shortTime(c.last_message_at)}</span>
                     </span>
