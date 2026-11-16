@@ -74,6 +74,13 @@ const PATHS = {
     </>
   ),
   out: <path d="M7 17 17 7M9 7h8v8" />,
+  obi: (
+    <>
+      <path d="M2.5 9.5h19v4h-19z" />
+      <rect x="9.5" y="8" width="5" height="7" rx="1.2" />
+      <path d="m10.4 15-1.9 5.5M13.6 15l1.9 5.5" />
+    </>
+  ),
   bookmark: <path d="M6.5 4h11v16l-5.5-4-5.5 4z" />,
   bell: <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" />,
   link2: (
@@ -135,12 +142,18 @@ export function Avatar({ p, size = 44 }: { p: Pick<Profile, 'name' | 'avatar_url
   );
 }
 
-export function NinjaBadge({ small = false }: { small?: boolean }) {
+/** Belt by Black Belt phase: White → Yellow → Green → Brown. The black belt is the course itself. */
+export const BELTS = ['White Belt', 'Yellow Belt', 'Green Belt', 'Brown Belt'];
+
+export function NinjaBadge({ phase, small = false }: { phase?: number | null; small?: boolean }) {
+  const belt = phase && phase >= 1 && phase <= 4 ? BELTS[phase - 1] : null;
+  const label = belt ?? 'Keyframe Ninja';
+  const title = belt ? `${belt}: Keyframe Ninja in phase ${phase}, ${PHASES[phase! - 1]}` : 'Keyframe Ninja: a student on Black Belt in Motion Design';
+  const cls = ['cx-badge', small ? 'cx-badge-sm' : '', belt ? `cx-belt cx-belt-${phase}` : ''].filter(Boolean).join(' ');
   return (
-    <span className={small ? 'cx-badge cx-badge-sm' : 'cx-badge'} title="Keyframe Ninja: a student on Black Belt in Motion Design">
-      <Icon name="belt" size={small ? 13 : 15} />
-      {!small && 'Keyframe Ninja'}
-      {small && <span className="sr-only">Keyframe Ninja</span>}
+    <span className={cls} title={title}>
+      <Icon name={belt ? 'obi' : 'belt'} size={small ? 13 : 15} />
+      {small ? <span className="sr-only">{label}</span> : label}
     </span>
   );
 }
@@ -177,7 +190,7 @@ export function PersonLine({ p, when }: { p: Profile; when?: string }) {
         <span className="cx-person-name">
           {p.name}
           {p.is_sensei && <SenseiBadge />}
-          {p.is_student && <NinjaBadge small />}
+          {p.is_student && !p.is_sensei && <NinjaBadge phase={p.phase} small />}
           {p.sample && <SampleTag />}
         </span>
         <span className="cx-person-meta">

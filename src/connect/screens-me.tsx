@@ -7,7 +7,7 @@ import { navigate } from './router';
 import { setVisitor } from './visitor';
 import { timeAgo } from './media';
 import { PHASES, SKILLS, type Conversation, type Message, type Profile } from './types';
-import { A, Avatar, Empty, Icon, Loading, NinjaBadge, SampleTag } from './ui';
+import { A, Avatar, BELTS, Empty, Icon, Loading, NinjaBadge, SampleTag } from './ui';
 
 /* ================= Welcome: are you a member? ================= */
 export function Welcome() {
@@ -339,7 +339,7 @@ export function Settings() {
               <option value="">Prefer not to show</option>
               {PHASES.map((t, i) => (
                 <option key={t} value={i + 1}>
-                  Phase {i + 1}: {t}
+                  Phase {i + 1}: {t} ({BELTS[i]})
                 </option>
               ))}
             </select>
@@ -425,7 +425,7 @@ export function Inbox() {
                 <span className="cx-inbox-text">
                   <span className="cx-person-name">
                     {c.other.name}
-                    {c.other.is_student && <NinjaBadge small />}
+                    {c.other.is_student && <NinjaBadge phase={c.other.phase} small />}
                     {c.other.sample && <SampleTag />}
                   </span>
                   <span className="cx-inbox-last">{c.last_body || 'Say hello'}</span>
@@ -494,7 +494,7 @@ export function Chat({ id }: { id: string }) {
           <span className="cx-person-text">
             <span className="cx-person-name">
               {conv.other.name}
-              {conv.other.is_student && <NinjaBadge small />}
+              {conv.other.is_student && <NinjaBadge phase={conv.other.phase} small />}
             </span>
             <span className="cx-person-meta">@{conv.other.handle}</span>
           </span>

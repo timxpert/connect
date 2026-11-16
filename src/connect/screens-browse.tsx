@@ -7,7 +7,7 @@ import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { socialUrl, timeAgo } from './media';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
-import { A, Avatar, Empty, Icon, isVideoFile, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge } from './ui';
+import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge } from './ui';
 
 /* ================= Feed ================= */
 type FeedName = 'community' | 'everyone' | 'connections';
@@ -129,7 +129,7 @@ export function Students() {
             <option value="">Any phase</option>
             {PHASES.map((t, i) => (
               <option key={t} value={i + 1}>
-                {i + 1}. {t}
+                {BELTS[i]} · {t}
               </option>
             ))}
           </select>
@@ -151,7 +151,7 @@ export function Students() {
                 <span className="cx-person-row-text">
                   <span className="cx-person-name">
                     {p.name}
-                    <NinjaBadge small />
+                    <NinjaBadge phase={p.phase} />
                     {p.sample && <SampleTag />}
                   </span>
                   <span className="cx-person-meta">
@@ -340,7 +340,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
         <div className="cx-pf-info">
           <h1 className="cx-pf-name">
             {p.name}
-            {p.is_sensei ? <SenseiBadge /> : p.is_student && <NinjaBadge small />}
+            {p.is_sensei ? <SenseiBadge /> : p.is_student && <NinjaBadge phase={p.phase} />}
             {p.sample && <SampleTag />}
           </h1>
           <p className="cx-pf-handle">
@@ -601,7 +601,7 @@ export function PostScreen({ id }: { id: string }) {
                       {c.author.name}
                     </A>
                     {c.author.is_sensei && <SenseiBadge />}
-                    {c.author.is_student && <NinjaBadge small />} {c.body}
+                    {c.author.is_student && !c.author.is_sensei && <NinjaBadge phase={c.author.phase} small />} {c.body}
                   </p>
                   <p className="cx-comment-meta">
                     <time dateTime={c.created_at}>{timeAgo(c.created_at)}</time>

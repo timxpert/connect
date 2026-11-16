@@ -2758,3 +2758,24 @@ button.cx-composer {
   opacity: 0.4;
   pointer-events: none;
 }
+
+/* ---------- Belt badges: one colour per Black Belt phase ---------- */
+.cx-belt {
+  box-shadow: inset 0 0 0 1px rgba(20, 10, 46, 0.12);
+}
+.cx-belt-1 {
+  background: #fff;
+  color: var(--midnight);
+}
+.cx-belt-2 {
+  background: #ffd84d;
+  color: var(--midnight);
+}
+.cx-belt-3 {
+  background: #1e8449;
+  color: #fff;
+}
+.cx-belt-4 {
+  background: #7a4a2b;
+  color: #fff;
+}
