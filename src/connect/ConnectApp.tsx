@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ConnectProvider, isMember, useConnect } from './context';
 import { Composer, openComposer } from './compose';
 import { onVisitorChange, visitorChosen } from './visitor';
+import { play, setSoundOn, soundOn } from './sounds';
 import { createDemoApi } from './demo-api';
 import { navigate, useRoute, type Route } from './router';
 import type { ConnectApi } from './types';
@@ -85,6 +86,8 @@ const Dot = ({ n }: { n: number }) => (n > 0 ? <span className="cx-dot">{n > 9 ?
 function Shell({ route }: { route: Route }) {
   const { api, me, signedIn } = useConnect();
   const [menu, setMenu] = useState(false);
+  const [sound, setSound] = useState(true);
+  useEffect(() => setSound(soundOn()), []);
   const counts = useCounts();
 
   const member = isMember(me);
@@ -208,6 +211,18 @@ function Shell({ route }: { route: Route }) {
                     <A path="/settings" role="menuitem">
                       {me ? 'Edit profile' : 'Set up profile'}
                     </A>
+                    <button
+                      type="button"
+                      role="menuitemcheckbox"
+                      aria-checked={sound}
+                      onClick={() => {
+                        setSoundOn(!sound);
+                        setSound(!sound);
+                        if (!sound) window.setTimeout(() => play('like'), 50);
+                      }}
+                    >
+                      Sounds: {sound ? 'on' : 'off'}
+                    </button>
                     <a href={MAIN_SITE} role="menuitem">
                       Motion Dojo website
                     </a>

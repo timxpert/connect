@@ -9,7 +9,7 @@ type Kind = 'avatars' | 'covers' | 'posts';
 const LIMITS: Record<Kind, { w: number; h: number; square: boolean }> = {
   avatars: { w: 640, h: 640, square: true },
   covers: { w: 1800, h: 1000, square: false },
-  posts: { w: 1600, h: 1600, square: false },
+  posts: { w: 1440, h: 1440, square: false },
 };
 
 async function decode(file: File): Promise<ImageBitmap | HTMLImageElement> {
@@ -93,7 +93,7 @@ export async function prepareImage(file: File, kind: Kind): Promise<File> {
 
   const keepAlpha = file.type === 'image/png' || file.type === 'image/webp';
   const type = keepAlpha ? 'image/webp' : 'image/jpeg';
-  const blob = await new Promise<Blob | null>((r) => out.c.toBlob(r, type, 0.92));
+  const blob = await new Promise<Blob | null>((r) => out.c.toBlob(r, type, 0.86));
   if (!blob) return file;
   const name = file.name.replace(/\.[^.]+$/, '') + (type === 'image/webp' ? '.webp' : '.jpg');
   return new File([blob], name, { type });

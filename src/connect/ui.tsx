@@ -5,6 +5,7 @@ import { onLinkClick, to } from './router';
 import { useConnect } from './context';
 import { isTall, timeAgo, toEmbed } from './media';
 import { PHASES, type Post, type Profile } from './types';
+import { play } from './sounds';
 
 /* ---------- Icons: one outline set on a 24px grid ---------- */
 const PATHS = {
@@ -145,8 +146,18 @@ export function Avatar({ p, size = 44 }: { p: Pick<Profile, 'name' | 'avatar_url
 /** Belt by Black Belt phase: White → Yellow → Green → Brown. The black belt is the course itself. */
 export const BELTS = ['White Belt', 'Yellow Belt', 'Green Belt', 'Brown Belt'];
 
-export function NinjaBadge({ phase, small = false }: { phase?: number | null; small?: boolean }) {
-  const belt = phase && phase >= 1 && phase <= 4 ? BELTS[phase - 1] : null;
+/** The phase this viewer may see: members only, and only if the student keeps it public (the team sees all). */
+export function visiblePhase(p: Pick<Profile, 'id' | 'phase' | 'phase_public'>, viewer: Profile | null | undefined): number | null {
+  if (!p.phase || !viewer) return null;
+  if (viewer.id === p.id || viewer.is_sensei || viewer.is_moderator) return p.phase;
+  if (!viewer.is_student) return null;
+  return p.phase_public === false ? null : p.phase;
+}
+
+export function NinjaBadge({ p, small = false }: { p: Pick<Profile, 'id' | 'phase' | 'phase_public'>; small?: boolean }) {
+  const { me } = useConnect();
+  const phase = visiblePhase(p, me);
+  const belt = phase ? BELTS[phase - 1] : null;
   const label = belt ?? 'Keyframe Ninja';
   const title = belt ? `${belt}: Keyframe Ninja in phase ${phase}, ${PHASES[phase! - 1]}` : 'Keyframe Ninja: a student on Black Belt in Motion Design';
   const cls = ['cx-badge', small ? 'cx-badge-sm' : '', belt ? `cx-belt cx-belt-${phase}` : ''].filter(Boolean).join(' ');
@@ -190,7 +201,7 @@ export function PersonLine({ p, when }: { p: Profile; when?: string }) {
         <span className="cx-person-name">
           {p.name}
           {p.is_sensei && <SenseiBadge />}
-          {p.is_student && !p.is_sensei && <NinjaBadge phase={p.phase} small />}
+          {p.is_student && !p.is_sensei && <NinjaBadge p={p} small />}
           {p.sample && <SampleTag />}
         </span>
         <span className="cx-person-meta">
@@ -252,6 +263,7 @@ export function LikeButton({ post, onChange }: { post: Post; onChange?: (p: Post
     const next = { liked: !state.liked, likes: state.likes + (state.liked ? -1 : 1) };
     setState(next);
     if (next.liked) {
+      play('like');
       setPop(true);
       window.setTimeout(() => setPop(false), 500);
     }
@@ -304,7 +316,7 @@ export function SaveButton({ post }: { post: Post }) {
 
 export function PostCard({ post }: { post: Post }) {
   return (
-    <article className={post.community ? 'cx-post cx-post-community' : 'cx-post'}>
+    <article className={['cx-post', post.community ? 'cx-post-community' : '', (post as Post & { fresh?: boolean }).fresh ? 'cx-post-fresh' : ''].filter(Boolean).join(' ')}>
       <header className="cx-post-head">
         <PersonLine p={post.author} when={post.created_at} />
         {post.community ? <span className="cx-tag">Community</span> : post.tag === 'feedback' && <span className="cx-tag">Wants feedback</span>}

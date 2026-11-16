@@ -2,12 +2,13 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { isMember, useConnect } from './context';
-import { openComposer } from './compose';
+import { openComposer, POST_DONE, POST_FAIL, POST_PROGRESS, POST_START, type PostingDetail } from './compose';
 import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
+import { play } from './sounds';
 import { socialUrl, timeAgo } from './media';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
-import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge } from './ui';
+import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, visiblePhase } from './ui';
 
 /* ================= Feed ================= */
 type FeedName = 'community' | 'everyone' | 'connections';
@@ -33,6 +34,34 @@ export function Feed() {
 
   const canShare = me?.is_student || me?.is_sensei;
 
+  // A new post shows here at once, with its upload progress, then becomes a real card
+  const [pending, setPending] = useState<(PostingDetail & { progress: number }) | null>(null);
+  useEffect(() => {
+    const start = (e: Event) => {
+      const d = (e as CustomEvent<PostingDetail>).detail;
+      setPending({ ...d, progress: d.kind === 'text' ? 1 : 0 });
+      if (!d.community) setTab((t) => (t === 'community' ? 'everyone' : t));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    const prog = (e: Event) => setPending((p) => (p ? { ...p, progress: (e as CustomEvent<number>).detail } : p));
+    const done = (e: Event) => {
+      const post = (e as CustomEvent<Post>).detail;
+      setPending(null);
+      setPosts((list) => (list && !list.some((x) => x.id === post.id) ? [{ ...post, fresh: true } as Post, ...list] : list));
+    };
+    const failed = () => setPending(null);
+    window.addEventListener(POST_START, start);
+    window.addEventListener(POST_PROGRESS, prog);
+    window.addEventListener(POST_DONE, done);
+    window.addEventListener(POST_FAIL, failed);
+    return () => {
+      window.removeEventListener(POST_START, start);
+      window.removeEventListener(POST_PROGRESS, prog);
+      window.removeEventListener(POST_DONE, done);
+      window.removeEventListener(POST_FAIL, failed);
+    };
+  }, []);
+
   return (
     <div className="cx-col cx-stream">
       <h1 className="sr-only">Feed</h1>
@@ -54,6 +83,28 @@ export function Feed() {
         <p className="cx-signin-line">
           <A path="/login">Sign in</A> to connect, comment and save projects.
         </p>
+      )}
+
+      {pending && me && (
+        <article className="cx-post cx-pending" aria-live="polite">
+          <header className="cx-post-head">
+            <PersonLine p={me} />
+            <span className="cx-tag">Posting…</span>
+          </header>
+          {pending.caption && <p className="cx-caption">{pending.caption}</p>}
+          {pending.preview && pending.kind !== 'text' && (
+            <div className="cx-media cx-pending-media">
+              {pending.kind === 'image' ? (
+                <img src={pending.preview} alt="" />
+              ) : pending.preview.startsWith('blob:') ? (
+                <video src={pending.preview} muted playsInline />
+              ) : null}
+              <span className="cx-pending-progress">
+                <span style={{ transform: `scaleX(${Math.max(0.04, pending.progress)})` }} />
+              </span>
+            </div>
+          )}
+        </article>
       )}
 
       {posts === null ? (
@@ -83,7 +134,9 @@ export function Feed() {
 
 /* ================= Students directory ================= */
 export function Students() {
-  const { api } = useConnect();
+  const { api, me } = useConnect();
+  // Search and filters are for members; visitors just browse the list
+  const member = isMember(me);
   const [q, setQ] = useState('');
   const [skill, setSkill] = useState('');
   const [phase, setPhase] = useState<number | null>(null);
@@ -107,6 +160,7 @@ export function Students() {
         <p>Students of Black Belt in Motion Design.</p>
       </div>
 
+      {member && (
       <div className="cx-filters">
         <label className="cx-search">
           <Icon name="search" size={20} />
@@ -135,12 +189,13 @@ export function Students() {
           </select>
         </label>
       </div>
+      )}
 
       {list === null ? (
         <Loading label="Loading students" />
       ) : list.length === 0 ? (
-        <Empty title="No students match">
-          <p>Try another name, skill or phase.</p>
+        <Empty title={member ? 'No students match' : 'No students yet'}>
+          {member && <p>Try another name, skill or phase.</p>}
         </Empty>
       ) : (
         <ul className="cx-people">
@@ -151,13 +206,13 @@ export function Students() {
                 <span className="cx-person-row-text">
                   <span className="cx-person-name">
                     {p.name}
-                    <NinjaBadge phase={p.phase} />
+                    <NinjaBadge p={p} />
                     {p.sample && <SampleTag />}
                   </span>
                   <span className="cx-person-meta">
                     @{p.handle}
                     {p.country && <> · {p.country}</>}
-                    {p.phase && <> · Phase {p.phase}: {PHASES[p.phase - 1]}</>}
+                    {visiblePhase(p, me) && <> · Phase {visiblePhase(p, me)}: {PHASES[visiblePhase(p, me)! - 1]}</>}
                   </span>
                   {p.skills.length > 0 && <span className="cx-person-skills">{p.skills.slice(0, 4).join(' · ')}</span>}
                 </span>
@@ -340,7 +395,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
         <div className="cx-pf-info">
           <h1 className="cx-pf-name">
             {p.name}
-            {p.is_sensei ? <SenseiBadge /> : p.is_student && <NinjaBadge phase={p.phase} />}
+            {p.is_sensei ? <SenseiBadge /> : p.is_student && <NinjaBadge p={p} />}
             {p.sample && <SampleTag />}
           </h1>
           <p className="cx-pf-handle">
@@ -353,7 +408,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
             {p.is_sensei ? (
               <li>Grand Sensei, Motion Dojo</li>
             ) : p.is_student ? (
-              <li>Keyframe Ninja{p.phase ? `, phase ${p.phase}: ${PHASES[p.phase - 1]}` : ''}</li>
+              <li>Keyframe Ninja{visiblePhase(p, me) ? `, phase ${visiblePhase(p, me)}: ${PHASES[visiblePhase(p, me)! - 1]}` : ''}</li>
             ) : (
               <li>Community member</li>
             )}
@@ -450,6 +505,7 @@ export function PostScreen({ id }: { id: string }) {
   const { api, me, signedIn, toast, ask } = useConnect();
   const [post, setPost] = useState<Post | null | undefined>(undefined);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [fresh, setFresh] = useState('');
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -476,16 +532,21 @@ export function PostScreen({ id }: { id: string }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const body = draft.trim();
-    if (!body) return;
-    setBusy(true);
+    if (!body || !me) return;
+    // Show the comment straight away; swap in the saved one when it comes back
+    const tmp: Comment = { id: `tmp-${Date.now()}`, post_id: post.id, author_id: me.id, body, created_at: new Date().toISOString(), author: me };
+    setComments((cs) => [...cs, tmp]);
+    setFresh(tmp.id);
+    setDraft('');
+    play('comment');
     try {
       const c = await api.addComment(post.id, body);
-      setComments((cs) => [...cs, c]);
-      setDraft('');
+      setComments((cs) => cs.map((x) => (x.id === tmp.id ? c : x)));
+      setFresh(c.id);
     } catch (err) {
+      setComments((cs) => cs.filter((x) => x.id !== tmp.id));
+      setDraft(body);
       toast((err as Error).message);
-    } finally {
-      setBusy(false);
     }
   };
   const removePost = async () => {
@@ -591,7 +652,7 @@ export function PostScreen({ id }: { id: string }) {
         ) : (
           <ul className="cx-thread">
             {comments.map((c) => (
-              <li key={c.id} className="cx-comment">
+              <li key={c.id} className={['cx-comment', c.id === fresh ? 'is-fresh' : '', c.id.startsWith('tmp-') ? 'is-sending' : ''].filter(Boolean).join(' ')}>
                 <A path={`/u/${c.author.handle}`} tabIndex={-1} aria-hidden="true">
                   <Avatar p={c.author} size={36} />
                 </A>
@@ -601,7 +662,7 @@ export function PostScreen({ id }: { id: string }) {
                       {c.author.name}
                     </A>
                     {c.author.is_sensei && <SenseiBadge />}
-                    {c.author.is_student && !c.author.is_sensei && <NinjaBadge phase={c.author.phase} small />} {c.body}
+                    {c.author.is_student && !c.author.is_sensei && <NinjaBadge p={c.author} small />} {c.body}
                   </p>
                   <p className="cx-comment-meta">
                     <time dateTime={c.created_at}>{timeAgo(c.created_at)}</time>

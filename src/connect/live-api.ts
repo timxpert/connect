@@ -93,14 +93,23 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     },
     async createProfile(input) {
       const id = await needUid();
-      const { data, error } = await sb.from('profiles').insert({ ...input, id }).select().single();
+      let { data, error } = await sb.from('profiles').insert({ ...input, id }).select().single();
+      // Database not yet updated with phase privacy: save everything else
+      if (error?.message.includes('phase_public')) {
+        const { phase_public: _skip, ...rest } = input;
+        ({ data, error } = await sb.from('profiles').insert({ ...rest, id }).select().single());
+      }
       if (error?.code === '23505') throw new Error('That username is taken. Try another.');
       fail(error);
       return data as unknown as Profile;
     },
     async updateProfile(input) {
       const id = await needUid();
-      const { data, error } = await sb.from('profiles').update(input).eq('id', id).select().single();
+      let { data, error } = await sb.from('profiles').update(input).eq('id', id).select().single();
+      if (error?.message.includes('phase_public')) {
+        const { phase_public: _skip, ...rest } = input;
+        ({ data, error } = await sb.from('profiles').update(rest).eq('id', id).select().single());
+      }
       if (error?.code === '23505') throw new Error('That username is taken. Try another.');
       fail(error);
       return data as unknown as Profile;
@@ -115,20 +124,46 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
       return Boolean(data);
     },
-    async uploadImage(original, folder) {
+    async uploadImage(original, folder, onProgress) {
       const id = await needUid();
       const file = folder === 'videos' ? original : await prepareImage(original, folder);
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
       const path = `${id}/${folder}/${Date.now()}.${ext}`;
-      const { error } = await sb.storage.from('media').upload(path, file, { upsert: false, contentType: file.type });
-      fail(error);
+      const token = (await sb.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error('Sign in first.');
+      // XHR instead of fetch so the composer can show real upload progress
+      await new Promise<void>((resolve, reject) => {
+        const x = new XMLHttpRequest();
+        x.open('POST', `${url}/storage/v1/object/media/${path}`);
+        x.setRequestHeader('Authorization', `Bearer ${token}`);
+        x.setRequestHeader('apikey', anonKey);
+        x.setRequestHeader('x-upsert', 'false');
+        x.setRequestHeader('cache-control', 'max-age=31536000');
+        x.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+        x.onload = () => {
+          if (x.status >= 200 && x.status < 300) return resolve();
+          let msg = 'Upload failed. Try again.';
+          try {
+            const body = JSON.parse(x.responseText) as { message?: string; error?: string };
+            if (/size|large/i.test(body.message || body.error || '')) msg = 'That file is too big to upload.';
+          } catch {
+            /* keep the default */
+          }
+          reject(new Error(msg));
+        };
+        x.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+        x.send(file);
+      });
+      onProgress?.(1);
       return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
     },
 
     async listStudents(filter: StudentFilter) {
       let q = sb.from('profiles').select('*').eq('is_student', true).order('created_at', { ascending: false }).limit(200);
       if (filter.skill) q = q.contains('skills', [filter.skill]);
-      if (filter.phase) q = q.eq('phase', filter.phase);
+      // Private phases never show up in a phase filter
+      if (filter.phase) q = q.eq('phase', filter.phase).neq('phase_public', false);
       if (filter.q) {
         const term = filter.q.replace(/[%,()]/g, ' ').trim();
         if (term) q = q.or(`name.ilike.%${term}%,handle.ilike.%${term}%,country.ilike.%${term}%`);
@@ -273,7 +308,8 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         throw new Error(input.community ? 'Only the grand sensei can post to the Community feed.' : 'Only Keyframe Ninjas can post work.');
       }
       fail(error);
-      return (await decorate([data as unknown as Post]))[0];
+      // A brand-new post has no likes, comments or saves: skip the extra queries
+      return { ...(data as unknown as Post), likes: 0, comments: 0, liked: false, saved: false };
     },
     async deletePost(id) {
       const { error } = await sb.from('posts').delete().eq('id', id);

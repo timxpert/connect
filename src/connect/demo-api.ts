@@ -145,7 +145,12 @@ export function createDemoApi(): ConnectApi {
     },
     refreshStudentStatus: () => wait(Boolean(current && who(current).is_student)),
     redeemInvite: () => wait(false),
-    async uploadImage(file) {
+    async uploadImage(file, _folder, onProgress) {
+      // Pretend upload so the preview shows the progress bar
+      for (let i = 1; i <= 8; i++) {
+        await new Promise((r) => setTimeout(r, 120));
+        onProgress?.(i / 8);
+      }
       if (file.type.startsWith('video/')) return URL.createObjectURL(file);
       return new Promise<string>((resolve, reject) => {
         const r = new FileReader();
@@ -162,7 +167,7 @@ export function createDemoApi(): ConnectApi {
           (p) =>
             p.is_student &&
             (!f.skill || p.skills.includes(f.skill)) &&
-            (!f.phase || p.phase === f.phase) &&
+            (!f.phase || (p.phase === f.phase && p.phase_public !== false)) &&
             (!q || `${p.name} ${p.handle} ${p.country}`.toLowerCase().includes(q)),
         ),
       );

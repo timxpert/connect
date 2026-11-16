@@ -79,6 +79,8 @@ create table if not exists public.profiles (
 
 -- columns added after the first release
 alter table public.profiles add column if not exists cover_url text;
+-- Students choose whether other students see their phase (visitors never do)
+alter table public.profiles add column if not exists phase_public boolean not null default true;
 
 create table if not exists public.posts (
   id         uuid primary key default gen_random_uuid(),

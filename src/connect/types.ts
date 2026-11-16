@@ -10,6 +10,8 @@ export type Profile = {
   country: string;
   skills: string[];
   phase: number | null;
+  /** false: only the student (and the team) see their phase */
+  phase_public?: boolean;
   instagram: string;
   youtube: string;
   website: string;
@@ -76,7 +78,7 @@ export type Message = {
 };
 
 export type ProfileInput = Partial<
-  Pick<Profile, 'handle' | 'name' | 'bio' | 'avatar_url' | 'cover_url' | 'country' | 'skills' | 'phase' | 'instagram' | 'youtube' | 'website'>
+  Pick<Profile, 'handle' | 'name' | 'bio' | 'avatar_url' | 'cover_url' | 'country' | 'skills' | 'phase' | 'phase_public' | 'instagram' | 'youtube' | 'website'>
 >;
 
 export type StudentFilter = { q?: string; skill?: string; phase?: number | null };
@@ -100,7 +102,7 @@ export interface ConnectApi {
   refreshStudentStatus(): Promise<boolean>;
   redeemInvite(code: string): Promise<boolean>;
   /** Images are resized before upload; videos go up as they are */
-  uploadImage(file: File, folder: 'avatars' | 'covers' | 'posts' | 'videos'): Promise<string>;
+  uploadImage(file: File, folder: 'avatars' | 'covers' | 'posts' | 'videos', onProgress?: (share: number) => void): Promise<string>;
 
   listStudents(filter: StudentFilter): Promise<Profile[]>;
   getProfile(handle: string): Promise<Profile | null>;

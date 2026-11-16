@@ -5,6 +5,7 @@ import { useConnect } from './context';
 import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { setVisitor } from './visitor';
+import { play } from './sounds';
 import { timeAgo } from './media';
 import { PHASES, SKILLS, type Conversation, type Message, type Profile } from './types';
 import { A, Avatar, BELTS, Empty, Icon, Loading, NinjaBadge, SampleTag } from './ui';
@@ -187,6 +188,7 @@ export function Settings() {
     country: '',
     skills: [] as string[],
     phase: null as number | null,
+    phase_public: true,
     instagram: '',
     youtube: '',
     website: '',
@@ -206,6 +208,7 @@ export function Settings() {
         country: me.country,
         skills: me.skills,
         phase: me.phase,
+        phase_public: me.phase_public !== false,
         instagram: me.instagram,
         youtube: me.youtube,
         website: me.website,
@@ -345,6 +348,12 @@ export function Settings() {
             </select>
           </label>
         )}
+        {me?.is_student && !me.is_sensei && f.phase && (
+          <label className="cx-check">
+            <input type="checkbox" checked={f.phase_public} onChange={(e) => set('phase_public', e.target.checked)} />
+            <span>Show my phase and belt to other students</span>
+          </label>
+        )}
 
         <fieldset className="cx-fieldset">
           <legend>Links</legend>
@@ -425,7 +434,7 @@ export function Inbox() {
                 <span className="cx-inbox-text">
                   <span className="cx-person-name">
                     {c.other.name}
-                    {c.other.is_student && <NinjaBadge phase={c.other.phase} small />}
+                    {c.other.is_student && <NinjaBadge p={c.other} small />}
                     {c.other.sample && <SampleTag />}
                   </span>
                   <span className="cx-inbox-last">{c.last_body || 'Say hello'}</span>
@@ -474,6 +483,7 @@ export function Chat({ id }: { id: string }) {
     const body = draft.trim();
     if (!body) return;
     setDraft('');
+    play('send');
     try {
       const m = await api.sendMessage(id, body);
       setMsgs((xs) => [...xs, m]);
@@ -494,7 +504,7 @@ export function Chat({ id }: { id: string }) {
           <span className="cx-person-text">
             <span className="cx-person-name">
               {conv.other.name}
-              {conv.other.is_student && <NinjaBadge phase={conv.other.phase} small />}
+              {conv.other.is_student && <NinjaBadge p={conv.other} small />}
             </span>
             <span className="cx-person-meta">@{conv.other.handle}</span>
           </span>

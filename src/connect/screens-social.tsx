@@ -25,7 +25,7 @@ function Who({ p }: { p: Profile }) {
         <span className="cx-person-name">
           {p.name}
           {p.is_sensei && <SenseiBadge />}
-          {p.is_student && !p.is_sensei && <NinjaBadge phase={p.phase} small />}
+          {p.is_student && !p.is_sensei && <NinjaBadge p={p} small />}
           {p.sample && <SampleTag />}
         </span>
         <span className="cx-person-meta">

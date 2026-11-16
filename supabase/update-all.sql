@@ -1,8 +1,10 @@
 -- =====================================================================
--- Motion Dojo Connect update: student IDs for sign-in.
--- For a database that already ran schema.sql (parts 1-6). Run once in
--- Supabase -> SQL Editor (role: postgres). Safe to run again.
--- Every existing and future enrolment gets an ID like MD-7KQ2-X9PB.
+-- Motion Dojo Connect: all updates since the first setup, in one file.
+--   1. Student IDs for sign-in
+--   2. Text-only posts (image or video optional)
+--   3. Students can keep their phase private
+-- Run once in Supabase -> SQL Editor (role: postgres). Safe to run again,
+-- including if you already ran some of the separate update files.
 -- =====================================================================
 
 -- Student IDs: MD-XXXX-XXXX, used with the email to sign in.
@@ -47,5 +49,15 @@ end $$;
 revoke all on function public.mark_enrolled(text, text) from public, anon, authenticated;
 grant execute on function public.mark_enrolled(text, text) to service_role;
 
--- See everyone's ID (send each student theirs on WhatsApp):
+
+alter table public.posts alter column media_url drop not null;
+alter table public.posts drop constraint if exists posts_kind_check;
+alter table public.posts add constraint posts_kind_check check (kind in ('image', 'video', 'text'));
+alter table public.posts drop constraint if exists posts_has_content;
+alter table public.posts add constraint posts_has_content
+  check ((kind = 'text' and char_length(btrim(caption)) > 0) or (kind <> 'text' and media_url is not null));
+
+alter table public.profiles add column if not exists phase_public boolean not null default true;
+
+-- See everyone's student ID (send each student theirs on WhatsApp):
 select email, student_id, created_at from public.enrolments order by created_at;

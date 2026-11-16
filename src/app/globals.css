@@ -1254,7 +1254,16 @@ details[open] > :not(summary) {
   color: #e0245e;
 }
 .cx-act.is-pop svg {
-  animation: cx-pop 0.5s var(--bounce);
+  animation: cx-pop 0.5s var(--bounce), cx-burst 0.7s ease-out;
+}
+/* A quick pink glow that spreads and fades as the heart pops */
+@keyframes cx-burst {
+  0% {
+    filter: drop-shadow(0 0 0 rgba(224, 36, 94, 0.8));
+  }
+  100% {
+    filter: drop-shadow(0 0 12px rgba(224, 36, 94, 0));
+  }
 }
 @keyframes cx-pop {
   40% {
@@ -2778,4 +2787,85 @@ button.cx-composer {
 .cx-belt-4 {
   background: #7a4a2b;
   color: #fff;
+}
+.cx-cmp-attach img,
+.cx-cmp-attach video {
+  display: block;
+  width: 100%;
+  max-height: 46vh;
+  object-fit: contain;
+  background: var(--midnight);
+}
+/* Upload progress along the bottom of the preview */
+.cx-cmp-progress,
+.cx-pending-progress {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.35);
+}
+.cx-cmp-progress span,
+.cx-pending-progress span {
+  display: block;
+  height: 100%;
+  background: var(--lime);
+  transform-origin: left;
+  transition: transform 0.25s linear;
+}
+/* Post on its way: dimmed until the upload and save finish */
+.cx-pending {
+  animation: cx-pending-in 0.45s var(--spring);
+}
+.cx-pending .cx-caption,
+.cx-pending-media img,
+.cx-pending-media video {
+  opacity: 0.6;
+}
+.cx-pending-media {
+  position: relative;
+}
+.cx-pending-media img,
+.cx-pending-media video {
+  display: block;
+  width: 100%;
+}
+@keyframes cx-pending-in {
+  from {
+    transform: translateY(-16px) scale(0.98);
+    opacity: 0;
+  }
+}
+/* The finished post replaces it with a short highlight */
+.cx-post-fresh {
+  animation: cx-fresh 1.6s ease;
+}
+@keyframes cx-fresh {
+  0% {
+    background: var(--tint);
+  }
+  100% {
+    background: var(--paper);
+  }
+}
+
+/* New comment: slides in; faint until the server confirms it */
+.cx-comment.is-fresh {
+  animation: cx-comment-in 0.45s var(--spring);
+}
+.cx-comment.is-sending {
+  opacity: 0.55;
+}
+@keyframes cx-comment-in {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cx-pending,
+  .cx-post-fresh,
+  .cx-comment.is-fresh,
+  .cx-act.is-pop svg {
+    animation: none;
+  }
 }

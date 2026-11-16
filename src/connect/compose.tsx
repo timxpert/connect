@@ -3,9 +3,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useConnect } from './context';
 import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
-import { navigate } from './router';
 import { toEmbed } from './media';
 import { Avatar, Icon, Media } from './ui';
+import { play } from './sounds';
 
 /* ------------------------------------------------------------------
    Post composer: opens over the page like LinkedIn's. Text first, then
@@ -21,10 +21,15 @@ const MAX_VIDEO = 50 * 1024 * 1024; // Supabase free plan's per-file limit
 
 type Attach =
   | { type: 'none' }
-  | { type: 'uploading'; label: string }
-  | { type: 'image'; url: string }
-  | { type: 'video'; url: string }
+  | { type: 'image' | 'video'; preview: string; url: string | null; progress: number }
   | { type: 'link'; url: string };
+
+/** Events the feed listens to, so a post appears before the upload finishes */
+export type PostingDetail = { preview: string | null; kind: 'image' | 'video' | 'text'; caption: string; community: boolean };
+export const POST_START = 'cx:post-start';
+export const POST_DONE = 'cx:post-done';
+export const POST_FAIL = 'cx:post-fail';
+export const POST_PROGRESS = 'cx:post-progress';
 
 export function Composer() {
   const { api, me, toast, ask } = useConnect();
@@ -32,11 +37,13 @@ export function Composer() {
   const [text, setText] = useState('');
   const [attach, setAttach] = useState<Attach>({ type: 'none' });
   const [feedback, setFeedback] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [posting, setPosting] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
+  const upload = useRef<Promise<string> | null>(null);
+  const progress = useRef(0);
 
   const sensei = Boolean(me?.is_sensei);
   const canPost = Boolean(me?.is_student || me?.is_sensei);
@@ -61,38 +68,57 @@ export function Composer() {
     };
   }, [open]);
 
-  if (!open || !canPost) return null;
+  if (!canPost) return null;
+
+  const clearAttach = () => {
+    if ((attach.type === 'image' || attach.type === 'video') && attach.preview.startsWith('blob:')) URL.revokeObjectURL(attach.preview);
+    upload.current = null;
+    setAttach({ type: 'none' });
+  };
 
   const reset = () => {
     setText('');
     setAttach({ type: 'none' });
+    upload.current = null;
     setFeedback(false);
     setErr('');
   };
 
   const close = async () => {
-    if (busy) return;
     const dirty = text.trim() || attach.type !== 'none';
     if (dirty) {
       const ok = await ask({ title: 'Discard this post?', body: 'What you’ve written will be lost.', confirm: 'Discard', danger: true });
       if (!ok) return;
+      clearAttach();
     }
     reset();
     setOpen(false);
   };
 
-  const upload = async (file: File, kind: 'image' | 'video') => {
+  /** Shows the file at once and uploads it in the background */
+  const pickFile = (file: File, kind: 'image' | 'video') => {
     setErr('');
     if (kind === 'image' && file.size > MAX_IMAGE) return setErr('Pick a photo under 15 MB.');
     if (kind === 'video' && file.size > MAX_VIDEO) return setErr('Pick a video under 50 MB, or add a YouTube link instead.');
-    setAttach({ type: 'uploading', label: kind === 'image' ? 'Adding photo…' : 'Uploading video…' });
-    try {
-      const url = await api.uploadImage(file, kind === 'image' ? 'posts' : 'videos');
-      setAttach({ type: kind, url });
-    } catch (e) {
-      setAttach({ type: 'none' });
-      setErr((e as Error).message);
-    }
+    if (attach.type === 'image' || attach.type === 'video') URL.revokeObjectURL(attach.preview);
+    const preview = URL.createObjectURL(file);
+    progress.current = 0;
+    setAttach({ type: kind, preview, url: null, progress: 0 });
+    const job = api.uploadImage(file, kind === 'image' ? 'posts' : 'videos', (share) => {
+      progress.current = share;
+      setAttach((a) => (a.type === kind && a.preview === preview ? { ...a, progress: share } : a));
+      window.dispatchEvent(new CustomEvent(POST_PROGRESS, { detail: share }));
+    });
+    upload.current = job;
+    job.then(
+      (url) => setAttach((a) => (a.type === kind && a.preview === preview ? { ...a, url, progress: 1 } : a)),
+      (e) => {
+        if (upload.current !== job) return;
+        upload.current = null;
+        setAttach((a) => (a.type === kind && a.preview === preview ? { type: 'none' } : a));
+        setErr((e as Error).message);
+      },
+    );
   };
 
   const addLink = async () => {
@@ -100,49 +126,70 @@ export function Composer() {
     if (!v) return;
     if (!toEmbed(v)) return setErr('That link isn’t from YouTube, Vimeo, Instagram or TikTok.');
     setErr('');
+    clearAttach();
     setAttach({ type: 'link', url: v.trim() });
   };
 
   const caption = text.trim();
   const blocked = hasPaymentTalk(text);
-  const ready = !busy && !blocked && attach.type !== 'uploading' && (caption.length > 0 || attach.type === 'image' || attach.type === 'video' || attach.type === 'link');
+  const ready = !posting && !blocked && (caption.length > 0 || attach.type !== 'none');
 
+  /** Closes straight away; the post finishes in the background and lands in the feed */
   const submit = async () => {
     if (!ready) return;
-    setBusy(true);
-    setErr('');
+    const draft = { text, attach, feedback };
+    const kind = attach.type === 'image' ? 'image' : attach.type === 'video' || attach.type === 'link' ? 'video' : 'text';
+    const preview = attach.type === 'image' || attach.type === 'video' ? attach.preview : attach.type === 'link' ? attach.url : null;
+    const job = upload.current;
+    setPosting(true);
+    setOpen(false);
+    window.dispatchEvent(new CustomEvent<PostingDetail>(POST_START, { detail: { preview, kind, caption, community: sensei } }));
+    if (job) window.dispatchEvent(new CustomEvent(POST_PROGRESS, { detail: progress.current }));
     try {
-      const media =
-        attach.type === 'image'
-          ? { kind: 'image' as const, media_url: attach.url }
-          : attach.type === 'video' || attach.type === 'link'
-            ? { kind: 'video' as const, media_url: attach.url }
-            : { kind: 'text' as const, media_url: null };
-      const p = await api.createPost({ ...media, caption, tag: feedback && !sensei ? 'feedback' : 'sharing', community: sensei });
-      toast(sensei ? 'Posted to the Community feed. Every student has been notified.' : 'Posted.');
+      const media_url = attach.type === 'image' || attach.type === 'video' ? attach.url ?? (await job!) : attach.type === 'link' ? attach.url : null;
+      const p = await api.createPost({ kind, media_url, caption, tag: feedback && !sensei ? 'feedback' : 'sharing', community: sensei });
+      play('post');
+      toast(sensei ? 'Posted. Every student has been notified.' : 'Posted.');
+      window.dispatchEvent(new CustomEvent(POST_DONE, { detail: p }));
       reset();
-      setOpen(false);
-      navigate(`/p/${p.id}`);
     } catch (e) {
-      setErr((e as Error).message);
+      window.dispatchEvent(new Event(POST_FAIL));
+      setText(draft.text);
+      setAttach(draft.attach);
+      setFeedback(draft.feedback);
+      setErr((e as Error).message || 'Posting failed. Try again.');
+      setOpen(true);
     } finally {
-      setBusy(false);
+      setPosting(false);
     }
   };
 
+  if (!open) return null;
+
   const preview =
-    attach.type === 'image' || attach.type === 'video' || attach.type === 'link' ? (
+    attach.type === 'image' || attach.type === 'video' ? (
       <div className="cx-cmp-attach">
-        <Media post={{ kind: attach.type === 'image' ? 'image' : 'video', media_url: attach.url, caption: '' }} />
-        <button type="button" className="cx-cmp-remove" onClick={() => setAttach({ type: 'none' })} aria-label="Remove">
+        {attach.type === 'image' ? (
+          <img src={attach.preview} alt="" />
+        ) : (
+          <video src={attach.preview} controls playsInline muted />
+        )}
+        {attach.progress < 1 && (
+          <span className="cx-cmp-progress" role="progressbar" aria-label="Uploading" aria-valuenow={Math.round(attach.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+            <span style={{ transform: `scaleX(${Math.max(0.04, attach.progress)})` }} />
+          </span>
+        )}
+        <button type="button" className="cx-cmp-remove" onClick={clearAttach} aria-label="Remove">
           <Icon name="close" size={18} />
         </button>
       </div>
-    ) : attach.type === 'uploading' ? (
-      <p className="cx-cmp-uploading" role="status">
-        <span className="cx-spinner" aria-hidden="true" />
-        {attach.label}
-      </p>
+    ) : attach.type === 'link' ? (
+      <div className="cx-cmp-attach">
+        <Media post={{ kind: 'video', media_url: attach.url, caption: '' }} />
+        <button type="button" className="cx-cmp-remove" onClick={clearAttach} aria-label="Remove">
+          <Icon name="close" size={18} />
+        </button>
+      </div>
     ) : null;
 
   return (
@@ -160,7 +207,7 @@ export function Composer() {
             </span>
           </div>
           <button type="button" className="btn btn-primary btn-sm" disabled={!ready} onClick={submit}>
-            {busy ? 'Posting…' : 'Post'}
+            Post
           </button>
         </header>
 
@@ -187,15 +234,15 @@ export function Composer() {
         </div>
 
         <footer className="cx-cmp-tools">
-          <button type="button" onClick={() => photoInput.current?.click()} disabled={attach.type === 'uploading'}>
+          <button type="button" onClick={() => photoInput.current?.click()}>
             <Icon name="image" />
             <span>Photo</span>
           </button>
-          <button type="button" onClick={() => videoInput.current?.click()} disabled={attach.type === 'uploading'}>
+          <button type="button" onClick={() => videoInput.current?.click()}>
             <Icon name="video" />
             <span>Video</span>
           </button>
-          <button type="button" onClick={addLink} disabled={attach.type === 'uploading'}>
+          <button type="button" onClick={addLink}>
             <Icon name="link" />
             <span>Link</span>
           </button>
@@ -216,7 +263,7 @@ export function Composer() {
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = '';
-              if (f) upload(f, 'image');
+              if (f) pickFile(f, 'image');
             }}
           />
           <input
@@ -227,7 +274,7 @@ export function Composer() {
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = '';
-              if (f) upload(f, 'video');
+              if (f) pickFile(f, 'video');
             }}
           />
         </footer>
