@@ -290,7 +290,9 @@ export function createDemoApi(): ConnectApi {
         .sort((x, y) => y.last.localeCompare(x.last))
         .map<Conversation>((c) => {
           const last = messages.filter((m) => m.conversation_id === c.id).slice(-1)[0];
-          return { id: c.id, other: who(c.a === me ? c.b : c.a), last_message_at: c.last, last_body: last?.body ?? '' };
+          const unread = messages.filter((m) => m.conversation_id === c.id && m.sender_id !== me && !m.read_at && !m.deleted_at).length;
+          const body = !last ? '' : last.deleted_at ? 'Message deleted' : last.kind === 'voice' ? 'Voice message' : last.kind === 'file' ? last.file_name || 'File' : last.kind === 'image' ? last.body || 'Photo' : last.kind === 'video' ? last.body || 'Video' : last.body;
+          return { id: c.id, other: who(c.a === me ? c.b : c.a), last_message_at: c.last, last_body: body, unread };
         });
       return wait(mine);
     },
@@ -309,14 +311,57 @@ export function createDemoApi(): ConnectApi {
       const c = convs.find((x) => x.id === id && (x.a === me || x.b === me));
       return wait(c ? { id: c.id, other: who(c.a === me ? c.b : c.a), last_message_at: c.last, last_body: '' } : null);
     },
-    listMessages: (id) => wait(messages.filter((m) => m.conversation_id === id)),
+    listMessages: (id) => wait(messages.filter((m) => m.conversation_id === id).map((m) => ({ ...m }))),
     async sendMessage(id, body) {
       assertNoPaymentTalk(body);
-      const m: Message = { id: nid(), conversation_id: id, sender_id: needMe(), body, created_at: new Date().toISOString() };
+      const m: Message = { id: nid(), conversation_id: id, sender_id: needMe(), body, created_at: new Date().toISOString(), kind: 'text' };
       messages = [...messages, m];
       convs = convs.map((c) => (c.id === id ? { ...c, last: m.created_at } : c));
+      // Pretend the other person's phone receives it, then they read it
+      setTimeout(() => (m.delivered_at = new Date().toISOString()), 1500);
+      setTimeout(() => (m.read_at = new Date().toISOString()), 5000);
       return m;
     },
+    async sendAttachment(id, a, caption, onProgress) {
+      assertNoPaymentTalk(caption);
+      for (let i = 1; i <= 6; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        onProgress?.(i / 6);
+      }
+      const m: Message = {
+        id: nid(),
+        conversation_id: id,
+        sender_id: needMe(),
+        body: caption,
+        created_at: new Date().toISOString(),
+        kind: a.kind,
+        media_path: `demo/${a.file.name}`,
+        media_url: URL.createObjectURL(a.file),
+        file_name: a.kind === 'file' ? a.file.name : null,
+        file_size: a.file.size,
+        duration: a.duration ?? null,
+      };
+      messages = [...messages, m];
+      setTimeout(() => (m.delivered_at = new Date().toISOString()), 1500);
+      return m;
+    },
+    async deleteMessage(mid) {
+      const me = needMe();
+      messages = messages.map((m) =>
+        m.id === mid && m.sender_id === me ? { ...m, deleted_at: new Date().toISOString(), body: '', media_path: null, media_url: null, file_name: null } : m,
+      );
+    },
+    async markRead(id) {
+      const me = needMe();
+      const now = new Date().toISOString();
+      messages.forEach((m) => {
+        if (m.conversation_id === id && m.sender_id !== me && !m.read_at) {
+          m.read_at = now;
+          m.delivered_at = m.delivered_at ?? now;
+        }
+      });
+    },
+    async markDelivered() {},
 
     async report() {
       needMe();

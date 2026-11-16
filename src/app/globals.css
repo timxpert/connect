@@ -2900,3 +2900,370 @@ button.cx-composer {
   white-space: nowrap;
   flex: none;
 }
+
+/* =====================================================================
+   Chat v2: bubbles hold media, text, time and ticks together
+   ===================================================================== */
+.cx-msg {
+  gap: 4px;
+  padding: 7px 9px 5px;
+  border-radius: 18px 18px 18px 6px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  -webkit-touch-callout: none;
+}
+.cx-msg p {
+  padding: 1px 4px 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+}
+.cx-msg.is-mine {
+  justify-items: stretch;
+  border-radius: 18px 18px 6px 18px;
+  background: var(--violet);
+  color: #fff;
+  box-shadow: none;
+}
+.cx-msg.is-mine p {
+  border-radius: 0;
+  background: none;
+}
+.cx-msg.is-pending {
+  opacity: 0.85;
+}
+.cx-msg.is-deleted p {
+  font-style: italic;
+  opacity: 0.7;
+}
+.cx-msg-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 2px;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.cx-msg-meta time {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+.cx-msg.is-mine .cx-msg-meta {
+  color: rgba(255, 255, 255, 0.75);
+}
+.cx-tick {
+  display: inline-flex;
+  align-items: center;
+}
+/* Seen: electric lime double tick */
+.cx-tick.is-seen {
+  color: var(--lime);
+}
+.cx-tick.is-failed {
+  font-weight: 600;
+  color: #ffd2dc;
+}
+.cx-day {
+  align-self: center;
+  margin: 10px 0 4px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* Photos and videos */
+.cx-msg.is-image,
+.cx-msg.is-video {
+  padding: 4px 4px 5px;
+}
+.cx-msg-media {
+  display: block;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(20, 10, 46, 0.08);
+}
+.cx-msg-media img,
+.cx-msg-media video {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  max-height: 380px;
+  object-fit: cover;
+}
+.cx-msg-media-ph {
+  display: block;
+  width: 240px;
+  height: 180px;
+}
+
+/* Files */
+.cx-msg-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(20, 10, 46, 0.05);
+  color: inherit;
+}
+.cx-msg.is-mine .cx-msg-file {
+  background: rgba(255, 255, 255, 0.14);
+}
+.cx-msg-file-ico {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--tint);
+  color: var(--violet);
+  flex: none;
+}
+.cx-msg-file-text {
+  display: grid;
+  min-width: 0;
+}
+.cx-msg-file-text strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.cx-msg-file-text small {
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+/* Upload progress inside a bubble */
+.cx-msg-progress {
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+}
+.cx-msg-progress span {
+  display: block;
+  height: 100%;
+  background: var(--lime);
+  transform-origin: left;
+  transition: transform 0.25s linear;
+}
+
+/* Voice notes */
+.cx-voice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 230px;
+  padding: 3px 2px 0;
+}
+.cx-voice-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+}
+.cx-msg.is-mine .cx-voice-btn {
+  background: #fff;
+  color: var(--violet);
+}
+.cx-voice-bar {
+  flex: 1;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--violet) var(--p, 0%), var(--line) var(--p, 0%));
+  cursor: pointer;
+}
+.cx-msg.is-mine .cx-voice-bar {
+  background: linear-gradient(to right, var(--lime) var(--p, 0%), rgba(255, 255, 255, 0.35) var(--p, 0%));
+}
+.cx-voice-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cx-voice-bar::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cx-voice-time {
+  min-width: 34px;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Composer: attach, text, mic or send */
+.cx-chat-compose {
+  align-items: flex-end;
+  padding-left: 6px;
+}
+.cx-attach {
+  align-self: flex-end;
+}
+.cx-rec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 8px 8px 8px 6px;
+  border-radius: 24px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1.5px var(--violet);
+}
+.cx-rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e0245e;
+  animation: cx-rec 1s ease-in-out infinite;
+}
+@keyframes cx-rec {
+  50% {
+    opacity: 0.25;
+  }
+}
+.cx-rec-time {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cx-rec-hint {
+  flex: 1;
+  color: var(--muted);
+}
+.cx-chat-blocked {
+  position: sticky;
+  bottom: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: var(--tint);
+}
+@media (min-width: 860px) {
+  .cx-chat-blocked {
+    bottom: 20px;
+  }
+}
+.cx-rec {
+  position: sticky;
+  bottom: 84px;
+}
+@media (min-width: 860px) {
+  .cx-rec {
+    bottom: 20px;
+  }
+}
+
+/* Hold a message: action sheet */
+.cx-sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: grid;
+  align-items: end;
+  background: rgba(20, 10, 46, 0.4);
+  animation: fade-in 0.2s ease;
+}
+.cx-sheet {
+  display: grid;
+  gap: 2px;
+  padding: 8px 8px max(12px, env(safe-area-inset-bottom));
+  border-radius: 22px 22px 0 0;
+  background: var(--paper);
+  animation: cmp-up 0.3s var(--ease);
+}
+@media (min-width: 700px) {
+  .cx-sheet-wrap {
+    align-items: center;
+    justify-items: center;
+  }
+  .cx-sheet {
+    width: 340px;
+    border-radius: 20px;
+  }
+}
+.cx-sheet button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+}
+.cx-sheet button:hover {
+  background: var(--ground);
+}
+.cx-sheet .cx-danger {
+  color: #c62828;
+}
+
+/* Inbox: unread */
+.cx-inbox-side {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+.cx-inbox-count {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--lime);
+  color: var(--midnight);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.cx-inbox-row.is-unread .cx-inbox-last {
+  font-weight: 600;
+  color: var(--ink);
+}
+.cx-inbox-row.is-unread .cx-inbox-time {
+  color: var(--violet);
+  font-weight: 600;
+}
+/* Scrolling to the newest message keeps it clear of the message box and tab bar */
+.cx-msgs-end {
+  height: 1px;
+  scroll-margin-bottom: 170px;
+}
+@media (min-width: 860px) {
+  .cx-msgs-end {
+    scroll-margin-bottom: 110px;
+  }
+}
+.cx-voice-bar {
+  color: var(--violet);
+}
+.cx-msg.is-mine .cx-voice-bar {
+  color: var(--lime);
+}

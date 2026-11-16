@@ -10,6 +10,44 @@ import { play } from './sounds';
 /* ---------- Icons: one outline set on a 24px grid ---------- */
 const PATHS = {
   home: <path d="M4 10.5 12 4l8 6.5V20h-5v-6h-6v6H4z" />,
+  mic: (
+    <>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+    </>
+  ),
+  clip: <path d="m20 11.5-7.8 7.8a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.7-7.7" />,
+  trash: <path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5M14 11v5" />,
+  file: (
+    <>
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v4h4M9 13h6M9 16.5h6" />
+    </>
+  ),
+  play: <path d="M8 5.5v13l10.5-6.5z" />,
+  pause: <path d="M8 5v14M16 5v14" />,
+  tick: <path d="m4.5 12.5 4.5 4.5 10-10" />,
+  ticks: <path d="m2 12.5 4.5 4.5 10-10M11.5 16.5l.5.5 10-10" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v4.5l3 1.8" />
+    </>
+  ),
+  share: (
+    <>
+      <circle cx="18" cy="5.5" r="2.5" />
+      <circle cx="6" cy="12" r="2.5" />
+      <circle cx="18" cy="18.5" r="2.5" />
+      <path d="m8.2 10.8 7.6-4.1M8.2 13.2l7.6 4.1" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+    </>
+  ),
   people: (
     <>
       <circle cx="9" cy="8.5" r="3.2" />
@@ -121,6 +159,26 @@ export function A({ path, className, children, ...rest }: { path: string; classN
       {children}
     </a>
   );
+}
+
+/* ---------- Sharing: the phone's share sheet, or copy the link ---------- */
+export async function shareLink(path: string, title: string, toast: (m: string) => void) {
+  const url = new URL(to(path), window.location.href).href;
+  const nav = navigator as Navigator & { share?: (d: { title?: string; url?: string }) => Promise<void> };
+  if (nav.share) {
+    try {
+      await nav.share({ title, url });
+      return;
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('Link copied');
+  } catch {
+    window.prompt('Copy this link', url);
+  }
 }
 
 /* ---------- People ---------- */
@@ -320,9 +378,9 @@ export const POST_DELETED = 'cx:post-deleted';
 export function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => void }) {
   const { api, me, toast, ask } = useConnect();
   const [open, setOpen] = useState(false);
-  if (!me || !(me.is_student || me.is_sensei || me.is_moderator)) return null;
-  const own = me.id === post.author_id;
-  const canDelete = own || me.is_moderator || me.is_sensei;
+  const member = Boolean(me && (me.is_student || me.is_sensei || me.is_moderator));
+  const own = Boolean(me && me.id === post.author_id);
+  const canDelete = member && (own || me!.is_moderator || me!.is_sensei);
 
   const remove = async () => {
     setOpen(false);
@@ -353,12 +411,22 @@ export function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => vo
         <>
           <div className="cx-menu-scrim" onClick={() => setOpen(false)} aria-hidden="true" />
           <div className="cx-menu-list" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                shareLink(`/p/${post.id}`, `${post.author.name} on Motion Dojo Connect`, toast);
+              }}
+            >
+              Share post
+            </button>
             {canDelete && (
               <button type="button" role="menuitem" className="cx-danger" onClick={remove}>
                 Delete post
               </button>
             )}
-            {!own && (
+            {member && !own && (
               <button type="button" role="menuitem" onClick={report}>
                 Report post
               </button>

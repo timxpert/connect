@@ -8,7 +8,7 @@ import { navigate } from './router';
 import { play } from './sounds';
 import { socialUrl, timeAgo } from './media';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
-import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, visiblePhase, POST_DELETED } from './ui';
+import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, visiblePhase, POST_DELETED } from './ui';
 
 /* ================= Feed ================= */
 type FeedName = 'community' | 'everyone' | 'connections';
@@ -363,6 +363,14 @@ export function ProfileScreen({ handle }: { handle: string }) {
             <Avatar p={p} size={136} />
           </span>
           <div className="cx-pf-actions">
+            <button
+              type="button"
+              className="cx-icon-btn"
+              aria-label="Share profile"
+              onClick={() => shareLink(`/u/${p.handle}`, `${p.name} on Motion Dojo Connect`, toast)}
+            >
+              <Icon name="share" />
+            </button>
             {mine ? (
               <A path="/settings" className="btn btn-light btn-sm">
                 Edit profile

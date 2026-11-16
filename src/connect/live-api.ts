@@ -52,6 +52,66 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     }));
   }
 
+  /** Uploads with real progress (XHR, not fetch), into a Storage bucket */
+  async function xhrUpload(bucket: string, path: string, file: Blob, onProgress?: (share: number) => void) {
+    const token = (await sb.auth.getSession()).data.session?.access_token;
+    if (!token) throw new Error('Sign in first.');
+    await new Promise<void>((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open('POST', `${url}/storage/v1/object/${bucket}/${path}`);
+      x.setRequestHeader('Authorization', `Bearer ${token}`);
+      x.setRequestHeader('apikey', anonKey);
+      x.setRequestHeader('x-upsert', 'false');
+      x.setRequestHeader('cache-control', 'max-age=31536000');
+      x.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      x.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+      };
+      x.onload = () => {
+        if (x.status >= 200 && x.status < 300) return resolve();
+        let msg = 'Upload failed. Try again.';
+        try {
+          const body = JSON.parse(x.responseText) as { message?: string; error?: string };
+          if (/size|large/i.test(body.message || body.error || '')) msg = 'That file is too big to upload.';
+        } catch {
+          /* keep the default */
+        }
+        reject(new Error(msg));
+      };
+      x.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+      x.send(file);
+    });
+    onProgress?.(1);
+  }
+
+  // Signed links for private chat files, reused until shortly before they expire
+  // (re-signing on every poll would reload voice notes and photos)
+  const signed = new Map<string, { url: string; until: number }>();
+  async function sign(paths: string[]) {
+    const now = Date.now();
+    const need = [...new Set(paths)].filter((p) => (signed.get(p)?.until ?? 0) <= now);
+    if (need.length) {
+      const { data } = await sb.storage.from('chat').createSignedUrls(need, 6 * 3600);
+      for (const d of (data ?? []) as unknown as { path: string | null; signedUrl: string }[]) {
+        if (d.path && d.signedUrl) signed.set(d.path, { url: d.signedUrl, until: now + 5 * 3600 * 1000 });
+      }
+    }
+    return (p: string) => signed.get(p)?.url ?? null;
+  }
+
+  const preview = (m: { body: string; kind?: string; file_name?: string | null; deleted_at?: string | null }) =>
+    m.deleted_at
+      ? 'Message deleted'
+      : m.kind === 'voice'
+        ? 'Voice message'
+        : m.kind === 'image'
+          ? m.body || 'Photo'
+          : m.kind === 'video'
+            ? m.body || 'Video'
+            : m.kind === 'file'
+              ? m.file_name || 'File'
+              : m.body;
+
   const api: ConnectApi = {
     mode: 'live',
 
@@ -129,32 +189,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const file = folder === 'videos' ? original : await prepareImage(original, folder);
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
       const path = `${id}/${folder}/${Date.now()}.${ext}`;
-      const token = (await sb.auth.getSession()).data.session?.access_token;
-      if (!token) throw new Error('Sign in first.');
-      // XHR instead of fetch so the composer can show real upload progress
-      await new Promise<void>((resolve, reject) => {
-        const x = new XMLHttpRequest();
-        x.open('POST', `${url}/storage/v1/object/media/${path}`);
-        x.setRequestHeader('Authorization', `Bearer ${token}`);
-        x.setRequestHeader('apikey', anonKey);
-        x.setRequestHeader('x-upsert', 'false');
-        x.setRequestHeader('cache-control', 'max-age=31536000');
-        x.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-        x.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
-        x.onload = () => {
-          if (x.status >= 200 && x.status < 300) return resolve();
-          let msg = 'Upload failed. Try again.';
-          try {
-            const body = JSON.parse(x.responseText) as { message?: string; error?: string };
-            if (/size|large/i.test(body.message || body.error || '')) msg = 'That file is too big to upload.';
-          } catch {
-            /* keep the default */
-          }
-          reject(new Error(msg));
-        };
-        x.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
-        x.send(file);
-      });
+      await xhrUpload('media', path, file, onProgress);
       onProgress?.(1);
       return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
     },
@@ -356,15 +391,36 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const rows = (data ?? []) as unknown as { id: string; user_a: string; a: Profile; b: Profile; last_message_at: string }[];
       const lasts = await Promise.all(
         rows.map((r) =>
-          sb.from('messages').select('body').eq('conversation_id', r.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          sb
+            .from('messages')
+            .select('body, kind, file_name, deleted_at')
+            .eq('conversation_id', r.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ),
       );
-      return rows.map((r, i) => ({
-        id: r.id,
-        other: r.user_a === me ? r.b : r.a,
-        last_message_at: r.last_message_at,
-        last_body: (lasts[i].data as unknown as { body: string } | null)?.body ?? '',
-      }));
+      const unread = new Map<string, number>();
+      if (rows.length) {
+        const { data: un } = await sb
+          .from('messages')
+          .select('conversation_id')
+          .in('conversation_id', rows.map((r) => r.id))
+          .neq('sender_id', me)
+          .is('read_at', null)
+          .is('deleted_at', null);
+        for (const u of (un ?? []) as unknown as { conversation_id: string }[]) unread.set(u.conversation_id, (unread.get(u.conversation_id) ?? 0) + 1);
+      }
+      return rows.map((r, i) => {
+        const last = lasts[i].data as unknown as { body: string; kind?: string; file_name?: string | null; deleted_at?: string | null } | null;
+        return {
+          id: r.id,
+          other: r.user_a === me ? r.b : r.a,
+          last_message_at: r.last_message_at,
+          last_body: last ? preview(last) : '',
+          unread: unread.get(r.id) ?? 0,
+        };
+      });
     },
     async openConversation(userId) {
       const { data, error } = await sb.rpc('open_conversation', { other: userId });
@@ -387,13 +443,51 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async listMessages(conversationId) {
       const { data, error } = await sb.from('messages').select('*').eq('conversation_id', conversationId).order('created_at').limit(500);
       fail(error);
-      return (data ?? []) as unknown as Message[];
+      const rows = (data ?? []) as unknown as Message[];
+      const paths = rows.map((m) => m.media_path).filter((p): p is string => Boolean(p));
+      const link = paths.length ? await sign(paths) : () => null;
+      return rows.map((m) => (m.media_path ? { ...m, media_url: link(m.media_path) } : m));
     },
     async sendMessage(conversationId, body) {
       const me = await needUid();
       const { data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body }).select().single();
       fail(error);
       return data as unknown as Message;
+    },
+    async sendAttachment(conversationId, a, caption, onProgress) {
+      const me = await needUid();
+      const file = a.kind === 'image' ? await prepareImage(a.file, 'posts') : a.file;
+      const ext = (file.name.split('.').pop() || (a.kind === 'voice' ? 'webm' : 'bin')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+      const path = `${conversationId}/${me}-${Date.now()}.${ext}`;
+      await xhrUpload('chat', path, file, onProgress);
+      const { data, error } = await sb
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          sender_id: me,
+          body: caption,
+          kind: a.kind,
+          media_path: path,
+          file_name: a.kind === 'file' ? a.file.name.slice(0, 200) : null,
+          file_size: file.size,
+          duration: a.duration ?? null,
+        })
+        .select()
+        .single();
+      fail(error);
+      const link = await sign([path]);
+      return { ...(data as unknown as Message), media_url: link(path) };
+    },
+    async deleteMessage(id) {
+      const { error } = await sb.rpc('delete_message', { mid: id });
+      if (error?.message.includes('not_your_message')) throw new Error('You can only delete your own messages.');
+      fail(error);
+    },
+    async markRead(conversationId) {
+      await sb.rpc('mark_read', { conv: conversationId });
+    },
+    async markDelivered() {
+      await sb.rpc('mark_delivered');
     },
 
     async report(target, id, reason) {

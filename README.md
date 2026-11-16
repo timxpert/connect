@@ -43,7 +43,7 @@ npm run dev
 
 - **Keyframe Ninjas:** email + student ID (`MD-XXXX-XXXX`). Every row in `enrolments` gets an ID automatically. Students see theirs after paying on the Motion Dojo site; to look one up, run `select email, student_id from enrolments;`. The check runs in `src/app/api/student-login` and no email is sent.
 - **Everyone else** (and students who lost their ID): an email sign-in link.
-- Set up the database before 16 Nov 2026? Run `supabase/update-all.sql` once (student IDs, text posts, phase privacy). Safe to run again.
+- Set up the database before 16 Nov 2026? Run `supabase/update-all.sql` once (student IDs, text posts, phase privacy, chat files and ticks). Safe to run again.
 
 ## Student verification
 

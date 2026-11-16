@@ -444,7 +444,7 @@ export function Inbox() {
         <ul className="cx-inbox">
           {list!.map((c) => (
             <li key={c.id}>
-              <A path={`/messages/${c.id}`} className="cx-inbox-row">
+              <A path={`/messages/${c.id}`} className={c.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
                 <Avatar p={c.other} size={48} />
                 <span className="cx-inbox-text">
                   <span className="cx-person-name">
@@ -454,114 +454,15 @@ export function Inbox() {
                   </span>
                   <span className="cx-inbox-last">{c.last_body || 'Say hello'}</span>
                 </span>
-                <span className="cx-inbox-time">{timeAgo(c.last_message_at)}</span>
+                <span className="cx-inbox-side">
+                  <span className="cx-inbox-time">{timeAgo(c.last_message_at)}</span>
+                  {Boolean(c.unread) && <span className="cx-inbox-count">{c.unread! > 99 ? '99+' : c.unread}</span>}
+                </span>
               </A>
             </li>
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-export function Chat({ id }: { id: string }) {
-  const { api, me, signedIn, toast } = useConnect();
-  const [conv, setConv] = useState<Conversation | null | undefined>(undefined);
-  const [msgs, setMsgs] = useState<Message[]>([]);
-  const [draft, setDraft] = useState('');
-  const end = useRef<HTMLDivElement>(null);
-
-  const load = useCallback(async () => {
-    setMsgs(await api.listMessages(id));
-  }, [api, id]);
-
-  useEffect(() => {
-    if (!me) return;
-    api.getConversation(id).then(setConv);
-    load();
-    // New messages: check every few seconds while the chat is open
-    const t = window.setInterval(() => document.visibilityState === 'visible' && load(), 4000);
-    return () => window.clearInterval(t);
-  }, [api, id, me, load]);
-
-  useEffect(() => {
-    end.current?.scrollIntoView({ block: 'end' });
-  }, [msgs.length]);
-
-  if (!signedIn) return <Gate />;
-  if (me === undefined || conv === undefined) return <Loading />;
-  if (!me) return <Gate profile />;
-  if (conv === null) return <Empty title="Conversation not found" />;
-
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const body = draft.trim();
-    if (!body) return;
-    setDraft('');
-    play('send');
-    try {
-      const m = await api.sendMessage(id, body);
-      setMsgs((xs) => [...xs, m]);
-    } catch (e2) {
-      setDraft(body);
-      toast((e2 as Error).message);
-    }
-  };
-
-  return (
-    <div className="cx-col cx-chat">
-      <header className="cx-chat-head">
-        <A path="/messages" className="cx-icon-btn" aria-label="All messages">
-          <Icon name="back" />
-        </A>
-        <A path={`/u/${conv.other.handle}`} className="cx-person">
-          <Avatar p={conv.other} size={40} />
-          <span className="cx-person-text">
-            <span className="cx-person-name">
-              {conv.other.name}
-              {conv.other.is_student && <NinjaBadge p={conv.other} small />}
-            </span>
-            <span className="cx-person-meta">@{conv.other.handle}</span>
-          </span>
-        </A>
-      </header>
-      <p className="cx-safety-note">Never send money or bank details to anyone on Connect. Report anyone who asks.</p>
-      <ol className="cx-msgs">
-        {msgs.map((m) => (
-          <li key={m.id} className={m.sender_id === me.id ? 'cx-msg is-mine' : 'cx-msg'}>
-            <p>{m.body}</p>
-            <time dateTime={m.created_at}>{timeAgo(m.created_at)}</time>
-          </li>
-        ))}
-        <div ref={end} />
-      </ol>
-      {hasPaymentTalk(draft) && (
-        <p className="cx-safety" role="alert">
-          {PAYMENT_NOTE}
-        </p>
-      )}
-      <form className="cx-compose cx-chat-compose" onSubmit={send}>
-        <label className="sr-only" htmlFor="msg-box">
-          Message
-        </label>
-        <textarea
-          id="msg-box"
-          rows={1}
-          maxLength={2000}
-          placeholder="Write a message"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              (e.currentTarget.form as HTMLFormElement).requestSubmit();
-            }
-          }}
-        />
-        <button type="submit" className="cx-send" disabled={!draft.trim() || hasPaymentTalk(draft)} aria-label="Send">
-          <Icon name="send" size={20} />
-        </button>
-      </form>
     </div>
   );
 }

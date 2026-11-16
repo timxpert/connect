@@ -10,7 +10,8 @@ import { navigate, useRoute, type Route } from './router';
 import type { ConnectApi } from './types';
 import { A, Avatar, Icon, Loading } from './ui';
 import { Feed, PostScreen, ProfileScreen, Students } from './screens-browse';
-import { Chat, Inbox, Login, Settings, Welcome } from './screens-me';
+import { Inbox, Login, Settings, Welcome } from './screens-me';
+import { Chat } from './chat';
 import { Connections, Notifications, Saved } from './screens-social';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -65,6 +66,8 @@ function useCounts() {
     }
     let live = true;
     const load = async () => {
+      // Tell senders their messages reached this device (grey double tick)
+      api.markDelivered().catch(() => {});
       const [unread, r] = await Promise.all([api.unreadCount(), api.listRequests()]);
       if (live) setC({ unread, requests: r.incoming.length });
     };

@@ -67,7 +67,11 @@ export type Conversation = {
   other: Profile;
   last_message_at: string;
   last_body: string;
+  /** Messages the other person sent that I haven't opened */
+  unread?: number;
 };
+
+export type MessageKind = 'text' | 'voice' | 'image' | 'video' | 'file';
 
 export type Message = {
   id: string;
@@ -75,7 +79,25 @@ export type Message = {
   sender_id: string;
   body: string;
   created_at: string;
+  kind?: MessageKind;
+  /** Path in the private chat bucket */
+  media_path?: string | null;
+  /** Short-lived signed link for media_path (or a local preview while sending) */
+  media_url?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
+  /** Voice notes, in seconds */
+  duration?: number | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
+  deleted_at?: string | null;
+  /** Client only: still uploading / sending */
+  pending?: boolean;
+  progress?: number;
+  failed?: boolean;
 };
+
+export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number };
 
 export type ProfileInput = Partial<
   Pick<Profile, 'handle' | 'name' | 'bio' | 'avatar_url' | 'cover_url' | 'country' | 'skills' | 'phase' | 'phase_public' | 'instagram' | 'youtube' | 'website'>
@@ -137,6 +159,13 @@ export interface ConnectApi {
   getConversation(id: string): Promise<Conversation | null>;
   listMessages(conversationId: string): Promise<Message[]>;
   sendMessage(conversationId: string, body: string): Promise<Message>;
+  /** Voice note, photo, video or file. Uploads privately, then sends. */
+  sendAttachment(conversationId: string, a: Attachment, caption: string, onProgress?: (share: number) => void): Promise<Message>;
+  deleteMessage(id: string): Promise<void>;
+  /** Marks everything the other person sent in this chat as seen */
+  markRead(conversationId: string): Promise<void>;
+  /** Marks all incoming messages as delivered to this device */
+  markDelivered(): Promise<void>;
 
   report(target: 'post' | 'comment' | 'profile' | 'message', id: string, reason: string): Promise<void>;
   setBlock(userId: string, on: boolean): Promise<void>;
