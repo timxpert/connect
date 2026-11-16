@@ -2783,8 +2783,11 @@ button.cx-composer {
   color: #fff;
 }
 .cx-belt-4 {
-  background: #7a4a2b;
+  background: #111014;
   color: #fff;
+}
+.cx-belt-4 svg {
+  color: var(--lime);
 }
 .cx-cmp-attach img,
 .cx-cmp-attach video {

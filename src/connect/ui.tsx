@@ -251,8 +251,8 @@ export function Avatar({ p, size = 44 }: { p: Pick<Profile, 'name' | 'avatar_url
   );
 }
 
-/** Belt by Black Belt phase: White → Yellow → Green → Brown. The black belt is the course itself. */
-export const BELTS = ['White Belt', 'Yellow Belt', 'Green Belt', 'Brown Belt'];
+/** Belt by Black Belt phase: White → Yellow → Green → Black */
+export const BELTS = ['White Belt', 'Yellow Belt', 'Green Belt', 'Black Belt'];
 
 /** The phase this viewer may see: members only, and only if the student keeps it public (the team sees all). */
 export function visiblePhase(p: Pick<Profile, 'id' | 'phase' | 'phase_public'>, viewer: Profile | null | undefined): number | null {
