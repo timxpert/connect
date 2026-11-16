@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    return Response.json({ message: 'Student sign-in isn’t set up yet. Use the email link for now.' }, { status: 500 });
+    return Response.json({ message: 'Sign-in isn’t switched on yet. Please try again later or message the community manager.' }, { status: 500 });
   }
 
   const body = (await req.json().catch(() => ({}))) as { email?: unknown; studentId?: unknown };
