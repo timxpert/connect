@@ -71,7 +71,7 @@ export function Login() {
             <p className="cx-lead">
               {mode === 'student'
                 ? 'Use the email you enrolled with and the student ID you got after paying.'
-                : 'We’ll email you a sign-in link, no password needed.'}
+                : 'We’ll email you a link that signs you in.'}
             </p>
             <form className="cx-form" onSubmit={submit} noValidate>
               <label className="field">
