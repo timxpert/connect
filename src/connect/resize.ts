@@ -91,10 +91,14 @@ export async function prepareImage(file: File, kind: Kind): Promise<File> {
   out.ctx.drawImage(c, 0, 0, w, h, 0, 0, tw, th);
   if ('close' in src) src.close();
 
-  const keepAlpha = file.type === 'image/png' || file.type === 'image/webp';
-  const type = keepAlpha ? 'image/webp' : 'image/jpeg';
-  const blob = await new Promise<Blob | null>((r) => out.c.toBlob(r, type, 0.86));
+  // WebP looks the same as JPEG at roughly a third smaller. Browsers that can't
+  // write WebP (older Safari) hand back a PNG instead, so fall back to JPEG.
+  const encode = (type: string, q: number) => new Promise<Blob | null>((r) => out.c.toBlob(r, type, q));
+  let blob = await encode('image/webp', 0.84);
+  if (!blob || blob.type !== 'image/webp') blob = await encode('image/jpeg', 0.86);
   if (!blob) return file;
-  const name = file.name.replace(/\.[^.]+$/, '') + (type === 'image/webp' ? '.webp' : '.jpg');
-  return new File([blob], name, { type });
+  // Never upload something bigger than the original if it didn't need resizing
+  if (scale === 1 && !lim.square && blob.size >= file.size) return file;
+  const name = file.name.replace(/\.[^.]+$/, '') + (blob.type === 'image/webp' ? '.webp' : '.jpg');
+  return new File([blob], name, { type: blob.type });
 }
