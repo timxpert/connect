@@ -16,7 +16,7 @@ import { play } from './sounds';
 const OPEN = 'cx:compose';
 export const openComposer = () => window.dispatchEvent(new Event(OPEN));
 
-const MAX_IMAGE = 15 * 1024 * 1024; // resized before upload, so phone photos are fine
+const MAX_IMAGE = 20 * 1024 * 1024; // resized before upload, so phone photos are fine
 const MAX_VIDEO = 50 * 1024 * 1024; // Supabase free plan's per-file limit
 
 type Attach =
@@ -98,7 +98,7 @@ export function Composer() {
   /** Shows the file at once and uploads it in the background */
   const pickFile = (file: File, kind: 'image' | 'video') => {
     setErr('');
-    if (kind === 'image' && file.size > MAX_IMAGE) return setErr('Pick a photo under 15 MB.');
+    if (kind === 'image' && file.size > MAX_IMAGE) return setErr('Pick a photo under 20 MB.');
     if (kind === 'video' && file.size > MAX_VIDEO) return setErr('Pick a video under 50 MB, or add a YouTube link instead.');
     if (attach.type === 'image' || attach.type === 'video') URL.revokeObjectURL(attach.preview);
     const preview = URL.createObjectURL(file);
@@ -172,7 +172,7 @@ export function Composer() {
         {attach.type === 'image' ? (
           <img src={attach.preview} alt="" />
         ) : (
-          <video src={attach.preview} controls playsInline muted />
+          <video src={`${attach.preview}#t=0.1`} controls playsInline muted preload="metadata" />
         )}
         {attach.progress < 1 && (
           <span className="cx-cmp-progress" role="progressbar" aria-label="Uploading" aria-valuenow={Math.round(attach.progress * 100)} aria-valuemin={0} aria-valuemax={100}>

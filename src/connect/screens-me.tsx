@@ -232,27 +232,36 @@ export function Settings() {
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const toggleSkill = (s: string) => set('skills', f.skills.includes(s) ? f.skills.filter((x) => x !== s) : [...f.skills, s].slice(0, 6));
 
-  const pickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Gallery photos show at once from the phone; the upload runs behind them
+  const jobs = useRef<{ avatar_url?: Promise<string>; cover_url?: Promise<string> }>({});
+  const [uploading, setUploading] = useState(0);
+  const pick = (key: 'avatar_url' | 'cover_url', folder: 'avatars' | 'covers') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) return toast('Pick an image under 3 MB.');
-    try {
-      set('avatar_url', await api.uploadImage(file, 'avatars'));
-    } catch (e2) {
-      toast((e2 as Error).message);
-    }
+    if (!file.type.startsWith('image/')) return toast('Pick a photo.');
+    if (file.size > 20 * 1024 * 1024) return toast('Pick a photo under 20 MB.');
+    const before = f[key];
+    const preview = URL.createObjectURL(file);
+    set(key, preview);
+    setUploading((n) => n + 1);
+    const job = api.uploadImage(file, folder);
+    jobs.current[key] = job;
+    job
+      .then((url) => {
+        if (jobs.current[key] === job) setF((x) => (x[key] === preview ? { ...x, [key]: url } : x));
+      })
+      .catch((e2) => {
+        if (jobs.current[key] === job) {
+          delete jobs.current[key];
+          setF((x) => (x[key] === preview ? { ...x, [key]: before } : x));
+        }
+        toast((e2 as Error).message);
+      })
+      .finally(() => setUploading((n) => n - 1));
   };
-
-  const pickCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) return toast('Pick an image under 5 MB.');
-    try {
-      set('cover_url', await api.uploadImage(file, 'covers'));
-    } catch (e2) {
-      toast((e2 as Error).message);
-    }
-  };
+  const pickAvatar = pick('avatar_url', 'avatars');
+  const pickCover = pick('cover_url', 'covers');
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -263,7 +272,13 @@ export function Settings() {
     if (hasPaymentTalk(f.bio, f.name)) return setErr(PAYMENT_NOTE);
     setBusy(true);
     try {
-      const input = { ...f, name: f.name.trim(), handle, bio: f.bio.trim() };
+      // Wait for any photo still uploading, then save its real address (not the on-phone preview)
+      const urls = { ...f };
+      for (const key of ['avatar_url', 'cover_url'] as const) {
+        if (urls[key]?.startsWith('blob:') && jobs.current[key]) urls[key] = await jobs.current[key]!;
+        if (urls[key]?.startsWith('blob:')) urls[key] = me ? me[key] : null;
+      }
+      const input = { ...urls, name: f.name.trim(), handle, bio: f.bio.trim() };
       const saved = creating ? await api.createProfile(input) : await api.updateProfile(input);
       await refreshMe();
       toast(creating ? 'Welcome to Motion Dojo Connect.' : 'Profile saved.');
@@ -377,7 +392,7 @@ export function Settings() {
           </p>
         )}
         <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? 'Saving…' : creating ? 'Create profile' : 'Save changes'}
+          {busy ? (uploading > 0 ? 'Finishing photo upload…' : 'Saving…') : creating ? 'Create profile' : 'Save changes'}
         </button>
       </form>
 

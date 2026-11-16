@@ -97,7 +97,7 @@ export function Feed() {
               {pending.kind === 'image' ? (
                 <img src={pending.preview} alt="" />
               ) : pending.preview.startsWith('blob:') ? (
-                <video src={pending.preview} muted playsInline />
+                <video src={`${pending.preview}#t=0.1`} muted playsInline preload="metadata" />
               ) : null}
               <span className="cx-pending-progress">
                 <span style={{ transform: `scaleX(${Math.max(0.04, pending.progress)})` }} />
