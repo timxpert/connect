@@ -27,6 +27,12 @@ const PATHS = {
   play: <path d="M8 5.5v13l10.5-6.5z" />,
   pause: <path d="M8 5v14M16 5v14" />,
   tick: <path d="m4.5 12.5 4.5 4.5 10-10" />,
+  seal: (
+    <>
+      <path d="M12 2.5l2.2 1.6 2.7-.2.9 2.5 2.3 1.4-.6 2.7 1 2.5-2 1.8-.4 2.7-2.7.6L14 21.5l-2-1-2 1-1.4-2.4-2.7-.6-.4-2.7-2-1.8 1-2.5-.6-2.7 2.3-1.4.9-2.5 2.7.2z" />
+      <path d="m8.8 12.2 2.2 2.2 4.2-4.4" />
+    </>
+  ),
   ticks: <path d="m2 12.5 4.5 4.5 10-10M11.5 16.5l.5.5 10-10" />,
   clock: (
     <>
@@ -228,7 +234,12 @@ export function NinjaBadge({ p, small = false }: { p: Pick<Profile, 'id' | 'phas
 }
 
 export function SenseiBadge() {
-  return <span className="cx-badge cx-badge-sensei">Grand Sensei</span>;
+  return (
+    <span className="cx-badge cx-badge-sensei" title="Grand Sensei of Motion Dojo">
+      <Icon name="seal" size={13} />
+      Grand Sensei
+    </span>
+  );
 }
 
 export function SampleTag() {
