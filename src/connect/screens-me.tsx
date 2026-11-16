@@ -385,7 +385,7 @@ export function Settings() {
 
         <fieldset className="cx-fieldset">
           <legend>Links</legend>
-          <p className="cx-muted cx-links-hint">Paste any link: TikTok, LinkedIn, Facebook, X, Instagram, YouTube, Behance, your portfolio. Connect recognises the platform.</p>
+          <p className="cx-muted cx-links-hint">Paste any link, like your TikTok, LinkedIn or portfolio. Connect adds the right icon.</p>
           <ul className="cx-links-edit">
             {f.links.map((v, i) => {
               const d = describeLink(v);
