@@ -203,7 +203,7 @@ export function Composer() {
             {me && <Avatar p={me} size={40} />}
             <span>
               <strong>{me?.name}</strong>
-              <small>{sensei ? 'Community feed · every student is notified' : 'Visible to everyone on Connect'}</small>
+              <small>{sensei ? 'Community feed · everyone is notified' : 'Visible to everyone on Connect'}</small>
             </span>
           </div>
           <button type="button" className="btn btn-primary btn-sm" disabled={!ready} onClick={submit}>
@@ -217,7 +217,7 @@ export function Composer() {
             className="cx-cmp-text"
             maxLength={1000}
             value={text}
-            placeholder={sensei ? 'What do you want to tell your students?' : 'What are you working on?'}
+            placeholder={sensei ? 'What do you want to tell the dojo?' : 'What are you working on?'}
             onChange={(e) => setText(e.target.value)}
           />
           {preview}

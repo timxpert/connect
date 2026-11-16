@@ -17,7 +17,7 @@ export function Welcome() {
     <div className="cx-welcome">
       <img src="/assets/favicon-128.png" alt="" width={64} height={64} />
       <h1 className="cx-welcome-title">Are you a member?</h1>
-      <p className="cx-lead">Members are students of Black Belt in Motion Design.</p>
+      <p className="cx-lead">Members are enrolled on Black Belt in Motion Design.</p>
       <div className="cx-welcome-btns">
         <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>
           Yes, sign me in
@@ -30,7 +30,7 @@ export function Welcome() {
             navigate('/students');
           }}
         >
-          No, show me the students
+          No, just looking
         </button>
       </div>
     </div>
@@ -57,7 +57,7 @@ export function Login() {
     setErr('');
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Enter a valid email address.');
     if (mode === 'student' && studentId.replace(/[^a-z0-9]/gi, '').length < 8)
-      return setErr('Enter your student ID, for example MD-7KQ2-X9PB.');
+      return setErr('Enter your member ID, for example MD-7KQ2-X9PB.');
     setBusy(true);
     try {
       if (mode === 'student') {
@@ -91,7 +91,7 @@ export function Login() {
           <>
             <p className="cx-lead">
               {mode === 'student'
-                ? 'Use the email you enrolled with and the student ID you got after paying.'
+                ? 'Use the email you enrolled with and the member ID you got after paying.'
                 : 'For the Motion Dojo team. We’ll email you a link that signs you in.'}
             </p>
             <form className="cx-form" onSubmit={submit} noValidate>
@@ -101,7 +101,7 @@ export function Login() {
               </label>
               {mode === 'student' && (
                 <label className="field">
-                  <span>Student ID</span>
+                  <span>Member ID</span>
                   <input
                     autoComplete="off"
                     autoCapitalize="characters"
@@ -136,7 +136,7 @@ export function Login() {
                   navigate('/students');
                 }}
               >
-                Not a member? See the students
+                Not a member? Look around
               </button>
               <button type="button" className="cx-link-btn cx-quiet" onClick={() => switchTo('link')}>
                 Motion Dojo team
@@ -155,7 +155,7 @@ export function Login() {
             </p>
             <div className="cx-demo-btns">
               <button type="button" className="btn btn-lime btn-sm" onClick={() => api.demoSignIn!('student')}>
-                Sample student
+                Sample member
               </button>
               <button type="button" className="btn btn-light btn-sm" onClick={() => api.demoSignIn!('visitor')}>
                 Sample visitor
@@ -308,12 +308,12 @@ export function Settings() {
   const checkStudent = async () => {
     const ok = await api.refreshStudentStatus();
     await refreshMe();
-    toast(ok ? 'You’re verified as a student.' : 'We couldn’t find an enrolment for this email yet.');
+    toast(ok ? 'You’re verified as a member.' : 'We couldn’t find an enrolment for this email yet.');
   };
   const useInvite = async () => {
     const ok = await api.redeemInvite(invite);
     await refreshMe();
-    toast(ok ? 'Invite accepted. You’re verified as a student.' : 'That code didn’t work. Check it with the community manager.');
+    toast(ok ? 'Invite accepted. You’re verified as a member.' : 'That code didn’t work. Check it with the community manager.');
   };
 
   return (
@@ -383,7 +383,7 @@ export function Settings() {
         {me?.is_student && !me.is_sensei && f.phase && (
           <label className="cx-check">
             <input type="checkbox" checked={f.phase_public} onChange={(e) => set('phase_public', e.target.checked)} />
-            <span>Show my belt to other students</span>
+            <span>Show my belt to other members</span>
           </label>
         )}
 

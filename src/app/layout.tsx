@@ -3,7 +3,7 @@ import './globals.css';
 import { Motion } from '@/components/Motion';
 
 const title = 'Motion Dojo Connect';
-const description = 'Profiles and work from the students of Black Belt in Motion Design.';
+const description = 'Profiles and work from Black Belt in Motion Design.';
 
 export const metadata: Metadata = {
   title,

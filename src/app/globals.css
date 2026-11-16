@@ -908,7 +908,7 @@ details[open] > :not(summary) {
 .cx-wide,
 .cx-narrow {
   margin-inline: auto;
-  animation: cx-in 0.4s var(--ease);
+  animation: cx-in 0.18s var(--ease);
 }
 .cx-col {
   max-width: 640px;
@@ -1486,7 +1486,7 @@ details[open] > :not(summary) {
   margin: calc(clamp(20px, 4vw, 40px) * -1) calc(var(--gutter) * -1) 0;
   background: var(--paper);
   border-bottom: 1px solid var(--line);
-  animation: cx-in 0.4s var(--ease);
+  animation: cx-in 0.18s var(--ease);
 }
 .cx-pf-cover {
   height: clamp(140px, 24vw, 280px);
@@ -3822,5 +3822,178 @@ button.cx-composer {
 .cx-conn-msg {
   background: var(--tint);
   color: var(--violet);
+  box-shadow: none;
+}
+
+/* Phase prompt */
+.cx-phase {
+  gap: 12px;
+  padding: 22px 18px max(18px, env(safe-area-inset-bottom));
+}
+.cx-phase h2 {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.cx-phase > p {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.cx-phase-options {
+  display: grid;
+  gap: 8px;
+}
+.cx-sheet .cx-phase-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: var(--ground);
+  text-align: left;
+  transition: background-color 0.2s ease;
+}
+.cx-sheet .cx-phase-opt.is-on {
+  background: var(--tint);
+  outline: 2px solid var(--violet);
+  outline-offset: -2px;
+}
+.cx-phase-name {
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.cx-phase-btns {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* =====================================================================
+   Calmer palette and fewer outlines.
+   A warm white page instead of lavender; neutral greys for quiet
+   surfaces; violet only for actions and what's selected; lime only
+   for small signals (seen ticks, belts). Fills separate things, not
+   hairline borders.
+   ===================================================================== */
+:root {
+  --ground: #fbfaf8;
+  --paper: #ffffff;
+  --white: #f2f0ec;
+  --tint: #f2f0ec;
+  --line: #ebe8e3;
+  --muted: #6c6873;
+  --panel-shadow: 0 1px 2px rgba(20, 10, 46, 0.04), 0 8px 24px -16px rgba(20, 10, 46, 0.12);
+}
+.cx {
+  background: var(--ground);
+}
+.btn-light {
+  background: var(--tint);
+  color: var(--ink);
+}
+.btn-light:hover {
+  background: #e9e6e0;
+}
+
+/* Inputs, chips and round buttons: filled, no ring until focused */
+.cx-icon-btn,
+.cx-chip,
+.cx-seg,
+.cx-search,
+.cx-compose,
+.cx-pf-links a,
+.cx-request,
+.cx-day,
+.cx.is-chat .cx-chat-compose textarea {
+  box-shadow: none;
+}
+.cx-icon-btn,
+.cx-chip,
+.cx-search,
+.cx-compose,
+.cx-pf-links a,
+.cx.is-chat .cx-chat-compose textarea {
+  background: var(--tint);
+}
+.cx-icon-btn:hover,
+.cx-chip:hover,
+.cx-pf-links a:hover {
+  background: #e9e6e0;
+  box-shadow: none;
+}
+.cx-icon-flat {
+  background: transparent;
+}
+.cx-chip.is-on {
+  background: var(--ink);
+  color: #fff;
+}
+.cx-search:focus-within,
+.cx-compose:focus-within,
+.cx.is-chat .cx-chat-compose textarea:focus {
+  box-shadow: inset 0 0 0 1.5px var(--violet);
+  background: var(--paper);
+}
+.field input,
+.cx-form select,
+.cx-form textarea,
+.cx-invite input,
+.cx-dialog textarea,
+.cx-links-edit input {
+  border-color: transparent;
+  background: var(--tint);
+}
+.field input:focus,
+.cx-form select:focus,
+.cx-form textarea:focus,
+.cx-invite input:focus,
+.cx-dialog textarea:focus,
+.cx-links-edit input:focus {
+  border-color: var(--violet);
+  background: var(--paper);
+}
+
+/* Small labels: quiet grey instead of lime */
+.cx-tag,
+.cx-sample {
+  background: var(--tint);
+  color: var(--ink);
+}
+.cx-sample {
+  color: var(--muted);
+}
+
+/* Their chat bubbles: a soft fill, no outline */
+.cx-msg:not(.is-mine) {
+  background: #f0eee9;
+  box-shadow: none;
+}
+.cx-day,
+.cx.is-chat .cx-day {
+  background: transparent;
+  color: var(--muted);
+}
+
+/* Requests and the links icon tile: neutral */
+.cx-request {
+  background: var(--paper);
+  box-shadow: var(--panel-shadow);
+}
+.cx-links-ico,
+.cx-msg-file-ico,
+.cx-conn-msg {
+  background: var(--tint);
+  color: var(--ink);
+}
+.cx-inbox-people .cx-avatar {
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 3.5px var(--violet);
+}
+/* Grand Sensei badge: same quiet fill, the crown carries the colour */
+.cx-badge-sensei {
+  background: var(--tint);
+  color: var(--ink);
   box-shadow: none;
 }

@@ -266,18 +266,17 @@ export function BeltBadge({ p, small = false }: { p: Pick<Profile, 'id' | 'phase
   const { me } = useConnect();
   const phase = visiblePhase(p, me);
   const belt = phase ? BELTS[phase - 1] : null;
-  const label = belt ?? 'Student';
-  const title = belt ? `${belt}: phase ${phase}, ${PHASES[phase! - 1]}` : 'Student on Black Belt in Motion Design';
-  const cls = ['cx-badge', small ? 'cx-badge-sm' : '', belt ? `cx-belt cx-belt-${phase}` : ''].filter(Boolean).join(' ');
+  if (!belt) return null;
+  const cls = ['cx-badge', small ? 'cx-badge-sm' : '', `cx-belt cx-belt-${phase}`].filter(Boolean).join(' ');
   return (
-    <span className={cls} title={title}>
-      <Icon name={belt ? 'obi' : 'belt'} size={small ? 13 : 15} />
-      {small ? <span className="sr-only">{label}</span> : label}
+    <span className={cls} title={`${belt}: phase ${phase}, ${PHASES[phase! - 1]}`}>
+      <Icon name="obi" size={small ? 13 : 15} />
+      {small ? <span className="sr-only">{belt}</span> : belt}
     </span>
   );
 }
 
-/** The Grand Sensei's crown: a filled two-tone mark, unlike the outline icons used for students */
+/** The Grand Sensei's crown: a filled two-tone mark, unlike the outline icons used for members */
 export function Crown({ size = 16 }: { size?: number }) {
   const id = React.useId();
   return (

@@ -12,7 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const WRONG = 'That email and student ID don’t match. Check both, or ask the community manager for your ID.';
+const WRONG = 'That email and member ID don’t match. Check both, or ask the community manager for your ID.';
 
 /** "md 7kq2x9pb", "MD-7KQ2-X9PB", "7KQ2X9PB" -> "MD-7KQ2-X9PB" */
 function normaliseId(v: unknown) {

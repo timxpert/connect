@@ -117,12 +117,12 @@ export function Feed() {
         <Empty title="Nothing here yet">
           {tab === 'connections' ? (
             <p>
-              Connect with students from the <A path="/students">Students page</A> and their work shows up here.
+              Connect with people from <A path="/students">Members</A> and their work shows up here.
             </p>
           ) : tab === 'community' ? (
             <p>Posts from the grand sensei will appear here.</p>
           ) : (
-            <p>When students share their work, it appears here.</p>
+            <p>When members share their work, it appears here.</p>
           )}
         </Empty>
       ) : (
@@ -160,7 +160,7 @@ export function Students() {
   return (
     <div className="cx-col">
       <div className="cx-intro">
-        <h1 className="cx-h1">Students</h1>
+        <h1 className="cx-h1">Members</h1>
         <p>Everyone on Black Belt in Motion Design.</p>
       </div>
 
@@ -168,7 +168,7 @@ export function Students() {
       <div className="cx-filters">
         <label className="cx-search">
           <Icon name="search" size={20} />
-          <span className="sr-only">Search students</span>
+          <span className="sr-only">Search members</span>
           <input type="search" placeholder="Search by name or country" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
         <div className="cx-chips" role="group" aria-label="Filter by skill">
@@ -196,9 +196,9 @@ export function Students() {
       )}
 
       {list === null ? (
-        <Loading label="Loading students" />
+        <Loading label="Loading members" />
       ) : list.length === 0 ? (
-        <Empty title={member ? 'No students match' : 'No students yet'}>
+        <Empty title={member ? 'No one matches' : 'No members yet'}>
           {member && <p>Try another name, skill or phase.</p>}
         </Empty>
       ) : (
@@ -482,7 +482,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
               ? mine
                 ? 'You haven’t posted anything yet.'
                 : 'Nothing posted yet.'
-              : 'Only students post work.'}{' '}
+              : 'Only members post work.'}{' '}
             {mine && (p.is_student || p.is_sensei) && (
               <button type="button" className="cx-link-btn" onClick={openComposer}>
                 {p.is_sensei ? 'Write your first post' : 'Share your first piece'}

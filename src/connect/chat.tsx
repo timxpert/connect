@@ -631,10 +631,10 @@ export function Inbox() {
             <Icon name="chat" size={30} />
           </span>
           <p className="cx-inbox-empty-title">No messages yet</p>
-          <p>{people.length ? 'Tap someone above to start a chat.' : 'Connect with other students, then message them here.'}</p>
+          <p>{people.length ? 'Tap someone above to start a chat.' : 'Connect with other members, then message them here.'}</p>
           {!people.length && (
             <A path="/students" className="btn btn-primary btn-sm">
-              Find students
+              Find members
             </A>
           )}
         </div>

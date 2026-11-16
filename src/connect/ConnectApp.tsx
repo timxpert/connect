@@ -6,12 +6,14 @@ import { Composer, openComposer } from './compose';
 import { onVisitorChange, visitorChosen } from './visitor';
 import { play, setSoundOn, soundOn } from './sounds';
 import { createDemoApi } from './demo-api';
+import { withCache } from './cache';
 import { navigate, useRoute, type Route } from './router';
 import type { ConnectApi } from './types';
 import { A, Avatar, Icon, Loading } from './ui';
 import { Feed, PostScreen, ProfileScreen, Students } from './screens-browse';
 import { Login, Settings, Welcome } from './screens-me';
 import { Chat, Inbox } from './chat';
+import { PhasePrompt } from './phase-prompt';
 import { Connections, Notifications, Saved } from './screens-social';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -23,9 +25,9 @@ function useApi(): ConnectApi | null {
   const [api, setApi] = useState<ConnectApi | null>(null);
   useEffect(() => {
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      import('./live-api').then(({ createLiveApi }) => setApi(createLiveApi(SUPABASE_URL, SUPABASE_ANON_KEY, window.location.origin + window.location.pathname.replace(/\/login$/, ''))));
+      import('./live-api').then(({ createLiveApi }) => setApi(withCache(createLiveApi(SUPABASE_URL, SUPABASE_ANON_KEY, window.location.origin + window.location.pathname.replace(/\/login$/, '')))));
     } else {
-      setApi(createDemoApi());
+      setApi(withCache(createDemoApi()));
     }
   }, []);
   return api;
@@ -50,7 +52,7 @@ export function ConnectApp() {
 
 const TABS = [
   { path: '/', label: 'Feed', icon: 'home' as const, match: ['feed', 'post'] },
-  { path: '/students', label: 'Students', icon: 'people' as const, match: ['students', 'profile'] },
+  { path: '/students', label: 'Members', icon: 'people' as const, match: ['students', 'profile'] },
   { path: '/connections', label: 'Connections', icon: 'link2' as const, match: ['connections'] },
   { path: '/messages', label: 'Messages', icon: 'chat' as const, match: ['messages', 'chat'] },
 ];
@@ -279,6 +281,7 @@ function Shell({ route }: { route: Route }) {
       </nav>
       )}
       <Composer />
+      {route.name !== 'settings' && route.name !== 'login' && <PhasePrompt />}
     </div>
   );
 }

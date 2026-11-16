@@ -146,9 +146,9 @@ export function Connections() {
             <Icon name="link2" size={30} />
           </span>
           <p className="cx-inbox-empty-title">No connections yet</p>
-          <p>Tap Connect on a student’s profile. Once they accept, you can message each other.</p>
+          <p>Tap Connect on someone’s profile. Once they accept, you can message each other.</p>
           <A path="/students" className="btn btn-primary btn-sm">
-            Find students
+            Find members
           </A>
         </div>
       ) : (
