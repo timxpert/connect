@@ -83,13 +83,20 @@ alter table public.profiles add column if not exists cover_url text;
 create table if not exists public.posts (
   id         uuid primary key default gen_random_uuid(),
   author_id  uuid not null references public.profiles (id) on delete cascade,
-  kind       text not null check (kind in ('image', 'video')),
-  media_url  text not null,                  -- storage URL for images, share link for videos
+  kind       text not null check (kind in ('image', 'video', 'text')),
+  media_url  text,                           -- storage URL (image or uploaded video) or a video share link; empty for text posts
   caption    text not null default '' check (char_length(caption) <= 1000),
   tag        text not null default 'sharing' check (tag in ('sharing', 'feedback')),
   community  boolean not null default false,  -- a grand sensei post for the Community feed
   created_at timestamptz not null default now()
 );
+-- Text-only posts (like LinkedIn): media is optional, but a text post needs words.
+alter table public.posts alter column media_url drop not null;
+alter table public.posts drop constraint if exists posts_kind_check;
+alter table public.posts add constraint posts_kind_check check (kind in ('image', 'video', 'text'));
+alter table public.posts drop constraint if exists posts_has_content;
+alter table public.posts add constraint posts_has_content
+  check ((kind = 'text' and char_length(btrim(caption)) > 0) or (kind <> 'text' and media_url is not null));
 create index if not exists posts_author_idx on public.posts (author_id, created_at desc);
 create index if not exists posts_created_idx on public.posts (created_at desc);
 

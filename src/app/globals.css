@@ -858,7 +858,9 @@ details[open] > :not(summary) {
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--line);
 }
-.cx-tabbar a {
+.cx-tabbar a,
+.cx-tabbar button {
+  font: inherit;
   flex: 1;
   display: grid;
   justify-items: center;
@@ -872,7 +874,8 @@ details[open] > :not(summary) {
 .cx-tabbar a.is-on {
   color: var(--violet);
 }
-.cx-tabbar a:active svg {
+.cx-tabbar a:active svg,
+.cx-tabbar button:active svg {
   transform: scale(0.88);
 }
 .cx-tabbar svg {
@@ -888,7 +891,7 @@ details[open] > :not(summary) {
   background: var(--violet);
   color: #fff;
 }
-.cx-tabbar a.cx-tab-post {
+.cx-tabbar .cx-tab-post {
   color: var(--ink);
 }
 @media (min-width: 860px) {
@@ -1207,7 +1210,7 @@ details[open] > :not(summary) {
   font-weight: 600;
 }
 .cx-caption {
-  padding: 14px 18px 0;
+  padding: 2px 18px 14px;
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2504,4 +2507,254 @@ details[open] > :not(summary) {
 }
 .cx-login-tabs button {
   flex: 1;
+}
+
+/* Profile grid: text posts and uploaded videos */
+.cx-thumb-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  height: 100%;
+  padding: 12px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #fff;
+  background: var(--violet);
+}
+.cx-thumb-vid {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cx-media-file video {
+  display: block;
+  width: 100%;
+  max-height: 80vh;
+  background: #000;
+}
+
+/* ---------- Post composer (opens over the page) ---------- */
+.cx-cmp-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  align-items: end;
+  background: rgba(20, 10, 46, 0.45);
+  animation: fade-in 0.2s ease;
+}
+.cx-cmp {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  background: var(--paper);
+  animation: cmp-up 0.35s var(--ease);
+}
+@keyframes cmp-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+@media (min-width: 700px) {
+  .cx-cmp-wrap {
+    align-items: start;
+    justify-items: center;
+    padding: 8vh 16px 16px;
+  }
+  .cx-cmp {
+    width: min(600px, 100%);
+    height: auto;
+    max-height: 84vh;
+    border-radius: 20px;
+    box-shadow: 0 30px 80px rgba(20, 10, 46, 0.25);
+    overflow: hidden;
+  }
+}
+.cx-cmp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.cx-cmp-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cx-cmp-who span {
+  display: grid;
+  min-width: 0;
+}
+.cx-cmp-who strong {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cx-cmp-who small {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cx-cmp-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+.cx-cmp-text {
+  width: 100%;
+  min-height: 160px;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: none;
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  color: var(--ink);
+  field-sizing: content;
+}
+.cx-cmp-text::placeholder {
+  color: var(--muted);
+}
+.cx-cmp-attach {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--tint);
+}
+.cx-cmp-attach .cx-media {
+  margin: 0;
+}
+.cx-cmp-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(20, 10, 46, 0.75);
+  color: #fff;
+}
+.cx-cmp-uploading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--tint);
+  color: var(--muted);
+}
+.cx-cmp-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  overflow-x: auto;
+}
+.cx-cmp-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.cx-cmp-tools button:hover:not(:disabled) {
+  background: var(--tint);
+  color: var(--ink);
+}
+.cx-cmp-tools button:disabled {
+  opacity: 0.5;
+}
+.cx-cmp-tools .cx-cmp-fb.is-on {
+  background: var(--lime);
+  color: var(--midnight);
+}
+.cx-cmp-count {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+@media (max-width: 420px) {
+  .cx-cmp-tools button span {
+    display: none;
+  }
+  .cx-cmp-tools .cx-cmp-fb span {
+    display: inline;
+  }
+}
+button.cx-composer {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+}
+.cx-link-btn {
+  font: inherit;
+  font-weight: 600;
+  color: var(--violet);
+}
+
+/* ---------- Welcome: are you a member? ---------- */
+.cx-welcome {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  max-width: 440px;
+  margin: clamp(32px, 10vh, 96px) auto 0;
+  text-align: center;
+  animation: cx-in 0.5s var(--ease);
+}
+.cx-welcome img {
+  border-radius: 16px;
+  margin-bottom: 6px;
+}
+.cx-welcome-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 7vw, 2.6rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.cx-welcome-btns {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin-top: 10px;
+}
+.cx-login-alt {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+  font-size: 0.92rem;
+}
+.cx-link-btn.cx-quiet {
+  font-weight: 500;
+  color: var(--muted);
+}
+.cx-cmp-head .btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
 }

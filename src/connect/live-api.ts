@@ -117,7 +117,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     },
     async uploadImage(original, folder) {
       const id = await needUid();
-      const file = await prepareImage(original, folder);
+      const file = folder === 'videos' ? original : await prepareImage(original, folder);
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
       const path = `${id}/${folder}/${Date.now()}.${ext}`;
       const { error } = await sb.storage.from('media').upload(path, file, { upsert: false, contentType: file.type });

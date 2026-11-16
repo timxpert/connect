@@ -4,9 +4,36 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useConnect } from './context';
 import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
-import { timeAgo, toEmbed } from './media';
+import { setVisitor } from './visitor';
+import { timeAgo } from './media';
 import { PHASES, SKILLS, type Conversation, type Message, type Profile } from './types';
-import { A, Avatar, Empty, Icon, Loading, Media, NinjaBadge, SampleTag } from './ui';
+import { A, Avatar, Empty, Icon, Loading, NinjaBadge, SampleTag } from './ui';
+
+/* ================= Welcome: are you a member? ================= */
+export function Welcome() {
+  return (
+    <div className="cx-welcome">
+      <img src="/assets/favicon-128.png" alt="" width={64} height={64} />
+      <h1 className="cx-welcome-title">Are you a member?</h1>
+      <p className="cx-lead">Members are Keyframe Ninjas, the students of Black Belt in Motion Design.</p>
+      <div className="cx-welcome-btns">
+        <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>
+          Yes, sign me in
+        </button>
+        <button
+          type="button"
+          className="btn btn-light"
+          onClick={() => {
+            setVisitor(true);
+            navigate('/students');
+          }}
+        >
+          No, show me the students
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /* ================= Sign in ================= */
 export function Login() {
@@ -53,15 +80,7 @@ export function Login() {
   return (
     <div className="cx-narrow">
       <div className="cx-panel">
-        <h1 className="cx-h1">Sign in to Connect</h1>
-        <div className="cx-tabs cx-login-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={mode === 'student'} className={mode === 'student' ? 'is-on' : ''} onClick={() => switchTo('student')}>
-            Keyframe Ninja
-          </button>
-          <button type="button" role="tab" aria-selected={mode === 'link'} className={mode === 'link' ? 'is-on' : ''} onClick={() => switchTo('link')}>
-            Everyone else
-          </button>
-        </div>
+        <h1 className="cx-h1">{mode === 'student' ? 'Member sign-in' : 'Team sign-in'}</h1>
         {sent ? (
           <p className="cx-lead">
             Check <strong>{email}</strong> for a sign-in link. It works once and expires after an hour.
@@ -71,7 +90,7 @@ export function Login() {
             <p className="cx-lead">
               {mode === 'student'
                 ? 'Use the email you enrolled with and the student ID you got after paying.'
-                : 'We’ll email you a link that signs you in.'}
+                : 'For the Motion Dojo team. We’ll email you a link that signs you in.'}
             </p>
             <form className="cx-form" onSubmit={submit} noValidate>
               <label className="field">
@@ -90,7 +109,7 @@ export function Login() {
                     onChange={(e) => setStudentId(e.target.value.toUpperCase())}
                     required
                   />
-                  <small>Lost it? Ask the community manager on WhatsApp, or use “Everyone else” to get an email link.</small>
+                  <small>Lost it? Ask the community manager on WhatsApp.</small>
                 </label>
               )}
               {err && (
@@ -104,6 +123,29 @@ export function Login() {
             </form>
           </>
         )}
+        <p className="cx-login-alt">
+          {mode === 'student' ? (
+            <>
+              <button
+                type="button"
+                className="cx-link-btn"
+                onClick={() => {
+                  setVisitor(true);
+                  navigate('/students');
+                }}
+              >
+                Not a member? See the students
+              </button>
+              <button type="button" className="cx-link-btn cx-quiet" onClick={() => switchTo('link')}>
+                Motion Dojo team
+              </button>
+            </>
+          ) : (
+            <button type="button" className="cx-link-btn" onClick={() => switchTo('student')}>
+              Back to member sign-in
+            </button>
+          )}
+        </p>
         {api.demoSignIn && (
           <div className="cx-demo">
             <p>
@@ -348,119 +390,6 @@ export function Settings() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ================= New post (students) ================= */
-export function NewPost() {
-  const { api, me, toast } = useConnect();
-  const [kind, setKind] = useState<'image' | 'video'>('video');
-  const [url, setUrl] = useState('');
-  const [image, setImage] = useState<string | null>(null);
-  const [caption, setCaption] = useState('');
-  const [tag, setTag] = useState<'sharing' | 'feedback'>('sharing');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const sensei = Boolean(me?.is_sensei);
-
-  if (me === undefined) return <Loading />;
-  if (!me?.is_student && !sensei) {
-    return (
-      <Empty title="Posting is for Keyframe Ninjas">
-        <p>Students on Black Belt in Motion Design share their work here. Everyone can like, comment, save and connect.</p>
-      </Empty>
-    );
-  }
-
-  const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 8 * 1024 * 1024) return setErr('Pick an image under 8 MB.');
-    setErr('');
-    try {
-      setImage(await api.uploadImage(file, 'posts'));
-    } catch (e2) {
-      setErr((e2 as Error).message);
-    }
-  };
-  const validVideo = kind === 'video' && toEmbed(url) !== null;
-  const ready = kind === 'image' ? Boolean(image) : validVideo;
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!ready) return setErr(kind === 'image' ? 'Add an image first.' : 'Paste a YouTube, Vimeo, Instagram or TikTok link.');
-    setBusy(true);
-    try {
-      const p = await api.createPost({ kind, media_url: kind === 'image' ? image! : url.trim(), caption: caption.trim(), tag, community: sensei });
-      toast(sensei ? 'Posted to the Community feed. Every student has been notified.' : 'Posted.');
-      navigate(`/p/${p.id}`);
-    } catch (e2) {
-      setErr((e2 as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="cx-narrow">
-      <form className="cx-panel cx-form" onSubmit={submit} noValidate>
-        <h1 className="cx-h1">{sensei ? 'Post to the community' : 'Share your work'}</h1>
-        {sensei && <p className="cx-muted">This goes to the Community feed, and every Keyframe Ninja gets a notification.</p>}
-
-        <div className="cx-seg" role="radiogroup" aria-label="What are you sharing?">
-          {(['video', 'image'] as const).map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={kind === k} className={kind === k ? 'is-on' : ''} onClick={() => setKind(k)}>
-              <Icon name={k} size={18} /> {k === 'video' ? 'Video link' : 'Image'}
-            </button>
-          ))}
-        </div>
-
-        {kind === 'video' ? (
-          <label className="field">
-            <span>Video link</span>
-            <input value={url} placeholder="Paste a YouTube, Vimeo, Instagram or TikTok link" onChange={(e) => setUrl(e.target.value)} />
-            <small>Upload the video there first, then paste its share link.</small>
-          </label>
-        ) : (
-          <label className="cx-drop">
-            {image ? <img src={image} alt="" /> : <><Icon name="image" size={32} />Choose an image (PNG, JPG or GIF)</>}
-            <input type="file" accept="image/*" className="sr-only" onChange={pick} />
-          </label>
-        )}
-
-        {validVideo && <Media post={{ kind: 'video', media_url: url, caption: '' }} />}
-
-        <label className="field">
-          <span>Caption</span>
-          <textarea rows={3} maxLength={1000} value={caption} placeholder="What did you make, and what did you learn?" onChange={(e) => setCaption(e.target.value)} />
-        </label>
-
-        {!sensei && (
-        <div className="cx-seg" role="radiogroup" aria-label="What do you want from people?">
-          <button type="button" role="radio" aria-checked={tag === 'sharing'} className={tag === 'sharing' ? 'is-on' : ''} onClick={() => setTag('sharing')}>
-            Just sharing
-          </button>
-          <button type="button" role="radio" aria-checked={tag === 'feedback'} className={tag === 'feedback' ? 'is-on' : ''} onClick={() => setTag('feedback')}>
-            I want feedback
-          </button>
-        </div>
-        )}
-
-        {hasPaymentTalk(caption) && (
-          <p className="cx-safety" role="alert">
-            {PAYMENT_NOTE}
-          </p>
-        )}
-        {err && (
-          <p className="cx-error" role="alert">
-            {err}
-          </p>
-        )}
-        <button type="submit" className="btn btn-primary" disabled={busy || hasPaymentTalk(caption)}>
-          {busy ? 'Posting…' : sensei ? 'Post and notify students' : 'Post'}
-        </button>
-      </form>
     </div>
   );
 }

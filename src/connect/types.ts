@@ -25,8 +25,9 @@ export type Profile = {
 export type Post = {
   id: string;
   author_id: string;
-  kind: 'image' | 'video';
-  media_url: string;
+  /** text posts have no media; video is an uploaded file or a YouTube/Vimeo/Instagram/TikTok link */
+  kind: 'image' | 'video' | 'text';
+  media_url: string | null;
   caption: string;
   tag: 'sharing' | 'feedback';
   /** A grand sensei post on the Community feed */
@@ -98,7 +99,8 @@ export interface ConnectApi {
   updateProfile(input: ProfileInput): Promise<Profile>;
   refreshStudentStatus(): Promise<boolean>;
   redeemInvite(code: string): Promise<boolean>;
-  uploadImage(file: File, folder: 'avatars' | 'covers' | 'posts'): Promise<string>;
+  /** Images are resized before upload; videos go up as they are */
+  uploadImage(file: File, folder: 'avatars' | 'covers' | 'posts' | 'videos'): Promise<string>;
 
   listStudents(filter: StudentFilter): Promise<Profile[]>;
   getProfile(handle: string): Promise<Profile | null>;
@@ -121,7 +123,7 @@ export interface ConnectApi {
   listSaved(): Promise<Post[]>;
   setSaved(postId: string, on: boolean): Promise<void>;
   getPost(id: string): Promise<Post | null>;
-  createPost(input: { kind: 'image' | 'video'; media_url: string; caption: string; tag: 'sharing' | 'feedback'; community?: boolean }): Promise<Post>;
+  createPost(input: { kind: 'image' | 'video' | 'text'; media_url: string | null; caption: string; tag: 'sharing' | 'feedback'; community?: boolean }): Promise<Post>;
   deletePost(id: string): Promise<void>;
   setLike(postId: string, on: boolean): Promise<void>;
   listComments(postId: string): Promise<Comment[]>;

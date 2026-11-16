@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { ConnectProvider, useConnect } from './context';
+import { ConnectProvider, isMember, useConnect } from './context';
+import { Composer, openComposer } from './compose';
+import { onVisitorChange, visitorChosen } from './visitor';
 import { createDemoApi } from './demo-api';
-import { useRoute, type Route } from './router';
+import { navigate, useRoute, type Route } from './router';
 import type { ConnectApi } from './types';
 import { A, Avatar, Icon, Loading } from './ui';
 import { Feed, PostScreen, ProfileScreen, Students } from './screens-browse';
-import { Chat, Inbox, Login, NewPost, Settings } from './screens-me';
+import { Chat, Inbox, Login, Settings, Welcome } from './screens-me';
 import { Connections, Notifications, Saved } from './screens-social';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -85,10 +87,35 @@ function Shell({ route }: { route: Route }) {
   const [menu, setMenu] = useState(false);
   const counts = useCounts();
 
+  const member = isMember(me);
+  const [visitor, setVisitorState] = useState(false);
+  useEffect(() => {
+    setVisitorState(visitorChosen());
+    return onVisitorChange(() => setVisitorState(visitorChosen()));
+  }, []);
+
   // Close the account menu whenever the page changes
   useEffect(() => setMenu(false), [route]);
 
+  // First visit, not signed in: ask "Are you a member?" before anything else
+  const authKnown = me !== undefined;
+  const welcome = authKnown && !signedIn && !visitor && route.name !== 'login';
+
+  // Non-members only see Students, student profiles and their posts
+  const guestOk = ['students', 'profile', 'post', 'login', 'feed'].includes(route.name) || (signedIn && route.name === 'settings');
+  useEffect(() => {
+    if (authKnown && !member && !guestOk) navigate('/students');
+  }, [authKnown, member, guestOk]);
+
+  // /new (old links, "Post" from elsewhere): show the feed with the composer open
+  useEffect(() => {
+    if (route.name === 'new' && member) openComposer();
+  }, [route, member]);
+
   const screen = useMemo(() => {
+    if (!authKnown) return <Loading />;
+    if (welcome) return <Welcome />;
+    if (!member && route.name === 'feed') return <Students />;
     switch (route.name) {
       case 'feed':
         return <Feed />;
@@ -107,7 +134,7 @@ function Shell({ route }: { route: Route }) {
       case 'settings':
         return <Settings />;
       case 'new':
-        return <NewPost />;
+        return <Feed />;
       case 'connections':
         return <Connections />;
       case 'notifications':
@@ -122,7 +149,7 @@ function Shell({ route }: { route: Route }) {
           </div>
         );
     }
-  }, [route]);
+  }, [route, authKnown, welcome, member]);
 
   return (
     <div className="cx">
@@ -138,6 +165,7 @@ function Shell({ route }: { route: Route }) {
               <em>Connect</em>
             </span>
           </A>
+          {member && (
           <nav className="cx-nav" aria-label="Connect">
             {TABS.map((t) => (
               <A key={t.path} path={t.path} className={t.match.includes(route.name) ? 'is-on' : ''} aria-current={t.match.includes(route.name) ? 'page' : undefined}>
@@ -146,14 +174,15 @@ function Shell({ route }: { route: Route }) {
               </A>
             ))}
           </nav>
+          )}
           <div className="cx-top-right">
             {(me?.is_student || me?.is_sensei) && (
-              <A path="/new" className="btn btn-primary btn-sm cx-new">
+              <button type="button" className="btn btn-primary btn-sm cx-new" onClick={openComposer}>
                 <Icon name="plus" size={18} />
-                <span>{me.is_sensei ? 'Post' : 'Share work'}</span>
-              </A>
+                <span>Post</span>
+              </button>
             )}
-            {me && (
+            {member && (
               <A path="/notifications" className="cx-bell" aria-label={`Notifications${counts.unread ? `, ${counts.unread} new` : ''}`}>
                 <Icon name="bell" />
                 <Dot n={counts.unread} />
@@ -207,17 +236,18 @@ function Shell({ route }: { route: Route }) {
         {screen}
       </main>
 
+      {member && !welcome && (
       <nav className="cx-tabbar" aria-label="Connect">
         {TABS.map((t, i) => (
           <React.Fragment key={t.path}>
             {/* Post sits in the middle, between Students and Connections */}
             {i === 2 && (me?.is_student || me?.is_sensei) && (
-              <A path="/new" className={route.name === 'new' ? 'cx-tab-post is-on' : 'cx-tab-post'} aria-current={route.name === 'new' ? 'page' : undefined}>
+              <button type="button" className="cx-tab-post" onClick={openComposer}>
                 <span className="cx-tab-ico">
                   <Icon name="plus" />
                 </span>
                 <span>Post</span>
-              </A>
+              </button>
             )}
             <A path={t.path} className={t.match.includes(route.name) ? 'is-on' : ''} aria-current={t.match.includes(route.name) ? 'page' : undefined}>
               <span className="cx-tab-ico">
@@ -229,6 +259,8 @@ function Shell({ route }: { route: Route }) {
           </React.Fragment>
         ))}
       </nav>
+      )}
+      <Composer />
     </div>
   );
 }

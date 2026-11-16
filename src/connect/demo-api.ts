@@ -146,6 +146,7 @@ export function createDemoApi(): ConnectApi {
     refreshStudentStatus: () => wait(Boolean(current && who(current).is_student)),
     redeemInvite: () => wait(false),
     async uploadImage(file) {
+      if (file.type.startsWith('video/')) return URL.createObjectURL(file);
       return new Promise<string>((resolve, reject) => {
         const r = new FileReader();
         r.onload = () => resolve(String(r.result));

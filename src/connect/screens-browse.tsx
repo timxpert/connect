@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useConnect } from './context';
+import { isMember, useConnect } from './context';
+import { openComposer } from './compose';
 import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { socialUrl, timeAgo } from './media';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
-import { A, Avatar, Empty, Icon, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge } from './ui';
+import { A, Avatar, Empty, Icon, isVideoFile, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge } from './ui';
 
 /* ================= Feed ================= */
 type FeedName = 'community' | 'everyone' | 'connections';
@@ -44,10 +45,10 @@ export function Feed() {
       </div>
 
       {canShare && me && (
-        <A path="/new" className="cx-composer">
+        <button type="button" className="cx-composer" onClick={openComposer}>
           <Avatar p={me} size={40} />
           <span>{me.is_sensei ? 'Post something to the community…' : 'Share what you’re working on…'}</span>
-        </A>
+        </button>
       )}
       {!signedIn && (
         <p className="cx-signin-line">
@@ -284,7 +285,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
               <A path="/settings" className="btn btn-light btn-sm">
                 Edit profile
               </A>
-            ) : (
+            ) : isMember(me) ? (
               <>
                 {!blocked && status === 'none' && (
                   <button type="button" className="btn btn-primary btn-sm" onClick={connect} disabled={busy}>
@@ -332,7 +333,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
                   )}
                 </div>
               </>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -393,15 +394,23 @@ export function ProfileScreen({ handle }: { handle: string }) {
                 ? 'You haven’t posted anything yet.'
                 : 'Nothing posted yet.'
               : 'Only Keyframe Ninjas post work.'}{' '}
-            {mine && (p.is_student || p.is_sensei) && <A path="/new">{p.is_sensei ? 'Write your first post' : 'Share your first piece'}</A>}
+            {mine && (p.is_student || p.is_sensei) && (
+              <button type="button" className="cx-link-btn" onClick={openComposer}>
+                {p.is_sensei ? 'Write your first post' : 'Share your first piece'}
+              </button>
+            )}
           </p>
         ) : (
           <ul className="cx-thumbs">
             {posts.map((x) => (
               <li key={x.id}>
                 <A path={`/p/${x.id}`} className="cx-thumb" aria-label={x.caption || 'Open post'}>
-                  {x.kind === 'image' ? (
+                  {x.kind === 'image' && x.media_url ? (
                     <img src={x.media_url} alt="" loading="lazy" />
+                  ) : x.kind === 'text' ? (
+                    <span className="cx-thumb-text">{x.caption}</span>
+                  ) : x.media_url && isVideoFile(x.media_url) ? (
+                    <video className="cx-thumb-vid" src={`${x.media_url}#t=0.1`} muted playsInline preload="metadata" />
                   ) : (
                     <span className="cx-thumb-video">
                       <Icon name="video" size={30} />
@@ -513,8 +522,8 @@ export function PostScreen({ id }: { id: string }) {
           <PersonLine p={post.author} when={post.created_at} />
           {post.community ? <span className="cx-tag">Community</span> : post.tag === 'feedback' && <span className="cx-tag">Wants feedback</span>}
         </header>
-        <Media post={post} priority />
         {post.caption && <p className="cx-caption">{post.caption}</p>}
+        <Media post={post} priority />
         <footer className="cx-post-actions">
           <LikeButton post={post} />
           <label htmlFor="comment-box" className="cx-act" aria-label={`${comments.length} comments`}>
@@ -535,7 +544,7 @@ export function PostScreen({ id }: { id: string }) {
         </footer>
       </article>
 
-      {me ? (
+      {me && isMember(me) ? (
         <form className="cx-reply" onSubmit={submit}>
           <Avatar p={me} size={36} />
           <label className="sr-only" htmlFor="comment-box">
@@ -561,7 +570,13 @@ export function PostScreen({ id }: { id: string }) {
         </form>
       ) : (
         <p className="cx-signin-line">
-          <A path={signedIn ? '/settings' : '/login'}>{signedIn ? 'Finish your profile' : 'Sign in'}</A> to comment.
+          {signedIn && !me ? (
+            <>
+              <A path="/settings">Finish your profile</A> to comment.
+            </>
+          ) : (
+            'Only members can comment.'
+          )}
         </p>
       )}
       {hasPaymentTalk(draft) && (

@@ -190,25 +190,37 @@ export function PersonLine({ p, when }: { p: Profile; when?: string }) {
 }
 
 /* ---------- Media ---------- */
+/** Uploaded video files (not share links) play in a plain <video> */
+export const isVideoFile = (url: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) || url.startsWith('blob:');
+
 export function Media({ post, priority = false }: { post: Pick<Post, 'kind' | 'media_url' | 'caption'>; priority?: boolean }) {
+  const url = post.media_url;
+  if (post.kind === 'text' || !url) return null;
   if (post.kind === 'image') {
     return (
       <div className="cx-media">
-        <img src={post.media_url} alt={post.caption ? post.caption.slice(0, 120) : 'Posted work'} loading={priority ? 'eager' : 'lazy'} />
+        <img src={url} alt={post.caption ? post.caption.slice(0, 120) : 'Posted work'} loading={priority ? 'eager' : 'lazy'} />
       </div>
     );
   }
-  const embed = toEmbed(post.media_url);
+  if (isVideoFile(url)) {
+    return (
+      <div className="cx-media cx-media-file">
+        <video src={url} controls playsInline preload="metadata" />
+      </div>
+    );
+  }
+  const embed = toEmbed(url);
   if (!embed) {
     return (
-      <a className="cx-media cx-media-link" href={post.media_url} target="_blank" rel="noopener noreferrer">
+      <a className="cx-media cx-media-link" href={url} target="_blank" rel="noopener noreferrer">
         <Icon name="video" size={28} />
         Watch the video
       </a>
     );
   }
   return (
-    <div className={isTall(post.media_url) ? 'cx-media cx-media-tall' : 'cx-media cx-media-wide'}>
+    <div className={isTall(url) ? 'cx-media cx-media-tall' : 'cx-media cx-media-wide'}>
       <iframe src={embed} title="Posted video" loading="lazy" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen />
     </div>
   );
@@ -221,7 +233,7 @@ export function LikeButton({ post, onChange }: { post: Post; onChange?: (p: Post
   const [pop, setPop] = useState(false);
   const toggle = async () => {
     if (!signedIn) {
-      toast('Sign in to like posts.');
+      toast('Only members can like posts.');
       return;
     }
     const next = { liked: !state.liked, likes: state.likes + (state.liked ? -1 : 1) };
@@ -258,7 +270,7 @@ export function SaveButton({ post }: { post: Post }) {
   if (signedIn && me && me.id === post.author_id) return null;
   const toggle = async () => {
     if (!signedIn || !me) {
-      toast('Sign in to save projects.');
+      toast('Only members can save projects.');
       return;
     }
     setSaved(!saved);
@@ -284,10 +296,14 @@ export function PostCard({ post }: { post: Post }) {
         <PersonLine p={post.author} when={post.created_at} />
         {post.community ? <span className="cx-tag">Community</span> : post.tag === 'feedback' && <span className="cx-tag">Wants feedback</span>}
       </header>
-      <A path={`/p/${post.id}`} className="cx-post-media" aria-label="Open post">
-        <Media post={post} />
-      </A>
       {post.caption && <p className="cx-caption">{post.caption}</p>}
+      {post.kind === 'image' ? (
+        <A path={`/p/${post.id}`} className="cx-post-media" aria-label="Open post">
+          <Media post={post} />
+        </A>
+      ) : (
+        <Media post={post} />
+      )}
       <footer className="cx-post-actions">
         <LikeButton post={post} />
         <A path={`/p/${post.id}`} className="cx-act" aria-label={`${post.comments} comments`}>
