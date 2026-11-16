@@ -316,12 +316,14 @@ export function Chat({ id }: { id: string }) {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') return toast('Voice notes don’t work in this browser.');
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Mono with noise cleanup: voice notes stay small and clear
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     } catch {
       return toast('Allow microphone access to record a voice note.');
     }
     const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'].find((t) => MediaRecorder.isTypeSupported?.(t));
-    const mr = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+    // 16 kbps Opus: about 2 KB a second, so a 1-minute note is around 120 KB
+    const mr = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 16000 });
     const r = { mr, chunks: [] as Blob[], stream, cancel: false };
     recorder.current = r;
     const start = Date.now();
@@ -421,7 +423,7 @@ export function Chat({ id }: { id: string }) {
             <span className="cx-person-meta">@{other.handle}</span>
           </span>
         </A>
-        <div className="cx-menu">
+        <div className="cx-menu cx-chat-more">
           <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Chat options" aria-expanded={menu} onClick={() => setMenu((x) => !x)}>
             <Icon name="more" />
           </button>
@@ -444,9 +446,8 @@ export function Chat({ id }: { id: string }) {
         </div>
       </header>
 
-      <p className="cx-safety-note">Never send money or bank details to anyone on Connect. Report anyone who asks.</p>
-
       <ol className="cx-msgs">
+        <li className="cx-chat-note">Never send money or bank details on Connect. Report anyone who asks.</li>
         {all.map((m) => {
           const day = dayLabel(m.created_at);
           const showDay = day !== lastDay;

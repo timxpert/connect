@@ -158,7 +158,7 @@ function Shell({ route }: { route: Route }) {
   }, [route, authKnown, welcome, member]);
 
   return (
-    <div className="cx">
+    <div className={route.name === 'chat' && member ? 'cx is-chat' : 'cx'}>
       {api.mode === 'demo' && (
         <p className="cx-preview-bar">Preview with sample members. Nothing here is real until the database is connected.</p>
       )}
