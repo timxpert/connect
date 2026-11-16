@@ -60,3 +60,24 @@ A member becomes a Keyframe Ninja when the email they sign in with is in the `en
 - `src/connect/demo-api.ts`: the sample-data preview
 - `src/connect/safety.ts`: the payment-details filter (keep in step with `has_payment_details` in the schema)
 - `supabase/schema.sql`: tables, security rules, triggers; safe to re-run
+
+## Cloudflare R2 (videos and chat files)
+
+Post videos and everything sent in chats (photos, videos, files, voice notes) go to R2 when it's set up; photos on posts, avatars and covers stay on Supabase. Without R2 everything uses Supabase.
+
+- `md-media`: public bucket, post videos (`videos/<user>/...`)
+- `md-chat`: private bucket, chat files (`<conversation id>/...`); the app gets 6-hour read links from `/api/r2/read`, only for people in that chat
+- Uploads: `/api/r2/upload` checks who's asking and returns a 15-minute upload link (signed with `src/lib/r2.ts`)
+
+CORS policy for both buckets:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://connect.joinmotiondojo.com"],
+    "AllowedMethods": ["GET", "PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```

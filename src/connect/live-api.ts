@@ -55,23 +55,20 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     }));
   }
 
-  /** Uploads with real progress (XHR, not fetch), into a Storage bucket */
-  async function xhrUpload(bucket: string, path: string, file: Blob, onProgress?: (share: number) => void) {
-    const token = (await sb.auth.getSession()).data.session?.access_token;
-    if (!token) throw new Error('Sign in first.');
-    await new Promise<void>((resolve, reject) => {
+  /** Sends a file with real progress (XHR, not fetch) */
+  function xhrSend(method: 'POST' | 'PUT', target: string, headers: Record<string, string>, file: Blob, onProgress?: (share: number) => void, bucket = '') {
+    return new Promise<void>((resolve, reject) => {
       const x = new XMLHttpRequest();
-      x.open('POST', `${url}/storage/v1/object/${bucket}/${path}`);
-      x.setRequestHeader('Authorization', `Bearer ${token}`);
-      x.setRequestHeader('apikey', anonKey);
-      x.setRequestHeader('x-upsert', 'false');
-      x.setRequestHeader('cache-control', 'max-age=31536000');
-      x.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      x.open(method, target);
+      for (const [k, v] of Object.entries(headers)) x.setRequestHeader(k, v);
       x.upload.onprogress = (e) => {
         if (e.lengthComputable) onProgress?.(e.loaded / e.total);
       };
       x.onload = () => {
-        if (x.status >= 200 && x.status < 300) return resolve();
+        if (x.status >= 200 && x.status < 300) {
+          onProgress?.(1);
+          return resolve();
+        }
         let msg = `Upload failed (${x.status}). Try again.`;
         try {
           const body = JSON.parse(x.responseText) as { message?: string; error?: string };
@@ -81,14 +78,59 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
           else if (/row-level security|policy|unauthorized/i.test(why)) msg = bucket === 'chat' ? NEEDS_UPDATE : 'You don’t have permission to upload this.';
           else if (why) msg = `Upload failed: ${why}`;
         } catch {
-          /* keep the default */
+          /* R2 answers in XML; keep the default */
         }
         reject(new Error(msg));
       };
       x.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
       x.send(file);
     });
-    onProgress?.(1);
+  }
+
+  /** Uploads into a Supabase Storage bucket */
+  async function xhrUpload(bucket: string, path: string, file: Blob, onProgress?: (share: number) => void) {
+    const token = (await sb.auth.getSession()).data.session?.access_token;
+    if (!token) throw new Error('Sign in first.');
+    await xhrSend(
+      'POST',
+      `${url}/storage/v1/object/${bucket}/${path}`,
+      {
+        Authorization: `Bearer ${token}`,
+        apikey: anonKey,
+        'x-upsert': 'false',
+        'cache-control': 'max-age=31536000',
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      file,
+      onProgress,
+      bucket,
+    );
+  }
+
+  /* Cloudflare R2 for videos and chat files (more free space than Supabase).
+     The server signs a one-time upload link; until R2 is set up it answers 503
+     and everything quietly goes to Supabase as before. */
+  let r2Off = false;
+  const authHeader = async () => {
+    const token = (await sb.auth.getSession()).data.session?.access_token;
+    if (!token) throw new Error('Sign in first.');
+    return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  };
+  async function r2Upload(purpose: 'video' | 'chat', file: File, onProgress?: (share: number) => void, conversationId?: string) {
+    if (r2Off) return null;
+    const res = await fetch('/api/r2/upload', {
+      method: 'POST',
+      headers: await authHeader(),
+      body: JSON.stringify({ purpose, conversationId, name: file.name, type: file.type, size: file.size }),
+    }).catch(() => null);
+    if (!res || res.status === 503 || res.status === 404) {
+      r2Off = true;
+      return null;
+    }
+    const data = (await res.json().catch(() => null)) as { uploadUrl?: string; key?: string; publicUrl?: string | null; error?: string } | null;
+    if (!res.ok || !data?.uploadUrl || !data.key) throw new Error(data?.error || 'Upload failed. Try again.');
+    await xhrSend('PUT', data.uploadUrl, { 'Content-Type': file.type || 'application/octet-stream' }, file, onProgress);
+    return { key: data.key, publicUrl: data.publicUrl ?? null };
   }
 
   // Signed links for private chat files, reused until shortly before they expire
@@ -97,11 +139,22 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
   async function sign(paths: string[]) {
     const now = Date.now();
     const need = [...new Set(paths)].filter((p) => (signed.get(p)?.until ?? 0) <= now);
-    if (need.length) {
-      const { data } = await sb.storage.from('chat').createSignedUrls(need, 6 * 3600);
+    const fromR2 = need.filter((p) => p.startsWith('r2:'));
+    const fromSupabase = need.filter((p) => !p.startsWith('r2:'));
+    if (fromSupabase.length) {
+      const { data } = await sb.storage.from('chat').createSignedUrls(fromSupabase, 6 * 3600);
       for (const d of (data ?? []) as unknown as { path: string | null; signedUrl: string }[]) {
         if (d.path && d.signedUrl) signed.set(d.path, { url: d.signedUrl, until: now + 5 * 3600 * 1000 });
       }
+    }
+    if (fromR2.length) {
+      const res = await fetch('/api/r2/read', {
+        method: 'POST',
+        headers: await authHeader(),
+        body: JSON.stringify({ keys: fromR2.map((p) => p.slice(3)) }),
+      }).catch(() => null);
+      const body = (res && res.ok ? await res.json().catch(() => null) : null) as { urls?: Record<string, string> } | null;
+      for (const [k, u] of Object.entries(body?.urls ?? {})) signed.set(`r2:${k}`, { url: u, until: now + 5 * 3600 * 1000 });
     }
     return (p: string) => signed.get(p)?.url ?? null;
   }
@@ -193,6 +246,10 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     },
     async uploadImage(original, folder, onProgress) {
       const id = await needUid();
+      if (folder === 'videos') {
+        const r = await r2Upload('video', original, onProgress);
+        if (r?.publicUrl) return r.publicUrl;
+      }
       const file = folder === 'videos' ? original : await prepareImage(original, folder);
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
       const path = `${id}/${folder}/${Date.now()}.${ext}`;
@@ -472,8 +529,15 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const me = await needUid();
       const file = a.kind === 'image' ? await prepareImage(a.file, 'posts') : a.file;
       const ext = (file.name.split('.').pop() || (a.kind === 'voice' ? 'webm' : 'bin')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
-      const path = `${conversationId}/${me}-${Date.now()}.${ext}`;
-      await xhrUpload('chat', path, file, onProgress);
+      const asFile = file instanceof File ? file : new File([file], `upload.${ext}`, { type: a.file.type });
+      const r = await r2Upload('chat', asFile, onProgress, conversationId);
+      let path: string;
+      if (r) {
+        path = `r2:${r.key}`;
+      } else {
+        path = `${conversationId}/${me}-${Date.now()}.${ext}`;
+        await xhrUpload('chat', path, file, onProgress);
+      }
       const { data, error } = await sb
         .from('messages')
         .insert({
