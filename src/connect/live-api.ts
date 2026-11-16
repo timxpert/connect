@@ -7,6 +7,9 @@ import { PAYMENT_NOTE } from './safety';
 import { prepareImage } from './resize';
 import type { Comment, ConnectApi, ConnectionStatus, Conversation, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
 
+/** Shown when the database is missing the chat changes */
+const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
+
 const POST_SELECT = '*, author:profiles!posts_author_id_fkey(*)';
 
 function fail(error: { message: string } | null) {
@@ -69,10 +72,14 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       };
       x.onload = () => {
         if (x.status >= 200 && x.status < 300) return resolve();
-        let msg = 'Upload failed. Try again.';
+        let msg = `Upload failed (${x.status}). Try again.`;
         try {
           const body = JSON.parse(x.responseText) as { message?: string; error?: string };
-          if (/size|large/i.test(body.message || body.error || '')) msg = 'That file is too big to upload.';
+          const why = body.message || body.error || '';
+          if (/size|large|maximum/i.test(why)) msg = 'That file is too big to upload.';
+          else if (/bucket not found/i.test(why)) msg = NEEDS_UPDATE;
+          else if (/row-level security|policy|unauthorized/i.test(why)) msg = bucket === 'chat' ? NEEDS_UPDATE : 'You don’t have permission to upload this.';
+          else if (why) msg = `Upload failed: ${why}`;
         } catch {
           /* keep the default */
         }
@@ -474,6 +481,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         })
         .select()
         .single();
+      if (error && /column|kind|media_path|schema cache/i.test(error.message)) throw new Error(NEEDS_UPDATE);
       fail(error);
       const link = await sign([path]);
       return { ...(data as unknown as Message), media_url: link(path) };
