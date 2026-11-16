@@ -27,6 +27,50 @@ const PATHS = {
   play: <path d="M8 5.5v13l10.5-6.5z" />,
   pause: <path d="M8 5v14M16 5v14" />,
   tick: <path d="m4.5 12.5 4.5 4.5 10-10" />,
+  tiktok: (
+    <>
+      <path d="M14 3.5v11a3.5 3.5 0 1 1-3.5-3.5" />
+      <path d="M14 3.5c.4 2.6 2.2 4.3 5 4.5" />
+    </>
+  ),
+  linkedin: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3" />
+      <path d="M8 10.5V16M8 7.9v.1M11.5 16v-5.5M11.5 13c0-1.6 1-2.6 2.4-2.6s2.1.9 2.1 2.6V16" />
+    </>
+  ),
+  facebook: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M14.6 8.4h-1.3a1.8 1.8 0 0 0-1.8 1.8v10.3M9.4 13.2h4.9" />
+    </>
+  ),
+  x: <path d="M4.5 4.5h3.8l11.2 15h-3.8zM19 4.5l-5.8 6.6M10.6 13.2 5 19.5" />,
+  behance: <path d="M3.5 6.5h4.8a2.5 2.5 0 0 1 0 5H3.5zM3.5 11.5h5.4a2.75 2.75 0 0 1 0 5.5H3.5zM15 7.5h5M14.2 13.6h6.8a3.4 3.4 0 1 0-1 2.5" />,
+  dribbble: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M5 7.4c4.2 1 9 .4 13.4-2M3.6 12.6c5-1.4 11-1 16.6 2M8.8 3.9c2.6 3 4.6 9 5.6 16" />
+    </>
+  ),
+  github: (
+    <path d="M9 19.5c-4 1.2-4-2-5.6-2.4m11.2 4.4v-3.2a2.8 2.8 0 0 0-.8-2.2c2.7-.3 5.6-1.3 5.6-6a4.6 4.6 0 0 0-1.3-3.2 4.3 4.3 0 0 0-.1-3.2s-1-.3-3.3 1.2a11.4 11.4 0 0 0-6 0C6.5 3.4 5.4 3.7 5.4 3.7a4.3 4.3 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 10.1c0 4.7 2.9 5.7 5.6 6a2.8 2.8 0 0 0-.8 2.2v3.2" />
+  ),
+  threads: <path d="M16.5 10.8C16 7.6 14.2 6 11.8 6 8.6 6 6.5 8.6 6.5 12s2.1 6 5.6 6c2.8 0 4.7-1.6 4.7-4 0-2.2-1.8-3.4-4.3-3.4-2 0-3.3 1-3.3 2.4 0 1.3 1.1 2.1 2.5 2.1 2.2 0 3.3-1.8 3.3-4.6" />,
+  vimeo: <path d="M3.5 8.5c1.5-1.2 2.8-2.5 4-2.3 1.6.2 1.7 2.4 2.2 5 .5 2.6.9 4 1.6 4 .8 0 2.6-2.7 3.4-4.6.8-1.9-.3-3-1.9-2 .9-3 3.6-4.3 5.3-3.6 1.6.7 1.5 3.4-.4 6.8-2 3.5-4.6 6.7-6.7 6.7-2 0-2.8-3.8-3.4-6.5-.6-2.6-1-3.6-1.6-3.6-.4 0-1.2.6-1.9 1.1z" />,
+  pinterest: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M10.6 20.2 12.4 13M12.4 13c-.6-2.5.4-4.6 2.4-4.6 1.6 0 2.3 1.3 2.1 2.8-.3 2.2-1.6 3.8-3.2 3.8-1 0-1.6-.7-1.3-2" />
+    </>
+  ),
+  whatsapp: (
+    <>
+      <path d="M4 20l1.2-3.8A8.5 8.5 0 1 1 8 19z" />
+      <path d="M9 8.5c0 3.5 2.9 6.5 6.4 6.5l1-1.5-2-1-1 .8c-1.1-.5-2-1.4-2.5-2.5l.8-1-1-2z" />
+    </>
+  ),
+  crown: <path d="M4 18.5h16l1-11-5 4-4-6-4 6-5-4z" />,
   seal: (
     <>
       <path d="M12 2.5l2.2 1.6 2.7-.2.9 2.5 2.3 1.4-.6 2.7 1 2.5-2 1.8-.4 2.7-2.7.6L14 21.5l-2-1-2 1-1.4-2.4-2.7-.6-.4-2.7-2-1.8 1-2.5-.6-2.7 2.3-1.4.9-2.5 2.7.2z" />
@@ -233,10 +277,28 @@ export function NinjaBadge({ p, small = false }: { p: Pick<Profile, 'id' | 'phas
   );
 }
 
+/** The Grand Sensei's crown: a filled two-tone mark, unlike the outline icons used for students */
+export function Crown({ size = 16 }: { size?: number }) {
+  const id = React.useId();
+  return (
+    <svg className="cx-crown" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#d9c8ff" />
+          <stop offset="1" stopColor="#8b5cf6" />
+        </linearGradient>
+      </defs>
+      <path d="M3.2 8.6a1 1 0 0 1 1.6-.9l3.6 2.9 2.8-4.9a1 1 0 0 1 1.6 0l2.8 4.9 3.6-2.9a1 1 0 0 1 1.6.9l-1.1 9.6a1.6 1.6 0 0 1-1.6 1.4H5.9a1.6 1.6 0 0 1-1.6-1.4z" fill={`url(#${id})`} />
+      <rect x="8.4" y="13.2" width="2.2" height="3.2" rx="1.1" fill="#2b1666" />
+      <rect x="13.4" y="13.2" width="2.2" height="3.2" rx="1.1" fill="#2b1666" />
+    </svg>
+  );
+}
+
 export function SenseiBadge() {
   return (
     <span className="cx-badge cx-badge-sensei" title="Grand Sensei of Motion Dojo">
-      <Icon name="seal" size={13} />
+      <Crown size={15} />
       Grand Sensei
     </span>
   );

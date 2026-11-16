@@ -161,9 +161,9 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async createProfile(input) {
       const id = await needUid();
       let { data, error } = await sb.from('profiles').insert({ ...input, id }).select().single();
-      // Database not yet updated with phase privacy: save everything else
-      if (error?.message.includes('phase_public')) {
-        const { phase_public: _skip, ...rest } = input;
+      // Database not yet updated (phase privacy, links): save everything else
+      if (error && /phase_public|links/.test(error.message)) {
+        const { phase_public: _p, links: _l, ...rest } = input;
         ({ data, error } = await sb.from('profiles').insert({ ...rest, id }).select().single());
       }
       if (error?.code === '23505') throw new Error('That username is taken. Try another.');
@@ -173,8 +173,8 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async updateProfile(input) {
       const id = await needUid();
       let { data, error } = await sb.from('profiles').update(input).eq('id', id).select().single();
-      if (error?.message.includes('phase_public')) {
-        const { phase_public: _skip, ...rest } = input;
+      if (error && /phase_public|links/.test(error.message)) {
+        const { phase_public: _p, links: _l, ...rest } = input;
         ({ data, error } = await sb.from('profiles').update(rest).eq('id', id).select().single());
       }
       if (error?.code === '23505') throw new Error('That username is taken. Try another.');

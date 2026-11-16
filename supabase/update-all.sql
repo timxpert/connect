@@ -4,6 +4,7 @@
 --   2. Text-only posts (image or video optional)
 --   3. Students can keep their phase private
 --   4. Chat: voice notes, files, delete for everyone, delivered / seen
+--   5. Profile links (any platform)
 -- Run once in Supabase -> SQL Editor (role: postgres). Safe to run again,
 -- including if you already ran some of the separate update files.
 -- =====================================================================
@@ -59,6 +60,10 @@ alter table public.posts add constraint posts_has_content
   check ((kind = 'text' and char_length(btrim(caption)) > 0) or (kind <> 'text' and media_url is not null));
 
 alter table public.profiles add column if not exists phase_public boolean not null default true;
+-- Any links a member adds (TikTok, LinkedIn, X, portfolio...), up to 10
+alter table public.profiles add column if not exists links text[] not null default '{}';
+alter table public.profiles drop constraint if exists profiles_links_check;
+alter table public.profiles add constraint profiles_links_check check (cardinality(links) <= 10);
 
 -- ---------------------------------------------------------------------
 -- Chat: voice notes, attachments, delete for everyone, delivered / seen.

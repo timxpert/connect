@@ -6,7 +6,8 @@ import { openComposer, POST_DONE, POST_FAIL, POST_PROGRESS, POST_START, type Pos
 import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { play } from './sounds';
-import { socialUrl, timeAgo } from './media';
+import { timeAgo } from './media';
+import { profileLinks } from './links';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
 import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, NinjaBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, visiblePhase, POST_DELETED } from './ui';
 
@@ -293,11 +294,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
     );
 
   const mine = me?.id === p.id;
-  const links = [
-    { kind: 'instagram' as const, v: p.instagram, label: 'Instagram' },
-    { kind: 'youtube' as const, v: p.youtube, label: 'YouTube' },
-    { kind: 'website' as const, v: p.website, label: 'Website' },
-  ].filter((l) => l.v);
+  const links = profileLinks(p);
 
   const act = async (fn: () => Promise<void>, next: ConnectionStatus, msg: string) => {
     if (!signedIn) return navigate('/login');
@@ -446,15 +443,19 @@ export function ProfileScreen({ handle }: { handle: string }) {
               <li>Community member</li>
             )}
             {p.country && <li>{p.country}</li>}
-            {links.map((l) => (
-              <li key={l.kind}>
-                <a href={socialUrl(l.kind, l.v)} target="_blank" rel="noopener noreferrer">
-                  <Icon name={l.kind === 'website' ? 'link' : l.kind} size={16} />
-                  {l.kind === 'website' ? l.v.replace(/^https?:\/\//, '').replace(/\/$/, '') : l.v.startsWith('http') ? l.label : `@${l.v.replace(/^@/, '')}`}
-                </a>
-              </li>
-            ))}
           </ul>
+          {links.length > 0 && (
+            <ul className="cx-pf-links" aria-label="Links">
+              {links.map((l) => (
+                <li key={l.href}>
+                  <a href={l.href} target="_blank" rel="noopener noreferrer me" title={`${l.platform}: ${l.href}`}>
+                    <Icon name={l.kind === 'website' ? 'link' : l.kind} size={16} />
+                    <span>{l.label}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
           {skillsLine && <p className="cx-pf-skills">{skillsLine}</p>}
 
           <p className="cx-pf-stats">

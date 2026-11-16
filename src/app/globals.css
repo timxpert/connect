@@ -3450,38 +3450,19 @@ button.cx-composer {
    Grand Sensei: badge everywhere, and a profile of its own
    ===================================================================== */
 .cx-badge-sensei {
-  gap: 4px;
-  padding: 3px 9px 3px 6px;
-  background: var(--midnight);
-  color: var(--lime);
-  box-shadow: inset 0 0 0 1px rgba(200, 255, 61, 0.45);
+  gap: 5px;
+  padding: 3px 10px 3px 6px;
+  background: #f1ebff;
+  color: #4c1fb8;
+  box-shadow: inset 0 0 0 1px #dccdff;
   font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-/* The profile turns to night: deep ink, one quiet violet light */
-.cx-pf.is-sensei {
-  --pf-ink: #f4f1ff;
-  --pf-muted: rgba(244, 241, 255, 0.6);
-  --pf-line: rgba(244, 241, 255, 0.12);
-  color: var(--pf-ink);
-  background: radial-gradient(80% 50% at 0% 0%, rgba(109, 50, 232, 0.18), transparent 70%), #0b0518;
-  border-bottom: 0;
-}
-.cx-pf.is-sensei .cx-pf-cover {
-  position: relative;
-  background: #07030f;
-}
-/* A custom cover fades into the dark page */
-.cx-pf.is-sensei .cx-pf-cover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent 55%, #0b0518);
-  pointer-events: none;
-}
+/* The Grand Sensei's profile: the same white page as everyone, with
+   the crown, a violet ring round the photo and a cover of its own */
 .cx-sensei-curve {
   stroke-dasharray: 1600;
   stroke-dashoffset: 1600;
@@ -3492,74 +3473,19 @@ button.cx-composer {
     stroke-dashoffset: 0;
   }
 }
-
-/* Photo: a still, thin lime ring with a dark gap, above the cover */
 .cx-pf.is-sensei .cx-pf-top {
   position: relative;
   z-index: 1;
 }
 .cx-pf.is-sensei .cx-pf-avatar .cx-avatar {
-  box-shadow: 0 0 0 4px #0b0518, 0 0 0 6px var(--lime);
+  box-shadow: 0 0 0 4px var(--paper), 0 0 0 6px #8b5cf6;
 }
-
 .cx-pf.is-sensei .cx-pf-name {
-  font-size: clamp(1.9rem, 4.2vw, 2.5rem);
   font-weight: 700;
-  letter-spacing: -0.025em;
-  color: #fff;
 }
 .cx-pf.is-sensei .cx-badge-sensei {
-  padding: 4px 10px 4px 7px;
-  background: transparent;
-  box-shadow: inset 0 0 0 1px rgba(200, 255, 61, 0.55);
-}
-
-.cx-pf.is-sensei .cx-pf-handle,
-.cx-pf.is-sensei .cx-pf-meta,
-.cx-pf.is-sensei .cx-pf-stats,
-.cx-pf.is-sensei .cx-pf-empty {
-  color: var(--pf-muted);
-}
-.cx-pf.is-sensei .cx-bio {
-  color: rgba(244, 241, 255, 0.88);
-}
-.cx-pf.is-sensei .cx-pf-meta a,
-.cx-pf.is-sensei .cx-pf-empty a,
-.cx-pf.is-sensei .cx-link-btn {
-  color: var(--lime);
-}
-.cx-pf.is-sensei .cx-pf-stats strong,
-.cx-pf.is-sensei .cx-pf-skills {
-  color: var(--pf-ink);
-}
-
-.cx-pf.is-sensei .cx-pf-actions .btn-light,
-.cx-pf.is-sensei .cx-pf-actions .cx-icon-btn {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--pf-ink);
-  box-shadow: inset 0 0 0 1px var(--pf-line);
-}
-.cx-pf.is-sensei .cx-pf-actions .btn-light:hover,
-.cx-pf.is-sensei .cx-pf-actions .cx-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-.cx-pf.is-sensei .cx-pf-actions .btn-primary {
-  background: var(--lime);
-  color: var(--midnight);
-}
-
-.cx-pf.is-sensei .cx-pf-tabs {
-  border-top-color: var(--pf-line);
-}
-.cx-pf.is-sensei .cx-pf-tabs span {
-  color: var(--pf-muted);
-}
-.cx-pf.is-sensei .cx-pf-tabs span.is-on {
-  border-top-color: var(--lime);
-  color: var(--pf-ink);
-}
-.cx-pf.is-sensei .cx-thumb {
-  background: #160b2e;
+  padding: 5px 12px 5px 8px;
+  font-size: 0.74rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3734,4 +3660,164 @@ button.cx-composer {
   padding: 24px 0;
   text-align: center;
   color: var(--muted);
+}
+
+/* Profile links: chips with the platform's icon */
+.cx-pf-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cx-pf-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  min-height: 34px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: box-shadow 0.2s ease, color 0.2s ease;
+}
+.cx-pf-links a:hover {
+  box-shadow: inset 0 0 0 1px var(--violet);
+  color: var(--violet);
+}
+.cx-pf-links span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx-pf-links svg {
+  flex: none;
+}
+
+/* Edit profile: links */
+.cx-links-hint {
+  margin: -4px 0 10px;
+  font-size: 0.88rem;
+}
+.cx-links-edit {
+  display: grid;
+  gap: 10px;
+}
+.cx-links-edit li {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 4px 8px;
+}
+.cx-links-ico {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--tint);
+  color: var(--violet);
+}
+.cx-links-edit input {
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+}
+.cx-links-edit input:focus {
+  outline: 0;
+  border-color: var(--violet);
+}
+.cx-links-edit small {
+  grid-column: 2 / -1;
+  font-size: 0.8rem;
+}
+.cx-links-ok {
+  color: var(--muted);
+}
+.cx-links-bad {
+  color: #c62828;
+}
+.cx-links-add {
+  justify-self: start;
+  margin-top: 10px;
+}
+
+/* =====================================================================
+   Connections: requests on top (only when there are any), then people
+   ===================================================================== */
+.cx-conn-page {
+  display: grid;
+  gap: 16px;
+}
+.cx-conn-total {
+  margin-left: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.cx-conn-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cx-conn-label .cx-inbox-count {
+  background: var(--violet);
+  color: #fff;
+}
+.cx-requests {
+  display: grid;
+  gap: 10px;
+}
+.cx-request {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--line);
+  animation: cx-in 0.35s var(--ease);
+}
+.cx-request-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.cx-conn-list {
+  margin-inline: calc(var(--gutter) * -1);
+}
+.cx-conn-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px var(--gutter);
+}
+.cx-conn-row > .cx-person {
+  flex: 1;
+  min-width: 0;
+}
+.cx-conn-row .cx-person-text {
+  min-width: 0;
+}
+.cx-conn-row .cx-person-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx-conn-msg {
+  background: var(--tint);
+  color: var(--violet);
+  box-shadow: none;
 }

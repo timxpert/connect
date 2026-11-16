@@ -15,6 +15,8 @@ export type Profile = {
   instagram: string;
   youtube: string;
   website: string;
+  /** Any links the member adds; the platform is recognised from the address */
+  links?: string[];
   is_student: boolean;
   is_moderator: boolean;
   /** The grand sensei: posts to the Community feed */
@@ -106,7 +108,7 @@ export type Message = {
 export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number };
 
 export type ProfileInput = Partial<
-  Pick<Profile, 'handle' | 'name' | 'bio' | 'avatar_url' | 'cover_url' | 'country' | 'skills' | 'phase' | 'phase_public' | 'instagram' | 'youtube' | 'website'>
+  Pick<Profile, 'handle' | 'name' | 'bio' | 'avatar_url' | 'cover_url' | 'country' | 'skills' | 'phase' | 'phase_public' | 'instagram' | 'youtube' | 'website' | 'links'>
 >;
 
 export type StudentFilter = { q?: string; skill?: string; phase?: number | null };

@@ -41,6 +41,8 @@ function Who({ p }: { p: Profile }) {
 export function Connections() {
   const { api, me, signedIn, toast, ask } = useConnect();
   const [data, setData] = useState<{ incoming: Profile[]; sent: Profile[]; people: Profile[] } | null>(null);
+  const [q, setQ] = useState('');
+  const [menu, setMenu] = useState('');
 
   const load = async () => {
     const [r, people] = await Promise.all([api.listRequests(), api.listConnections()]);
@@ -55,14 +57,26 @@ export function Connections() {
   if (!me) return <Gate profile />;
   if (!data) return <Loading label="Loading connections" />;
 
-  const run = async (fn: () => Promise<void>, msg: string) => {
+  /** Answered requests leave the list at once; the server catches up behind */
+  const answer = async (p: Profile, accept: boolean) => {
+    setData((d) => d && { ...d, incoming: d.incoming.filter((x) => x.id !== p.id), people: accept ? [p, ...d.people] : d.people });
     try {
-      await fn();
-      toast(msg);
-      await load();
+      await api.answerRequest(p.id, accept);
+      toast(accept ? `Connected with ${p.name}` : 'Request declined');
       window.dispatchEvent(new Event('cx:counts'));
     } catch (e) {
       toast((e as Error).message);
+      load().catch(() => {});
+    }
+  };
+  const cancel = async (p: Profile) => {
+    setData((d) => d && { ...d, sent: d.sent.filter((x) => x.id !== p.id) });
+    try {
+      await api.removeConnection(p.id);
+      toast('Request cancelled');
+    } catch (e) {
+      toast((e as Error).message);
+      load().catch(() => {});
     }
   };
   const message = async (p: Profile) => {
@@ -73,72 +87,118 @@ export function Connections() {
     }
   };
   const remove = async (p: Profile) => {
-    const ok = await ask({ title: `Remove ${p.name} from your connections?`, body: 'You won’t be able to message each other until one of you connects again.', confirm: 'Remove', danger: true });
-    if (ok) run(() => api.removeConnection(p.id), 'Connection removed.');
+    setMenu('');
+    const ok = await ask({ title: `Remove ${p.name}?`, body: 'You won’t be able to message each other until one of you connects again.', confirm: 'Remove', danger: true });
+    if (!ok) return;
+    setData((d) => d && { ...d, people: d.people.filter((x) => x.id !== p.id) });
+    try {
+      await api.removeConnection(p.id);
+      toast('Connection removed');
+    } catch (e) {
+      toast((e as Error).message);
+      load().catch(() => {});
+    }
   };
 
-  return (
-    <div className="cx-col">
-      <h1 className="cx-h1">Connections</h1>
+  const term = q.trim().toLowerCase();
+  const people = data.people.filter((p) => !term || p.name.toLowerCase().includes(term) || p.handle.toLowerCase().includes(term));
 
-      <h2 className="cx-h2">Requests{data.incoming.length > 0 && <span className="cx-count">{data.incoming.length}</span>}</h2>
-      {data.incoming.length === 0 ? (
-        <p className="cx-muted">No requests waiting.</p>
-      ) : (
-        <ul className="cx-list">
-          {data.incoming.map((p) => (
-            <li key={p.id} className="cx-row">
-              <Who p={p} />
-              <div className="cx-row-actions">
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => run(() => api.answerRequest(p.id, true), `You’re connected with ${p.name}.`)}>
-                  Accept
-                </button>
-                <button type="button" className="btn btn-light btn-sm" onClick={() => run(() => api.answerRequest(p.id, false), 'Request declined.')}>
-                  Decline
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+  return (
+    <div className="cx-col cx-conn-page">
+      <h1 className="cx-inbox-title">
+        Connections {data.people.length > 0 && <span className="cx-conn-total">{data.people.length}</span>}
+      </h1>
+
+      {data.incoming.length > 0 && (
+        <section aria-labelledby="req-title">
+          <h2 className="cx-conn-label" id="req-title">
+            Requests <span className="cx-inbox-count">{data.incoming.length}</span>
+          </h2>
+          <ul className="cx-requests">
+            {data.incoming.map((p) => (
+              <li key={p.id} className="cx-request">
+                <Who p={p} />
+                <div className="cx-request-actions">
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => answer(p, true)}>
+                    Accept
+                  </button>
+                  <button type="button" className="btn btn-light btn-sm" onClick={() => answer(p, false)}>
+                    Decline
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
-      <h2 className="cx-h2">Your connections</h2>
+      {data.people.length > 3 && (
+        <label className="cx-search cx-inbox-search">
+          <Icon name="search" size={20} />
+          <span className="sr-only">Search connections</span>
+          <input type="search" placeholder="Search connections" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+      )}
+
       {data.people.length === 0 ? (
-        <p className="cx-muted">
-          No connections yet. <A path="/students">Find Keyframe Ninjas</A> and tap Connect.
-        </p>
+        <div className="cx-inbox-empty">
+          <span className="cx-inbox-empty-ico" aria-hidden="true">
+            <Icon name="link2" size={30} />
+          </span>
+          <p className="cx-inbox-empty-title">No connections yet</p>
+          <p>Find Keyframe Ninjas and tap Connect. When they accept, you can message each other.</p>
+          <A path="/students" className="btn btn-primary btn-sm">
+            Find Ninjas
+          </A>
+        </div>
       ) : (
-        <ul className="cx-list">
-          {data.people.map((p) => (
-            <li key={p.id} className="cx-row">
+        <ul className="cx-conn-list">
+          {people.map((p) => (
+            <li key={p.id} className="cx-conn-row">
               <Who p={p} />
-              <div className="cx-row-actions">
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => message(p)}>
-                  Message
+              <button type="button" className="cx-icon-btn cx-conn-msg" aria-label={`Message ${p.name}`} onClick={() => message(p)}>
+                <Icon name="chat" size={20} />
+              </button>
+              <div className="cx-menu">
+                <button type="button" className="cx-icon-btn cx-icon-flat" aria-label={`Options for ${p.name}`} aria-expanded={menu === p.id} onClick={() => setMenu(menu === p.id ? '' : p.id)}>
+                  <Icon name="more" />
                 </button>
-                <button type="button" className="cx-icon-btn" aria-label={`Remove ${p.name}`} title="Remove connection" onClick={() => remove(p)}>
-                  <Icon name="close" size={18} />
-                </button>
+                {menu === p.id && (
+                  <>
+                    <div className="cx-menu-scrim" onClick={() => setMenu('')} aria-hidden="true" />
+                    <div className="cx-menu-list" role="menu">
+                      <button type="button" role="menuitem" onClick={() => navigate(`/u/${p.handle}`)}>
+                        View profile
+                      </button>
+                      <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(p)}>
+                        Remove connection
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </li>
           ))}
+          {people.length === 0 && <li className="cx-inbox-none">No connections match “{q}”.</li>}
         </ul>
       )}
 
       {data.sent.length > 0 && (
-        <>
-          <h2 className="cx-h2">Sent requests</h2>
-          <ul className="cx-list">
+        <section aria-labelledby="sent-title">
+          <h2 className="cx-conn-label" id="sent-title">
+            Waiting for them
+          </h2>
+          <ul className="cx-conn-list">
             {data.sent.map((p) => (
-              <li key={p.id} className="cx-row">
+              <li key={p.id} className="cx-conn-row">
                 <Who p={p} />
-                <button type="button" className="btn btn-light btn-sm" onClick={() => run(() => api.removeConnection(p.id), 'Request cancelled.')}>
+                <button type="button" className="btn btn-light btn-sm" onClick={() => cancel(p)}>
                   Cancel
                 </button>
               </li>
             ))}
           </ul>
-        </>
+        </section>
       )}
     </div>
   );

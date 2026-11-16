@@ -5,6 +5,7 @@ import { useConnect } from './context';
 import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { setVisitor } from './visitor';
+import { describeLink, legacyLinks } from './links';
 import { play } from './sounds';
 import { timeAgo } from './media';
 import { PHASES, SKILLS, type Conversation, type Message, type Profile } from './types';
@@ -192,6 +193,7 @@ export function Settings() {
     instagram: '',
     youtube: '',
     website: '',
+    links: [] as string[],
     avatar_url: null as string | null,
     cover_url: null as string | null,
   });
@@ -212,6 +214,8 @@ export function Settings() {
         instagram: me.instagram,
         youtube: me.youtube,
         website: me.website,
+        // Older single fields fold into the one list of links
+        links: [...(me.links ?? []), ...legacyLinks(me)].filter((v, i, all) => all.indexOf(v) === i),
         avatar_url: me.avatar_url,
         cover_url: me.cover_url,
       });
@@ -278,7 +282,16 @@ export function Settings() {
         if (urls[key]?.startsWith('blob:') && jobs.current[key]) urls[key] = await jobs.current[key]!;
         if (urls[key]?.startsWith('blob:')) urls[key] = me ? me[key] : null;
       }
-      const input = { ...urls, name: f.name.trim(), handle, bio: f.bio.trim() };
+      const bad = f.links.find((v) => v.trim() && !describeLink(v));
+      if (bad) {
+        setBusy(false);
+        return setErr(`“${bad.trim()}” isn’t a full link. Paste it like tiktok.com/@yourname.`);
+      }
+      const links = f.links
+        .map((v) => describeLink(v)?.href)
+        .filter((v, i, all): v is string => Boolean(v) && all.indexOf(v) === i)
+        .slice(0, 10);
+      const input = { ...urls, links, instagram: '', youtube: '', website: '', name: f.name.trim(), handle, bio: f.bio.trim() };
       const saved = creating ? await api.createProfile(input) : await api.updateProfile(input);
       await refreshMe();
       toast(creating ? 'Welcome to Motion Dojo Connect.' : 'Profile saved.');
@@ -372,18 +385,43 @@ export function Settings() {
 
         <fieldset className="cx-fieldset">
           <legend>Links</legend>
-          <label className="field">
-            <span>Instagram</span>
-            <input value={f.instagram} placeholder="@yourname" onChange={(e) => set('instagram', e.target.value)} />
-          </label>
-          <label className="field">
-            <span>YouTube</span>
-            <input value={f.youtube} placeholder="@yourchannel" onChange={(e) => set('youtube', e.target.value)} />
-          </label>
-          <label className="field">
-            <span>Website or portfolio</span>
-            <input value={f.website} placeholder="yoursite.com" onChange={(e) => set('website', e.target.value)} />
-          </label>
+          <p className="cx-muted cx-links-hint">Paste any link: TikTok, LinkedIn, Facebook, X, Instagram, YouTube, Behance, your portfolio. Connect recognises the platform.</p>
+          <ul className="cx-links-edit">
+            {f.links.map((v, i) => {
+              const d = describeLink(v);
+              return (
+                <li key={i}>
+                  <span className="cx-links-ico" title={d ? d.platform : 'Not a link yet'}>
+                    <Icon name={d && d.kind !== 'website' ? d.kind : 'link'} size={18} />
+                  </span>
+                  <label className="sr-only" htmlFor={`link-${i}`}>
+                    Link {i + 1}
+                  </label>
+                  <input
+                    id={`link-${i}`}
+                    inputMode="url"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="tiktok.com/@yourname"
+                    value={v}
+                    onChange={(e) => set('links', f.links.map((x, j) => (j === i ? e.target.value : x)))}
+                  />
+                  <button type="button" className="cx-icon-btn cx-icon-flat" aria-label={`Remove link ${i + 1}`} onClick={() => set('links', f.links.filter((_, j) => j !== i))}>
+                    <Icon name="close" size={18} />
+                  </button>
+                  {v.trim() && (
+                    <small className={d ? 'cx-links-ok' : 'cx-links-bad'}>{d ? `${d.platform} · ${d.label}` : 'Paste the full link, like tiktok.com/@yourname'}</small>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {f.links.length < 10 && (
+            <button type="button" className="btn btn-light btn-sm cx-links-add" onClick={() => set('links', [...f.links, ''])}>
+              <Icon name="plus" size={18} /> Add a link
+            </button>
+          )}
         </fieldset>
 
         {err && (

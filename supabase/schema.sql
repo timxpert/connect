@@ -81,6 +81,10 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists cover_url text;
 -- Students choose whether other students see their phase (visitors never do)
 alter table public.profiles add column if not exists phase_public boolean not null default true;
+-- Any links a member adds (TikTok, LinkedIn, X, portfolio...), up to 10
+alter table public.profiles add column if not exists links text[] not null default '{}';
+alter table public.profiles drop constraint if exists profiles_links_check;
+alter table public.profiles add constraint profiles_links_check check (cardinality(links) <= 10);
 
 create table if not exists public.posts (
   id         uuid primary key default gen_random_uuid(),
