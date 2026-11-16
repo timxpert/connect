@@ -208,14 +208,25 @@ function Shell({ route }: { route: Route }) {
       </main>
 
       <nav className="cx-tabbar" aria-label="Connect">
-        {TABS.map((t) => (
-          <A key={t.path} path={t.path} className={t.match.includes(route.name) ? 'is-on' : ''} aria-current={t.match.includes(route.name) ? 'page' : undefined}>
-            <span className="cx-tab-ico">
-              <Icon name={t.icon} />
-              {t.path === '/connections' && <Dot n={counts.requests} />}
-            </span>
-            <span>{t.label}</span>
-          </A>
+        {TABS.map((t, i) => (
+          <React.Fragment key={t.path}>
+            {/* Post sits in the middle, between Students and Connections */}
+            {i === 2 && (me?.is_student || me?.is_sensei) && (
+              <A path="/new" className={route.name === 'new' ? 'cx-tab-post is-on' : 'cx-tab-post'} aria-current={route.name === 'new' ? 'page' : undefined}>
+                <span className="cx-tab-ico">
+                  <Icon name="plus" />
+                </span>
+                <span>Post</span>
+              </A>
+            )}
+            <A path={t.path} className={t.match.includes(route.name) ? 'is-on' : ''} aria-current={t.match.includes(route.name) ? 'page' : undefined}>
+              <span className="cx-tab-ico">
+                <Icon name={t.icon} />
+                {t.path === '/connections' && <Dot n={counts.requests} />}
+              </span>
+              <span>{t.label}</span>
+            </A>
+          </React.Fragment>
         ))}
       </nav>
     </div>

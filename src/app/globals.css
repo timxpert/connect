@@ -788,12 +788,7 @@ details[open] > :not(summary) {
 .cx-logo-md {
   font-weight: inherit;
 }
-/* Small phones: icon + "Connect" leaves room for post, bell and avatar */
-@media (max-width: 430px) {
-  .cx-logo-md {
-    display: none;
-  }
-}
+
 .cx-logo em {
   font-style: normal;
   color: var(--violet);
@@ -830,27 +825,11 @@ details[open] > :not(summary) {
   margin-left: auto;
 }
 .cx-new {
-  display: inline-flex;
+  display: none;
 }
-/* Phones: a round + button, label for screen readers only */
-@media (max-width: 859px) {
+@media (min-width: 860px) {
   .cx-new {
-    width: 40px;
-    min-height: 40px;
-    padding: 0;
-    justify-content: center;
-    border-radius: 50%;
-  }
-  .cx-new svg {
-    margin: 0 !important;
-  }
-  .cx-new span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+    display: inline-flex;
   }
 }
 .cx-new svg,
@@ -898,6 +877,19 @@ details[open] > :not(summary) {
 }
 .cx-tabbar svg {
   transition: transform 0.4s var(--spring);
+}
+/* Post: a filled violet tile so it reads as the main action */
+.cx-tab-post .cx-tab-ico {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 24px;
+  border-radius: 10px;
+  background: var(--violet);
+  color: #fff;
+}
+.cx-tabbar a.cx-tab-post {
+  color: var(--ink);
 }
 @media (min-width: 860px) {
   .cx-tabbar {
