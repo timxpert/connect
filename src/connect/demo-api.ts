@@ -292,7 +292,18 @@ export function createDemoApi(): ConnectApi {
           const last = messages.filter((m) => m.conversation_id === c.id).slice(-1)[0];
           const unread = messages.filter((m) => m.conversation_id === c.id && m.sender_id !== me && !m.read_at && !m.deleted_at).length;
           const body = !last ? '' : last.deleted_at ? 'Message deleted' : last.kind === 'voice' ? 'Voice message' : last.kind === 'file' ? last.file_name || 'File' : last.kind === 'image' ? last.body || 'Photo' : last.kind === 'video' ? last.body || 'Video' : last.body;
-          return { id: c.id, other: who(c.a === me ? c.b : c.a), last_message_at: c.last, last_body: body, unread };
+          return {
+            id: c.id,
+            other: who(c.a === me ? c.b : c.a),
+            last_message_at: c.last,
+            last_body: body,
+            unread,
+            last_kind: last?.kind ?? 'text',
+            last_mine: last?.sender_id === me,
+            last_delivered: Boolean(last?.delivered_at),
+            last_read: Boolean(last?.read_at),
+            last_deleted: Boolean(last?.deleted_at),
+          };
         });
       return wait(mine);
     },

@@ -69,6 +69,12 @@ export type Conversation = {
   last_body: string;
   /** Messages the other person sent that I haven't opened */
   unread?: number;
+  /** About the last message, for the inbox row */
+  last_kind?: MessageKind;
+  last_mine?: boolean;
+  last_delivered?: boolean;
+  last_read?: boolean;
+  last_deleted?: boolean;
 };
 
 export type MessageKind = 'text' | 'voice' | 'image' | 'video' | 'file';

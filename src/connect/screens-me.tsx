@@ -419,54 +419,6 @@ export function Settings() {
 }
 
 /* ================= Messages ================= */
-export function Inbox() {
-  const { api, me, signedIn } = useConnect();
-  const [list, setList] = useState<Conversation[] | null>(null);
-  useEffect(() => {
-    if (!me) return;
-    api.listConversations().then(setList).catch(() => setList([]));
-  }, [api, me]);
-
-  if (!signedIn) return <Gate />;
-  if (me === undefined || (me && list === null)) return <Loading label="Loading messages" />;
-  if (!me) return <Gate profile />;
-
-  return (
-    <div className="cx-col">
-      <h1 className="cx-h1">Messages</h1>
-      {list!.length === 0 ? (
-        <Empty title="No conversations yet">
-          <p>
-            Open someone’s profile and tap Message. <A path="/students">Find Ninjas</A>
-          </p>
-        </Empty>
-      ) : (
-        <ul className="cx-inbox">
-          {list!.map((c) => (
-            <li key={c.id}>
-              <A path={`/messages/${c.id}`} className={c.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
-                <Avatar p={c.other} size={48} />
-                <span className="cx-inbox-text">
-                  <span className="cx-person-name">
-                    {c.other.name}
-                    {c.other.is_student && <NinjaBadge p={c.other} small />}
-                    {c.other.sample && <SampleTag />}
-                  </span>
-                  <span className="cx-inbox-last">{c.last_body || 'Say hello'}</span>
-                </span>
-                <span className="cx-inbox-side">
-                  <span className="cx-inbox-time">{timeAgo(c.last_message_at)}</span>
-                  {Boolean(c.unread) && <span className="cx-inbox-count">{c.unread! > 99 ? '99+' : c.unread}</span>}
-                </span>
-              </A>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 function Gate({ profile = false }: { profile?: boolean }) {
   return (
     <Empty title={profile ? 'Finish your profile first' : 'Sign in to see your messages'}>

@@ -3628,3 +3628,168 @@ button.cx-composer {
     stroke-dashoffset: 0;
   }
 }
+
+/* =====================================================================
+   Inbox: search, a row of connections to start a chat, then chats
+   ===================================================================== */
+.cx-inbox-page {
+  display: grid;
+  gap: 14px;
+}
+.cx-inbox-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+.cx-inbox-search {
+  max-width: none;
+  height: 44px;
+  background: rgba(20, 10, 46, 0.05);
+  box-shadow: none;
+}
+.cx-inbox-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+}
+
+/* Connections strip */
+.cx-inbox-people {
+  display: flex;
+  gap: 14px;
+  margin-inline: calc(var(--gutter) * -1);
+  padding: 4px var(--gutter) 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cx-inbox-people::-webkit-scrollbar {
+  display: none;
+}
+.cx-inbox-people button {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 68px;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+.cx-inbox-people button:disabled {
+  opacity: 0.5;
+}
+.cx-inbox-people .cx-avatar {
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--violet);
+  margin: 4px;
+}
+.cx-inbox-people span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Chat rows: full width, no box */
+.cx-inbox-page .cx-inbox {
+  margin-inline: calc(var(--gutter) * -1);
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.cx-inbox-page .cx-inbox li + li {
+  border-top: 0;
+}
+.cx-inbox-page .cx-inbox-row {
+  gap: 14px;
+  padding: 10px var(--gutter);
+}
+.cx-inbox-page .cx-inbox-row:active {
+  background: rgba(20, 10, 46, 0.05);
+}
+.cx-inbox-top,
+.cx-inbox-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.cx-inbox-top .cx-person-name {
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+}
+.cx-inbox-page .cx-inbox-time {
+  flex: none;
+  font-size: 0.78rem;
+}
+.cx-inbox-page .cx-inbox-last {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.cx-inbox-last svg {
+  flex: none;
+}
+.cx-inbox-last .cx-tick {
+  color: var(--muted);
+}
+/* On the light inbox, "seen" lime needs a darker tone to read */
+.cx-inbox-last .cx-tick.is-seen {
+  color: #7fae00;
+}
+.cx-inbox-snippet {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx-inbox-row.is-unread .cx-person-name {
+  font-weight: 700;
+}
+.cx-inbox-row.is-unread .cx-inbox-last {
+  color: var(--ink);
+  font-weight: 600;
+}
+.cx-inbox-page .cx-inbox-count {
+  flex: none;
+  background: var(--violet);
+  color: #fff;
+}
+.cx-inbox-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+.cx-inbox-empty-ico {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--ink);
+  color: var(--ink);
+}
+.cx-inbox-empty-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--ink);
+}
+.cx-inbox-none {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--muted);
+}

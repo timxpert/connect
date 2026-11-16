@@ -400,7 +400,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         rows.map((r) =>
           sb
             .from('messages')
-            .select('body, kind, file_name, deleted_at')
+            .select('body, kind, file_name, deleted_at, sender_id, delivered_at, read_at')
             .eq('conversation_id', r.id)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -419,13 +419,20 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         for (const u of (un ?? []) as unknown as { conversation_id: string }[]) unread.set(u.conversation_id, (unread.get(u.conversation_id) ?? 0) + 1);
       }
       return rows.map((r, i) => {
-        const last = lasts[i].data as unknown as { body: string; kind?: string; file_name?: string | null; deleted_at?: string | null } | null;
+        const last = lasts[i].data as unknown as
+          | { body: string; kind?: Conversation['last_kind']; file_name?: string | null; deleted_at?: string | null; sender_id: string; delivered_at?: string | null; read_at?: string | null }
+          | null;
         return {
           id: r.id,
           other: r.user_a === me ? r.b : r.a,
           last_message_at: r.last_message_at,
           last_body: last ? preview(last) : '',
           unread: unread.get(r.id) ?? 0,
+          last_kind: last?.kind ?? 'text',
+          last_mine: last?.sender_id === me,
+          last_delivered: Boolean(last?.delivered_at),
+          last_read: Boolean(last?.read_at),
+          last_deleted: Boolean(last?.deleted_at),
         };
       });
     },

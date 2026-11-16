@@ -5,7 +5,7 @@ import { useConnect } from './context';
 import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { play } from './sounds';
-import type { Attachment, Conversation, Message } from './types';
+import type { Attachment, Conversation, Message, Profile } from './types';
 import { A, Avatar, Empty, Icon, Loading, NinjaBadge } from './ui';
 
 /* ------------------------------------------------------------------
@@ -548,6 +548,133 @@ export function Chat({ id }: { id: string }) {
             </button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ================= Inbox ================= */
+const shortTime = (iso: string) => {
+  const d = new Date(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return hhmm(iso);
+  const days = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (days < 7) return d.toLocaleDateString([], { weekday: 'short' });
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+};
+const KIND_ICON = { voice: 'mic', image: 'image', video: 'video', file: 'file' } as const;
+
+export function Inbox() {
+  const { api, me, signedIn, toast } = useConnect();
+  const [list, setList] = useState<Conversation[] | null>(null);
+  const [people, setPeople] = useState<Profile[]>([]);
+  const [q, setQ] = useState('');
+  const [opening, setOpening] = useState('');
+
+  useEffect(() => {
+    if (!me) return;
+    const load = () => api.listConversations().then(setList).catch(() => setList((l) => l ?? []));
+    load();
+    api.listConnections().then(setPeople).catch(() => {});
+    const t = window.setInterval(() => document.visibilityState === 'visible' && load(), 10000);
+    return () => window.clearInterval(t);
+  }, [api, me]);
+
+  if (!signedIn) return <Empty title="Sign in to see your messages" />;
+  if (me === undefined || (me && list === null)) return <Loading label="Loading messages" />;
+  if (!me) return <Empty title="Finish your profile first" />;
+
+  const term = q.trim().toLowerCase();
+  const match = (p: Profile) => !term || p.name.toLowerCase().includes(term) || p.handle.toLowerCase().includes(term);
+  const chats = list!.filter((c) => match(c.other));
+  const strip = people.filter(match);
+
+  const open = async (p: Profile) => {
+    const existing = list!.find((c) => c.other.id === p.id);
+    if (existing) return navigate(`/messages/${existing.id}`);
+    setOpening(p.id);
+    try {
+      navigate(`/messages/${await api.openConversation(p.id)}`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setOpening('');
+    }
+  };
+
+  return (
+    <div className="cx-col cx-inbox-page">
+      <h1 className="cx-inbox-title">Messages</h1>
+
+      <label className="cx-search cx-inbox-search">
+        <Icon name="search" size={20} />
+        <span className="sr-only">Search messages</span>
+        <input type="search" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+      </label>
+
+      {strip.length > 0 && (
+        <ul className="cx-inbox-people" aria-label="Your connections">
+          {strip.map((p) => (
+            <li key={p.id}>
+              <button type="button" onClick={() => open(p)} disabled={opening === p.id}>
+                <Avatar p={p} size={60} />
+                <span>{p.name.split(' ')[0]}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {list!.length === 0 ? (
+        <div className="cx-inbox-empty">
+          <span className="cx-inbox-empty-ico" aria-hidden="true">
+            <Icon name="chat" size={30} />
+          </span>
+          <p className="cx-inbox-empty-title">No messages yet</p>
+          <p>{people.length ? 'Tap someone above to start a chat.' : 'Connect with other Ninjas, then message them here.'}</p>
+          {!people.length && (
+            <A path="/students" className="btn btn-primary btn-sm">
+              Find Ninjas
+            </A>
+          )}
+        </div>
+      ) : chats.length === 0 ? (
+        <p className="cx-inbox-none">No chats match “{q}”.</p>
+      ) : (
+        <ul className="cx-inbox">
+          {chats.map((c) => {
+            const unread = c.unread ?? 0;
+            const kind = c.last_kind && c.last_kind !== 'text' && !c.last_deleted ? c.last_kind : null;
+            return (
+              <li key={c.id}>
+                <A path={`/messages/${c.id}`} className={unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
+                  <Avatar p={c.other} size={56} />
+                  <span className="cx-inbox-text">
+                    <span className="cx-inbox-top">
+                      <span className="cx-person-name">
+                        {c.other.name}
+                        {c.other.is_sensei ? null : c.other.is_student && <NinjaBadge p={c.other} small />}
+                      </span>
+                      <span className="cx-inbox-time">{shortTime(c.last_message_at)}</span>
+                    </span>
+                    <span className="cx-inbox-bottom">
+                      <span className="cx-inbox-last">
+                        {c.last_mine && !c.last_deleted && (
+                          <span className={c.last_read ? 'cx-tick is-seen' : 'cx-tick'} aria-label={c.last_read ? 'Seen' : c.last_delivered ? 'Delivered' : 'Sent'}>
+                            <Icon name={c.last_read || c.last_delivered ? 'ticks' : 'tick'} size={16} />
+                          </span>
+                        )}
+                        {kind && <Icon name={KIND_ICON[kind]} size={16} />}
+                        <span className="cx-inbox-snippet">{c.last_body || 'Say hello'}</span>
+                      </span>
+                      {unread > 0 && <span className="cx-inbox-count">{unread > 99 ? '99+' : unread}</span>}
+                    </span>
+                  </span>
+                </A>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );
