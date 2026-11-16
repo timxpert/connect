@@ -2019,14 +2019,18 @@ details[open] > :not(summary) {
 .cx-toast {
   position: fixed;
   left: 50%;
-  bottom: 96px;
+  bottom: 88px;
   z-index: 90;
-  max-width: calc(100% - 32px);
-  padding: 12px 18px;
-  border-radius: 14px;
+  width: max-content;
+  max-width: min(320px, calc(100% - 48px));
+  padding: 8px 16px;
+  border-radius: 999px;
   background: var(--midnight);
   color: #fff;
+  font-size: 0.875rem;
   font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
   box-shadow: 0 20px 40px -18px rgba(20, 10, 46, 0.6);
   opacity: 0;
   pointer-events: none;

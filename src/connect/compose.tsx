@@ -149,7 +149,7 @@ export function Composer() {
       const media_url = attach.type === 'image' || attach.type === 'video' ? attach.url ?? (await job!) : attach.type === 'link' ? attach.url : null;
       const p = await api.createPost({ kind, media_url, caption, tag: feedback && !sensei ? 'feedback' : 'sharing', community: sensei });
       play('post');
-      toast(sensei ? 'Posted. Every student has been notified.' : 'Posted.');
+      toast(sensei ? 'Posted to Community' : 'Posted');
       window.dispatchEvent(new CustomEvent(POST_DONE, { detail: p }));
       reset();
     } catch (e) {

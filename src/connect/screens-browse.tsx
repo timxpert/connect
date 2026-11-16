@@ -255,6 +255,18 @@ export function ProfileScreen({ handle }: { handle: string }) {
     };
   }, [api, handle]);
 
+  // Posting from your own profile adds the post here straight away
+  useEffect(() => {
+    const done = (e: Event) => {
+      const post = (e as CustomEvent<Post>).detail;
+      if (!p || post.author_id !== p.id) return;
+      setPosts((list) => (list && !list.some((x) => x.id === post.id) ? [post, ...list] : list));
+      setCounts((c) => ({ ...c, posts: c.posts + 1 }));
+    };
+    window.addEventListener(POST_DONE, done);
+    return () => window.removeEventListener(POST_DONE, done);
+  }, [p]);
+
   if (p === undefined) return <Loading label="Loading profile" />;
   if (p === null)
     return (
