@@ -11,7 +11,7 @@ import { A, Avatar, Empty, Icon, Loading, NinjaBadge } from './ui';
 /* ------------------------------------------------------------------
    One conversation, WhatsApp-style:
    - Enter makes a new line; only the send button sends
-   - Voice notes (hold nothing: tap the mic to record, tap send to send)
+   - Voice notes: tap the mic to record, then send or bin it
    - Photos, videos and files, kept in a private bucket
    - Ticks on your messages: one = sent, two grey = delivered,
      two lime = seen
