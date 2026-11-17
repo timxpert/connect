@@ -15,13 +15,14 @@ const CACHED = new Set<keyof ConnectApi>([
   'isBlocked',
   'listConnections',
   'getPost',
-  'listComments',
   'listSaved',
   'getConversation',
 ]);
 // Reads that must always be fresh (polling, auth)
 const LIVE = new Set<keyof ConnectApi>([
   'session',
+  'subscribe',
+  'listComments',
   'me',
   'onAuthChange',
   'listMessages',

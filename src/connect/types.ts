@@ -119,6 +119,8 @@ export interface ConnectApi {
   /** Signed-in user's id, or null */
   session(): Promise<{ userId: string; email: string } | null>;
   onAuthChange(cb: () => void): () => void;
+  /** Live updates from the database; returns a function that stops them */
+  subscribe(table: 'messages' | 'comments' | 'notifications', filter: string, cb: () => void): () => void;
   signIn(email: string): Promise<void>;
   /** Students: email + the student ID they got when they enrolled */
   studentSignIn(email: string, studentId: string): Promise<void>;

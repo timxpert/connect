@@ -120,6 +120,7 @@ export function createDemoApi(): ConnectApi {
     async studentSignIn() {
       throw new Error('Student ID sign-in works once Supabase is connected. In this preview, use the sample accounts below.');
     },
+    subscribe: () => () => {},
     async demoSignIn(as) {
       current = as === 'student' ? 's1' : as === 'sensei' ? 'g1' : 'v1';
       emit();

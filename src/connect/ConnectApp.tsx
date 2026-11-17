@@ -77,12 +77,17 @@ function useCounts() {
     const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 30000);
     const on = () => load().catch(() => {});
     window.addEventListener('cx:counts', on);
+    // Live: new notifications update the bell at once; new messages get their grey tick
+    const stopNotices = api.subscribe('notifications', `user_id=eq.${me.id}`, on);
+    const stopMessages = api.subscribe('messages', '', () => api.markDelivered().catch(() => {}));
     return () => {
       live = false;
       window.clearInterval(t);
       window.removeEventListener('cx:counts', on);
+      stopNotices();
+      stopMessages();
     };
-  }, [api, me]);
+  }, [api, me?.id]);
   return c;
 }
 

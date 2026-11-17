@@ -228,8 +228,14 @@ export function Chat({ id }: { id: string }) {
     });
     load().catch(() => {});
     // New messages and tick updates: check every few seconds while the chat is open
-    const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 3000);
-    return () => window.clearInterval(t);
+    // Live: messages and tick changes arrive the moment they happen.
+    // A slow check every 20 seconds covers a dropped connection.
+    const stop = api.subscribe('messages', `conversation_id=eq.${id}`, () => load().catch(() => {}));
+    const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 20000);
+    return () => {
+      stop();
+      window.clearInterval(t);
+    };
   }, [api, id, me, load]);
 
   const all = [...msgs, ...local];
@@ -595,8 +601,18 @@ export function Inbox() {
     const load = () => api.listConversations().then(setList).catch(() => setList((l) => l ?? []));
     load();
     api.listConnections().then(setPeople).catch(() => {});
-    const t = window.setInterval(() => document.visibilityState === 'visible' && load(), 10000);
-    return () => window.clearInterval(t);
+    // Live: any new message or tick refreshes the list (a burst counts once)
+    let pending = 0;
+    const stop = api.subscribe('messages', '', () => {
+      window.clearTimeout(pending);
+      pending = window.setTimeout(load, 300);
+    });
+    const t = window.setInterval(() => document.visibilityState === 'visible' && load(), 30000);
+    return () => {
+      stop();
+      window.clearTimeout(pending);
+      window.clearInterval(t);
+    };
   }, [api, me]);
 
   if (!signedIn) return <Empty title="Sign in to see your messages" />;

@@ -586,6 +586,11 @@ export function PostScreen({ id }: { id: string }) {
   useEffect(() => {
     load();
   }, [load]);
+  // New comments from others appear straight away
+  useEffect(() => {
+    const reload = () => api.listComments(id).then((c) => setComments((cur) => [...c, ...cur.filter((x) => x.id.startsWith('tmp-'))])).catch(() => {});
+    return api.subscribe('comments', `post_id=eq.${id}`, reload);
+  }, [api, id]);
 
   if (post === undefined) return <Loading label="Loading post" />;
   if (post === null)

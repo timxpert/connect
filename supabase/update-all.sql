@@ -5,6 +5,7 @@
 --   3. Students can keep their phase private
 --   4. Chat: voice notes, files, delete for everyone, delivered / seen
 --   5. Profile links (any platform)
+--   6. Speed: one-request feed and inbox, live updates
 -- Run once in Supabase -> SQL Editor (role: postgres). Safe to run again,
 -- including if you already ran some of the separate update files.
 -- =====================================================================
@@ -146,6 +147,62 @@ create policy "chat files: people in the conversation read" on storage.objects f
   using (bucket_id = 'chat' and exists (
     select 1 from public.conversations c
     where c.id::text = (storage.foldername(name))[1] and auth.uid() in (c.user_a, c.user_b)));
+
+-- ---------------------------------------------------------------------
+-- Speed: each screen in one request, and live updates.
+-- posts_feed: a post with its author, like and comment counts, and whether
+--   I liked / saved it / am connected to the author.
+-- inbox: my conversations with the other person, the last message and my
+--   unread count.
+-- Both run with the caller's permissions (security_invoker), so every
+-- row-level rule above still applies.
+-- ---------------------------------------------------------------------
+create or replace view public.posts_feed with (security_invoker = true) as
+  select p.*,
+         to_jsonb(a.*) as author,
+         (select count(*) from public.likes l where l.post_id = p.id)::int    as likes,
+         (select count(*) from public.comments c where c.post_id = p.id)::int as comments,
+         exists (select 1 from public.likes l where l.post_id = p.id and l.user_id = auth.uid())         as liked,
+         exists (select 1 from public.bookmarks b where b.post_id = p.id and b.user_id = auth.uid())     as saved,
+         coalesce(public.are_connected(auth.uid(), p.author_id), false)                                  as by_connection
+  from public.posts p
+  join public.profiles a on a.id = p.author_id;
+
+create or replace view public.inbox with (security_invoker = true) as
+  select c.id,
+         c.last_message_at,
+         to_jsonb(o.*) as other,
+         lm.body       as last_body,
+         lm.kind       as last_kind,
+         lm.file_name  as last_file_name,
+         lm.sender_id  as last_sender,
+         lm.delivered_at as last_delivered_at,
+         lm.read_at    as last_read_at,
+         lm.deleted_at as last_deleted_at,
+         (select count(*) from public.messages m
+          where m.conversation_id = c.id and m.sender_id <> auth.uid() and m.read_at is null and m.deleted_at is null)::int as unread
+  from public.conversations c
+  join public.profiles o on o.id = case when c.user_a = auth.uid() then c.user_b else c.user_a end
+  left join lateral (
+    select * from public.messages m where m.conversation_id = c.id order by m.created_at desc limit 1
+  ) lm on true
+  where auth.uid() in (c.user_a, c.user_b);
+
+grant select on public.posts_feed to anon, authenticated;
+grant select on public.inbox to authenticated;
+
+-- Live updates: new messages, ticks, comments and notifications arrive at once
+do $$
+declare t text;
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    foreach t in array array['messages', 'comments', 'notifications'] loop
+      if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+        execute format('alter publication supabase_realtime add table public.%I', t);
+      end if;
+    end loop;
+  end if;
+end $$;
 
 -- See everyone's student ID (send each student theirs on WhatsApp):
 select email, student_id, created_at from public.enrolments order by created_at;

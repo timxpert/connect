@@ -180,12 +180,26 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
               ? m.file_name || 'File'
               : m.body;
 
+  // Faster single-request reads, used once the database has the speed update
+  let fastFeed = true;
+  let fastInbox = true;
+
   const api: ConnectApi = {
     mode: 'live',
 
     async session() {
       const s = (await sb.auth.getSession()).data.session;
       return s ? { userId: s.user.id, email: s.user.email ?? '' } : null;
+    },
+    subscribe(table, filter, cb) {
+      // Supabase Realtime: the database pushes changes the moment they happen
+      const channel = sb
+        .channel(`cx-${table}-${filter || 'all'}-${Math.random().toString(36).slice(2, 8)}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table, ...(filter ? { filter } : {}) }, () => cb())
+        .subscribe();
+      return () => {
+        sb.removeChannel(channel);
+      };
     },
     onAuthChange(cb) {
       const { data } = sb.auth.onAuthStateChange(() => cb());
@@ -374,6 +388,16 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     },
 
     async listPosts({ authorId, feed = 'everyone', limit = 30 }) {
+      if (fastFeed) {
+        let f = sb.from('posts_feed').select('*').order('created_at', { ascending: false }).limit(limit);
+        if (authorId) f = f.eq('author_id', authorId).eq('community', false);
+        else f = f.eq('community', feed === 'community');
+        if (feed === 'connections' && !authorId) f = f.eq('by_connection', true);
+        const { data, error } = await f;
+        if (!error) return (data ?? []) as unknown as Post[];
+        if (!/posts_feed|by_connection|schema cache/.test(error.message)) fail(error);
+        fastFeed = false; // database not updated yet: old way below
+      }
       let q = sb.from('posts').select(POST_SELECT).order('created_at', { ascending: false }).limit(limit);
       if (authorId) q = q.eq('author_id', authorId).eq('community', false);
       else q = q.eq('community', feed === 'community');
@@ -404,6 +428,11 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
     },
     async getPost(id) {
+      if (fastFeed) {
+        const { data, error } = await sb.from('posts_feed').select('*').eq('id', id).maybeSingle();
+        if (!error) return (data as unknown as Post) ?? null;
+        fastFeed = false;
+      }
       const { data } = await sb.from('posts').select(POST_SELECT).eq('id', id).maybeSingle();
       if (!data) return null;
       return (await decorate([data as unknown as Post]))[0];
@@ -455,6 +484,37 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
 
     async listConversations() {
       const me = await needUid();
+      if (fastInbox) {
+        const { data, error } = await sb.from('inbox').select('*').order('last_message_at', { ascending: false });
+        if (!error) {
+          type Row = {
+            id: string;
+            last_message_at: string;
+            other: Profile;
+            last_body: string | null;
+            last_kind: Conversation['last_kind'] | null;
+            last_file_name: string | null;
+            last_sender: string | null;
+            last_delivered_at: string | null;
+            last_read_at: string | null;
+            last_deleted_at: string | null;
+            unread: number;
+          };
+          return ((data ?? []) as unknown as Row[]).map((r) => ({
+            id: r.id,
+            other: r.other,
+            last_message_at: r.last_message_at,
+            last_body: r.last_sender ? preview({ body: r.last_body ?? '', kind: r.last_kind ?? 'text', file_name: r.last_file_name, deleted_at: r.last_deleted_at }) : '',
+            unread: r.unread ?? 0,
+            last_kind: r.last_kind ?? 'text',
+            last_mine: r.last_sender === me,
+            last_delivered: Boolean(r.last_delivered_at),
+            last_read: Boolean(r.last_read_at),
+            last_deleted: Boolean(r.last_deleted_at),
+          }));
+        }
+        fastInbox = false;
+      }
       const { data, error } = await sb
         .from('conversations')
         .select('*, a:profiles!conversations_user_a_fkey(*), b:profiles!conversations_user_b_fkey(*)')
