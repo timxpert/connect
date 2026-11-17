@@ -18,6 +18,17 @@ export async function GET() {
   const out: Record<string, unknown> = {
     present,
     accountIdLooksRight: /^[0-9a-f]{32}$/i.test(accountId),
+    // Shape only (the ID isn't a secret, but no need to show it): length and stray parts
+    accountIdShape: {
+      length: accountId.length,
+      startsWith: accountId.slice(0, 4),
+      hasHttps: /https?:/i.test(accountId),
+      hasDot: accountId.includes('.'),
+      hasSlash: accountId.includes('/'),
+      hasSpaceOrQuote: /[\s"']/.test(accountId),
+      nonHexCharacters: accountId.replace(/[0-9a-f]/gi, '').slice(0, 12),
+    },
+    deployedAt: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
     publicUrl: env('NEXT_PUBLIC_R2_PUBLIC_URL') || null,
     buckets: {},
   };
