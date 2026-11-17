@@ -129,7 +129,15 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     }
     const data = (await res.json().catch(() => null)) as { uploadUrl?: string; key?: string; publicUrl?: string | null; error?: string } | null;
     if (!res.ok || !data?.uploadUrl || !data.key) throw new Error(data?.error || 'Upload failed. Try again.');
-    await xhrSend('PUT', data.uploadUrl, { 'Content-Type': file.type || 'application/octet-stream' }, file, onProgress);
+    try {
+      await xhrSend('PUT', data.uploadUrl, { 'Content-Type': file.type || 'application/octet-stream' }, file, onProgress);
+    } catch (e) {
+      // R2 refused (usually a missing CORS rule or a wrong key): use Supabase for the rest of this visit
+      console.warn('[connect] R2 upload failed, using Supabase instead:', (e as Error).message);
+      r2Off = true;
+      onProgress?.(0);
+      return null;
+    }
     return { key: data.key, publicUrl: data.publicUrl ?? null };
   }
 

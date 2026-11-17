@@ -3997,3 +3997,7 @@ button.cx-composer {
   color: var(--ink);
   box-shadow: none;
 }
+.cx-msg.is-failed {
+  cursor: pointer;
+  opacity: 0.75;
+}

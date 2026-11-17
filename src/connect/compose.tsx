@@ -146,7 +146,9 @@ export function Composer() {
     window.dispatchEvent(new CustomEvent<PostingDetail>(POST_START, { detail: { preview, kind, caption, community: sensei } }));
     if (job) window.dispatchEvent(new CustomEvent(POST_PROGRESS, { detail: progress.current }));
     try {
-      const media_url = attach.type === 'image' || attach.type === 'video' ? attach.url ?? (await job!) : attach.type === 'link' ? attach.url : null;
+      const media_url =
+        attach.type === 'image' || attach.type === 'video' ? attach.url ?? (job ? await job : null) : attach.type === 'link' ? attach.url : null;
+      if (kind !== 'text' && !media_url) throw new Error(attach.type === 'video' ? 'The video didn’t upload. Remove it and pick it again.' : 'The photo didn’t upload. Remove it and pick it again.');
       const p = await api.createPost({ kind, media_url, caption, tag: feedback && !sensei ? 'feedback' : 'sharing', community: sensei });
       play('post');
       toast(sensei ? 'Posted to Community' : 'Posted');
@@ -155,7 +157,10 @@ export function Composer() {
     } catch (e) {
       window.dispatchEvent(new Event(POST_FAIL));
       setText(draft.text);
-      setAttach(draft.attach);
+      // Keep the photo or video only if it finished uploading; otherwise ask for it again
+      const done = draft.attach.type === 'link' || ((draft.attach.type === 'image' || draft.attach.type === 'video') && draft.attach.url);
+      if (done || upload.current) setAttach(draft.attach);
+      else setAttach({ type: 'none' });
       setFeedback(draft.feedback);
       setErr((e as Error).message || 'Posting failed. Try again.');
       setOpen(true);

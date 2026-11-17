@@ -48,7 +48,7 @@ function kindOf(file: File): Attachment['kind'] {
 
 /* ---------- Ticks ---------- */
 function Status({ m }: { m: Message }) {
-  if (m.failed) return <span className="cx-tick is-failed">Not sent</span>;
+  if (m.failed) return <span className="cx-tick is-failed">Not sent · tap to retry</span>;
   if (m.pending)
     return (
       <span className="cx-tick" aria-label="Sending">
@@ -133,7 +133,7 @@ function Voice({ src, duration }: { src: string | null | undefined; duration?: n
 }
 
 /* ---------- One message ---------- */
-function Bubble({ m, mine, onHold }: { m: Message; mine: boolean; onHold: (m: Message) => void }) {
+function Bubble({ m, mine, onHold, onRetry }: { m: Message; mine: boolean; onHold: (m: Message) => void; onRetry?: (m: Message) => void }) {
   const timer = useRef<number | undefined>(undefined);
   const hold = {
     onContextMenu: (e: React.MouseEvent) => {
@@ -160,7 +160,11 @@ function Bubble({ m, mine, onHold }: { m: Message; mine: boolean; onHold: (m: Me
 
   const kind = m.kind ?? 'text';
   return (
-    <li className={['cx-msg', mine ? 'is-mine' : '', kind !== 'text' ? `is-${kind}` : '', m.pending ? 'is-pending' : ''].filter(Boolean).join(' ')} {...hold}>
+    <li
+      className={['cx-msg', mine ? 'is-mine' : '', kind !== 'text' ? `is-${kind}` : '', m.pending ? 'is-pending' : '', m.failed ? 'is-failed' : ''].filter(Boolean).join(' ')}
+      {...hold}
+      onClick={m.failed && onRetry ? () => onRetry(m) : undefined}
+    >
       {kind === 'voice' && <Voice src={m.media_url} duration={m.duration} />}
       {kind === 'image' && (
         <a className="cx-msg-media" href={m.media_url ?? undefined} target="_blank" rel="noopener noreferrer">
@@ -208,6 +212,7 @@ export function Chat({ id }: { id: string }) {
   const box = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const recorder = useRef<{ mr: MediaRecorder; chunks: Blob[]; stream: MediaStream; cancel: boolean } | null>(null);
+  const retries = useRef(new Map<string, { a: Attachment; caption: string }>());
 
   const load = useCallback(async () => {
     const list = await api.listMessages(id);
@@ -292,14 +297,28 @@ export function Chat({ id }: { id: string }) {
     };
     setLocal((l) => [...l, tmp]);
     play('send');
+    upload(tmp, a, caption);
+  };
+
+  const upload = async (tmp: Message, a: Attachment, caption: string) => {
+    retries.current.set(tmp.id, { a, caption });
     try {
       const m = await api.sendAttachment(id, a, caption, (p) => setLocal((l) => l.map((x) => (x.id === tmp.id ? { ...x, progress: p } : x))));
       setMsgs((xs) => [...xs, m]);
       setLocal((l) => l.filter((x) => x.id !== tmp.id));
+      retries.current.delete(tmp.id);
     } catch (e) {
       setLocal((l) => l.map((x) => (x.id === tmp.id ? { ...x, failed: true, pending: false } : x)));
       toast((e as Error).message);
     }
+  };
+
+  /* Tap a "Not sent" message to try again */
+  const retry = (m: Message) => {
+    const r = retries.current.get(m.id);
+    if (!r) return;
+    setLocal((l) => l.map((x) => (x.id === m.id ? { ...x, failed: false, pending: true, progress: 0 } : x)));
+    upload(m, r.a, r.caption);
   };
 
   const pickFiles = (files: FileList | null) => {
@@ -455,7 +474,7 @@ export function Chat({ id }: { id: string }) {
           return (
             <React.Fragment key={m.id}>
               {showDay && <li className="cx-day">{day}</li>}
-              <Bubble m={m} mine={m.sender_id === me.id} onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && setHeld(x)} />
+              <Bubble m={m} mine={m.sender_id === me.id} onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && setHeld(x)} onRetry={retry} />
             </React.Fragment>
           );
         })}
