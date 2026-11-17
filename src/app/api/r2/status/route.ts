@@ -28,6 +28,9 @@ export async function GET() {
       hasSpaceOrQuote: /[\s"']/.test(accountId),
       nonHexCharacters: accountId.replace(/[0-9a-f]/gi, '').slice(0, 12),
     },
+    // R2 keys: Access Key ID is 32 characters, Secret Access Key is 64
+    accessKeyIdLength: env('R2_ACCESS_KEY_ID').length,
+    secretLength: env('R2_SECRET_ACCESS_KEY').length,
     deployedAt: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
     publicUrl: env('NEXT_PUBLIC_R2_PUBLIC_URL') || null,
     buckets: {},
@@ -48,6 +51,7 @@ export async function GET() {
         name: bucket,
         http: res.status,
         error: res.ok ? null : tag(text, 'Code') || text.slice(0, 200),
+        message: res.ok ? null : tag(text, 'Message'),
         corsOrigins: res.ok ? [...text.matchAll(/<AllowedOrigin>([^<]*)<\/AllowedOrigin>/g)].map((m) => m[1]) : null,
         corsMethods: res.ok ? [...text.matchAll(/<AllowedMethod>([^<]*)<\/AllowedMethod>/g)].map((m) => m[1]) : null,
         corsHeaders: res.ok ? [...text.matchAll(/<AllowedHeader>([^<]*)<\/AllowedHeader>/g)].map((m) => m[1]) : null,
