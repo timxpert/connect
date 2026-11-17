@@ -27,6 +27,7 @@ const PATHS = {
   play: <path d="M8 5.5v13l10.5-6.5z" />,
   pause: <path d="M8 5v14M16 5v14" />,
   tick: <path d="m4.5 12.5 4.5 4.5 10-10" />,
+  download: <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />,
   tiktok: (
     <>
       <path d="M14 3.5v11a3.5 3.5 0 1 1-3.5-3.5" />

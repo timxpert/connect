@@ -114,7 +114,7 @@ function Voice({ src, duration }: { src: string | null | undefined; duration?: n
         <audio
           ref={audio}
           src={src}
-          preload="metadata"
+          preload="none"
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={() => {
@@ -132,8 +132,107 @@ function Voice({ src, duration }: { src: string | null | undefined; duration?: n
   );
 }
 
+/* ---------- Media: tap to download, view inside Connect, save to the phone ---------- */
+const DL_KEY = 'cx-downloaded';
+function loadDownloaded(): Set<string> {
+  try {
+    return new Set(JSON.parse(window.localStorage.getItem(DL_KEY) || '[]') as string[]);
+  } catch {
+    return new Set();
+  }
+}
+function rememberDownloaded(ids: Set<string>) {
+  try {
+    window.localStorage.setItem(DL_KEY, JSON.stringify([...ids].slice(-500)));
+  } catch {
+    /* private mode: remembered for this visit only */
+  }
+}
+
+const EXT: Record<string, string> = { image: 'jpg', video: 'mp4', voice: 'm4a', file: 'bin' };
+function fileNameFor(m: Message, type: string) {
+  if (m.file_name && m.kind === 'file') return m.file_name;
+  const ext = type.split('/')[1]?.replace('jpeg', 'jpg').replace('quicktime', 'mov').replace(/[^a-z0-9]/g, '') || EXT[m.kind ?? 'file'];
+  const d = new Date(m.created_at);
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+  return `MotionDojo-${stamp}.${ext}`;
+}
+
+/** Saves a chat file to the phone. iPhone: the share sheet ("Save Image" puts it in Photos).
+    Android and computers: a normal download, which the gallery picks up from Downloads. */
+export async function saveToPhone(m: Message, toast: (t: string) => void) {
+  if (!m.media_url) return toast('Download it first.');
+  try {
+    const res = await fetch(m.media_url);
+    if (!res.ok) throw new Error();
+    const blob = await res.blob();
+    const name = fileNameFor(m, blob.type);
+    const file = new File([blob], name, { type: blob.type });
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+    if (ios && nav.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file] });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+    toast(m.kind === 'image' || m.kind === 'video' ? 'Saved. Find it in your gallery or Downloads.' : 'Saved to Downloads');
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') toast('Couldn’t save it. Check your connection and try again.');
+  }
+}
+
+/** Full-screen photo viewer, inside Connect (no web address shown) */
+function Viewer({ m, onClose, onSave }: { m: Message; onClose: () => void; onSave: () => void }) {
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [onClose]);
+  return (
+    <div className="cx-viewer" role="dialog" aria-modal="true" aria-label="Photo" onClick={onClose}>
+      <div className="cx-viewer-bar" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="cx-icon-btn cx-icon-flat" onClick={onClose} aria-label="Close">
+          <Icon name="close" />
+        </button>
+        <button type="button" className="btn btn-light btn-sm" onClick={onSave}>
+          <Icon name="download" size={18} /> Save
+        </button>
+      </div>
+      {m.kind === 'video' ? (
+        <video src={m.media_url ?? undefined} controls autoPlay playsInline onClick={(e) => e.stopPropagation()} />
+      ) : (
+        <img src={m.media_url ?? undefined} alt="" onClick={(e) => e.stopPropagation()} />
+      )}
+    </div>
+  );
+}
+
 /* ---------- One message ---------- */
-function Bubble({ m, mine, onHold, onRetry }: { m: Message; mine: boolean; onHold: (m: Message) => void; onRetry?: (m: Message) => void }) {
+function Bubble({
+  m,
+  mine,
+  ready,
+  onHold,
+  onRetry,
+  onDownload,
+  onOpen,
+}: {
+  m: Message;
+  mine: boolean;
+  /** Downloaded (or sent by me): show the media itself */
+  ready: boolean;
+  onHold: (m: Message) => void;
+  onRetry?: (m: Message) => void;
+  onDownload: (m: Message) => void;
+  onOpen: (m: Message) => void;
+}) {
   const timer = useRef<number | undefined>(undefined);
   const hold = {
     onContextMenu: (e: React.MouseEvent) => {
@@ -166,22 +265,38 @@ function Bubble({ m, mine, onHold, onRetry }: { m: Message; mine: boolean; onHol
       onClick={m.failed && onRetry ? () => onRetry(m) : undefined}
     >
       {kind === 'voice' && <Voice src={m.media_url} duration={m.duration} />}
-      {kind === 'image' && (
-        <a className="cx-msg-media" href={m.media_url ?? undefined} target="_blank" rel="noopener noreferrer">
-          {m.media_url ? <img src={m.media_url} alt="" /> : <span className="cx-msg-media-ph" />}
-        </a>
-      )}
-      {kind === 'video' && <div className="cx-msg-media">{m.media_url ? <video src={`${m.media_url}#t=0.1`} controls playsInline preload="metadata" /> : <span className="cx-msg-media-ph" />}</div>}
+      {(kind === 'image' || kind === 'video') &&
+        (ready && m.media_url ? (
+          kind === 'image' ? (
+            <button type="button" className="cx-msg-media" onClick={() => onOpen(m)} aria-label="Open photo">
+              <img src={m.media_url} alt="" />
+            </button>
+          ) : (
+            <div className="cx-msg-media">
+              <video src={`${m.media_url}#t=0.1`} controls playsInline preload="metadata" />
+            </div>
+          )
+        ) : (
+          // Not downloaded yet (WhatsApp-style): nothing is fetched until it's tapped
+          <button type="button" className="cx-msg-media cx-msg-dl" onClick={() => onDownload(m)} disabled={!m.media_url}>
+            <Icon name={kind === 'image' ? 'image' : 'video'} size={30} />
+            <span className="cx-msg-dl-btn">
+              <Icon name="download" size={18} />
+              {size(m.file_size) || 'Download'}
+            </span>
+          </button>
+        ))}
       {kind === 'file' && (
-        <a className="cx-msg-file" href={m.media_url ?? undefined} target="_blank" rel="noopener noreferrer" download={m.file_name ?? undefined}>
+        <button type="button" className="cx-msg-file" onClick={() => onDownload(m)} disabled={!m.media_url}>
           <span className="cx-msg-file-ico">
             <Icon name="file" />
           </span>
           <span className="cx-msg-file-text">
             <strong>{m.file_name || 'File'}</strong>
-            <small>{size(m.file_size)}</small>
+            <small>{size(m.file_size)} · Tap to save</small>
           </span>
-        </a>
+          <Icon name="download" size={18} />
+        </button>
       )}
       {m.pending && m.progress !== undefined && m.progress < 1 && (
         <span className="cx-msg-progress" aria-hidden="true">
@@ -213,6 +328,9 @@ export function Chat({ id }: { id: string }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const recorder = useRef<{ mr: MediaRecorder; chunks: Blob[]; stream: MediaStream; cancel: boolean } | null>(null);
   const retries = useRef(new Map<string, { a: Attachment; caption: string }>());
+  const [downloaded, setDownloaded] = useState<Set<string>>(() => new Set());
+  const [viewing, setViewing] = useState<Message | null>(null);
+  useEffect(() => setDownloaded(loadDownloaded()), []);
 
   const load = useCallback(async () => {
     const list = await api.listMessages(id);
@@ -380,6 +498,16 @@ export function Chat({ id }: { id: string }) {
     if (r.mr.state !== 'inactive') r.mr.stop();
   };
 
+  /* media: photos and videos download only when tapped; files save to the phone */
+  const download = (m: Message) => {
+    if (m.kind === 'file') return saveToPhone(m, toast);
+    setDownloaded((d) => {
+      const next = new Set(d).add(m.id);
+      rememberDownloaded(next);
+      return next;
+    });
+  };
+
   /* holding a message */
   const copy = async (m: Message) => {
     setHeld(null);
@@ -480,7 +608,15 @@ export function Chat({ id }: { id: string }) {
           return (
             <React.Fragment key={m.id}>
               {showDay && <li className="cx-day">{day}</li>}
-              <Bubble m={m} mine={m.sender_id === me.id} onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && setHeld(x)} onRetry={retry} />
+              <Bubble
+                m={m}
+                mine={m.sender_id === me.id}
+                ready={m.sender_id === me.id || downloaded.has(m.id)}
+                onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && setHeld(x)}
+                onRetry={retry}
+                onDownload={download}
+                onOpen={setViewing}
+              />
             </React.Fragment>
           );
         })}
@@ -559,6 +695,19 @@ export function Chat({ id }: { id: string }) {
                 <Icon name="copy" /> Copy text
               </button>
             )}
+            {held.kind && held.kind !== 'text' && held.media_url && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const m = held;
+                  setHeld(null);
+                  saveToPhone(m, toast);
+                }}
+              >
+                <Icon name="download" /> Save to phone
+              </button>
+            )}
             {held.sender_id === me.id ? (
               <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>
                 <Icon name="trash" /> Delete for everyone
@@ -574,6 +723,8 @@ export function Chat({ id }: { id: string }) {
           </div>
         </div>
       )}
+
+      {viewing && <Viewer m={viewing} onClose={() => setViewing(null)} onSave={() => saveToPhone(viewing, toast)} />}
     </div>
   );
 }
