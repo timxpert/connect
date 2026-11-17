@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { isMember, useConnect } from './context';
 import { openComposer, POST_DONE, POST_FAIL, POST_PROGRESS, POST_START, type PostingDetail } from './compose';
-import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { play } from './sounds';
 import { timeAgo } from './media';
@@ -699,7 +698,7 @@ export function PostScreen({ id }: { id: string }) {
               }
             }}
           />
-          <button type="submit" className="cx-reply-send" disabled={busy || !draft.trim() || hasPaymentTalk(draft)}>
+          <button type="submit" className="cx-reply-send" disabled={busy || !draft.trim()}>
             Post
           </button>
         </form>
@@ -712,11 +711,6 @@ export function PostScreen({ id }: { id: string }) {
           ) : (
             'Only members can comment.'
           )}
-        </p>
-      )}
-      {hasPaymentTalk(draft) && (
-        <p className="cx-safety" role="alert">
-          {PAYMENT_NOTE}
         </p>
       )}
 

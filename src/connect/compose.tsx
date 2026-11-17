@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useConnect } from './context';
-import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { toEmbed } from './media';
 import { Avatar, Icon, Media } from './ui';
 import { play } from './sounds';
@@ -131,8 +130,7 @@ export function Composer() {
   };
 
   const caption = text.trim();
-  const blocked = hasPaymentTalk(text);
-  const ready = !posting && !blocked && (caption.length > 0 || attach.type !== 'none');
+  const ready = !posting && (caption.length > 0 || attach.type !== 'none');
 
   /** Closes straight away; the post finishes in the background and lands in the feed */
   const submit = async () => {
@@ -226,11 +224,6 @@ export function Composer() {
             onChange={(e) => setText(e.target.value)}
           />
           {preview}
-          {blocked && (
-            <p className="cx-safety" role="alert">
-              {PAYMENT_NOTE}
-            </p>
-          )}
           {err && (
             <p className="cx-error" role="alert">
               {err}

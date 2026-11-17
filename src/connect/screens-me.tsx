@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useConnect } from './context';
-import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { setVisitor } from './visitor';
 import { describeLink, legacyLinks } from './links';
@@ -273,7 +272,6 @@ export function Settings() {
     const handle = toHandle(f.handle || f.name);
     if (!f.name.trim()) return setErr('Add your name.');
     if (handle.length < 3) return setErr('Your username needs at least 3 letters or numbers.');
-    if (hasPaymentTalk(f.bio, f.name)) return setErr(PAYMENT_NOTE);
     // Students are known by their belt, so the phase is required
     if (me?.is_student && !me.is_sensei && !f.phase) return setErr('Choose your phase. Your badge shows your belt.');
     setBusy(true);

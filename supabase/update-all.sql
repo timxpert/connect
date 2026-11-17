@@ -213,11 +213,13 @@ begin
   end if;
 end $$;
 
--- Scam filter: more ways of asking for bank details
-create or replace function public.has_payment_details(t text) returns boolean
-language sql immutable as $$
-  select coalesce(t, '') ~* '\maza\M|\macct\M|\ma/c\M|\m(account|acc|ac)\.?\s*(number|no|num|details?|info)\M|\mbank\s*(account|acct|acc|a/c|details?|info|number|no)\M|\msend\s+(me\s+)?(your\s+|ur\s+)?(bank|account|acct|acc)\M|\m(opay|palmpay|moniepoint)\M|\m(pay|transfer)\s+(it\s+|the\s+money\s+)?(in)?to\s+my\M|(^|[^0-9])[0-9]{10}([^0-9]|$)'
-$$;
+-- Remove the bank-details filter
+drop trigger if exists messages_no_payment on public.messages;
+drop trigger if exists comments_no_payment on public.comments;
+drop trigger if exists posts_no_payment on public.posts;
+drop trigger if exists profiles_no_payment on public.profiles;
+drop function if exists public.no_payment_details();
+drop function if exists public.has_payment_details(text);
 
 -- See everyone's student ID (send each student theirs on WhatsApp):
 select email, student_id, created_at from public.enrolments order by created_at;

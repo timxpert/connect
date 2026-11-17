@@ -3,7 +3,6 @@
    in supabase/schema.sql; this file only shapes the data for the UI. */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { PAYMENT_NOTE } from './safety';
 import { prepareImage } from './resize';
 import type { Comment, ConnectApi, ConnectionStatus, Conversation, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
 
@@ -14,7 +13,6 @@ const POST_SELECT = '*, author:profiles!posts_author_id_fkey(*)';
 
 function fail(error: { message: string } | null) {
   if (!error) return;
-  if (error.message.includes('payment_details')) throw new Error(PAYMENT_NOTE);
   throw new Error(error.message);
 }
 

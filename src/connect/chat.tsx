@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useConnect } from './context';
-import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { play } from './sounds';
 import { alertsUndecided, askForAlerts } from './alerts';
@@ -244,7 +243,6 @@ function SendPreview({
   const [at, setAt] = useState(0);
   const i = Math.min(at, items.length - 1);
   const cur = items[i];
-  const blocked = hasPaymentTalk(caption);
   const tooBig = items.some((x) => x.file.size > MAX_FILE);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -311,9 +309,9 @@ function SendPreview({
             </li>
           )}
         </ul>
-        {(blocked || tooBig) && (
+        {tooBig && (
           <p className="cx-pre-warn" role="alert">
-            {blocked ? PAYMENT_NOTE : 'Files can be up to 50 MB. Remove the large one to send.'}
+            Files can be up to 50 MB. Remove the large one to send.
           </p>
         )}
         <div className="cx-pre-send">
@@ -321,7 +319,7 @@ function SendPreview({
             Caption
           </label>
           <textarea id="pre-caption" rows={1} maxLength={1000} placeholder="Add a caption" value={caption} onChange={(e) => onCaption(e.target.value)} />
-          <button type="button" className="cx-send" disabled={blocked || tooBig} onClick={onSend} aria-label={`Send to ${to}`}>
+          <button type="button" className="cx-send" disabled={tooBig} onClick={onSend} aria-label={`Send to ${to}`}>
             <Icon name="send" size={20} />
           </button>
         </div>
@@ -561,7 +559,7 @@ export function Chat({ id }: { id: string }) {
   /* sending text */
   const sendText = async () => {
     const body = draft.trim();
-    if (!body || hasPaymentTalk(body)) return;
+    if (!body) return;
     setDraft('');
     play('send');
     const tmp: Message = { id: `tmp-${Date.now()}`, conversation_id: id, sender_id: me.id, body, created_at: new Date().toISOString(), kind: 'text', pending: true };
@@ -581,7 +579,6 @@ export function Chat({ id }: { id: string }) {
   /* sending a file, photo, video or voice note: shows at once, uploads behind */
   const sendFile = async (a: Attachment, caption = '') => {
     if (a.file.size > MAX_FILE) return toast('Files can be up to 50 MB.');
-    if (caption && hasPaymentTalk(caption)) return toast(PAYMENT_NOTE);
     const tmp: Message = {
       id: `tmp-${Date.now()}`,
       conversation_id: id,
@@ -649,7 +646,6 @@ export function Chat({ id }: { id: string }) {
   const sendPicked = () => {
     const list = picked;
     const text = caption.trim();
-    if (hasPaymentTalk(text)) return;
     setPicked([]);
     setCaption('');
     list.forEach((x, n) => {
@@ -804,7 +800,6 @@ export function Chat({ id }: { id: string }) {
       </header>
 
       <ol className="cx-msgs">
-        <li className="cx-chat-note">Never send money or bank details on Connect. Report anyone who asks.</li>
         {all.map((m) => {
           const day = dayLabel(m.created_at);
           const showDay = day !== lastDay;
@@ -827,11 +822,6 @@ export function Chat({ id }: { id: string }) {
         <li ref={end} className="cx-msgs-end" aria-hidden="true" />
       </ol>
 
-      {hasPaymentTalk(draft) && (
-        <p className="cx-safety" role="alert">
-          {PAYMENT_NOTE}
-        </p>
-      )}
 
       {blocked ? (
         <div className="cx-chat-blocked">
@@ -880,7 +870,7 @@ export function Chat({ id }: { id: string }) {
           {/* Enter adds a new line; only the send button sends */}
           <textarea ref={box} id="msg-box" rows={1} maxLength={4000} placeholder="Message" value={draft} onChange={(e) => setDraft(e.target.value)} enterKeyHint="enter" />
           {typing ? (
-            <button type="submit" className="cx-send" disabled={hasPaymentTalk(draft)} aria-label="Send">
+            <button type="submit" className="cx-send" aria-label="Send">
               <Icon name="send" size={20} />
             </button>
           ) : (
