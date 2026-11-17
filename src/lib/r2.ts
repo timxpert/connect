@@ -20,6 +20,8 @@ export type SignOptions = {
   now?: Date;
   /** Path-style (/bucket/key, R2's default) or virtual-host style (bucket.host/key) */
   style?: 'path' | 'virtual';
+  /** Extra query parameters, e.g. { cors: '' } to read a bucket's CORS rules */
+  extra?: Record<string, string>;
 };
 
 export function presign(o: SignOptions): string {
@@ -29,7 +31,7 @@ export function presign(o: SignOptions): string {
   const day = amzDate.slice(0, 8);
   const scope = `${day}/${region}/s3/aws4_request`;
   const host = o.style === 'virtual' ? `${o.bucket}.${o.host}` : o.host;
-  const path = (o.style === 'virtual' ? '' : `/${enc(o.bucket)}`) + '/' + o.key.split('/').map(enc).join('/');
+  const path = (o.style === 'virtual' ? '' : `/${enc(o.bucket)}`) + (o.key ? '/' + o.key.split('/').map(enc).join('/') : '');
 
   const query: [string, string][] = [
     ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
@@ -37,6 +39,7 @@ export function presign(o: SignOptions): string {
     ['X-Amz-Date', amzDate],
     ['X-Amz-Expires', String(Math.min(o.expires ?? 900, 604800))],
     ['X-Amz-SignedHeaders', 'host'],
+    ...Object.entries(o.extra ?? {}),
   ];
   const canonicalQuery = query
     .map(([k, v]) => [enc(k), enc(v)])
