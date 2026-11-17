@@ -22,6 +22,7 @@ const CACHED = new Set<keyof ConnectApi>([
 const LIVE = new Set<keyof ConnectApi>([
   'session',
   'subscribe',
+  'presence',
   'listComments',
   'me',
   'onAuthChange',

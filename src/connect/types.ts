@@ -22,6 +22,8 @@ export type Profile = {
   /** The grand sensei: posts to the Community feed */
   is_sensei: boolean;
   created_at: string;
+  /** When they last had Connect open (for "last seen") */
+  last_seen_at?: string | null;
   /** Preview only: marks invented sample data */
   sample?: boolean;
 };
@@ -122,6 +124,8 @@ export interface ConnectApi {
   session(): Promise<{ userId: string; email: string } | null>;
   onAuthChange(cb: () => void): () => void;
   /** Live updates from the database; returns a function that stops them */
+  /** Who's online right now: calls back with their ids whenever it changes */
+  presence(cb: (online: Set<string>) => void): () => void;
   subscribe(table: 'messages' | 'comments' | 'notifications', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
   signIn(email: string): Promise<void>;
   /** Students: email + the student ID they got when they enrolled */

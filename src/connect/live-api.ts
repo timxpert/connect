@@ -189,6 +189,42 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const s = (await sb.auth.getSession()).data.session;
       return s ? { userId: s.user.id, email: s.user.email ?? '' } : null;
     },
+    presence(cb) {
+      // Realtime presence: everyone with Connect open joins one channel.
+      // Also stamps "last seen" every minute while the app is open.
+      let channel: ReturnType<typeof sb.channel> | null = null;
+      let beat = 0;
+      let stopped = false;
+      const seen = () => {
+        sb.rpc('touch_seen').then(() => {}, () => {});
+      };
+      uid().then((me) => {
+        if (!me || stopped) return;
+        channel = sb.channel('cx-online', { config: { presence: { key: me } } });
+        channel
+          .on('presence', { event: 'sync' }, () => cb(new Set(Object.keys(channel!.presenceState()))))
+          .subscribe((status: string) => {
+            if (status === 'SUBSCRIBED') channel!.track({ at: Date.now() }).catch(() => {});
+          });
+        seen();
+        beat = window.setInterval(() => document.visibilityState === 'visible' && seen(), 60000);
+      });
+      const vis = () => {
+        if (!channel) return;
+        if (document.visibilityState === 'visible') channel.track({ at: Date.now() }).catch(() => {});
+        else {
+          seen();
+          channel.untrack().catch(() => {});
+        }
+      };
+      document.addEventListener('visibilitychange', vis);
+      return () => {
+        stopped = true;
+        window.clearInterval(beat);
+        document.removeEventListener('visibilitychange', vis);
+        if (channel) sb.removeChannel(channel);
+      };
+    },
     subscribe(table, filter, cb) {
       // Supabase Realtime: the database pushes changes the moment they happen
       const channel = sb

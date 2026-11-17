@@ -692,3 +692,11 @@ begin
     end loop;
   end if;
 end $$;
+
+-- Online status: "last seen" time, stamped while Connect is open
+alter table public.profiles add column if not exists last_seen_at timestamptz;
+create or replace function public.touch_seen() returns void
+language sql security definer set search_path = public as $$
+  update public.profiles set last_seen_at = now() where id = auth.uid();
+$$;
+grant execute on function public.touch_seen() to authenticated;

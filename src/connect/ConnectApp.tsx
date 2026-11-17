@@ -6,6 +6,7 @@ import { Composer, openComposer } from './compose';
 import { onVisitorChange, visitorChosen } from './visitor';
 import { play, setSoundOn, soundOn } from './sounds';
 import { notify, registerAlerts } from './alerts';
+import { startPresence } from './presence';
 import { createDemoApi } from './demo-api';
 import { withCache } from './cache';
 import { navigate, to, useRoute, type Route } from './router';
@@ -132,6 +133,8 @@ function Shell({ route }: { route: Route }) {
   useEffect(() => {
     registerAlerts();
   }, []);
+  // Online status: only members with a profile show up as online
+  useEffect(() => (me ? startPresence(api) : undefined), [api, me?.id]);
 
   const member = isMember(me);
   const [visitor, setVisitorState] = useState(false);

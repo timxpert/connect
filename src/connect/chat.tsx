@@ -5,6 +5,7 @@ import { useConnect } from './context';
 import { navigate } from './router';
 import { play } from './sounds';
 import { alertsUndecided, askForAlerts } from './alerts';
+import { presenceLabel, useOnline } from './presence';
 import type { Attachment, Conversation, Message, Profile } from './types';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 
@@ -546,6 +547,7 @@ export function Chat({ id }: { id: string }) {
     [],
   );
 
+  const otherOnline = useOnline(conv?.other.id);
   const [picked, setPicked] = useState<Picked[]>([]);
   const [caption, setCaption] = useState('');
 
@@ -773,7 +775,7 @@ export function Chat({ id }: { id: string }) {
               {other.name}
               {other.is_student && <BeltBadge p={other} small />}
             </span>
-            <span className="cx-person-meta">@{other.handle}</span>
+            <span className={otherOnline ? 'cx-person-meta is-online' : 'cx-person-meta'}>{presenceLabel(otherOnline, other.id, other.last_seen_at)}</span>
           </span>
         </A>
         <div className="cx-menu cx-chat-more">
@@ -937,6 +939,10 @@ export function Chat({ id }: { id: string }) {
 }
 
 /* ================= Inbox ================= */
+function OnlineDot({ id }: { id: string }) {
+  return useOnline(id) ? <span className="cx-online-dot" aria-label="Online" /> : null;
+}
+
 const shortTime = (iso: string) => {
   const d = new Date(iso);
   const now = new Date();
@@ -1041,7 +1047,10 @@ export function Inbox() {
           {strip.map((p) => (
             <li key={p.id}>
               <button type="button" onClick={() => open(p)} disabled={opening === p.id}>
-                <Avatar p={p} size={60} />
+                <span className="cx-av-wrap">
+                  <Avatar p={p} size={60} />
+                  <OnlineDot id={p.id} />
+                </span>
                 <span>{p.name.split(' ')[0]}</span>
               </button>
             </li>
@@ -1072,7 +1081,10 @@ export function Inbox() {
             return (
               <li key={c.id}>
                 <A path={`/messages/${c.id}`} className={unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
-                  <Avatar p={c.other} size={56} />
+                  <span className="cx-av-wrap">
+                    <Avatar p={c.other} size={56} />
+                    <OnlineDot id={c.other.id} />
+                  </span>
                   <span className="cx-inbox-text">
                     <span className="cx-inbox-top">
                       <span className="cx-person-name">
