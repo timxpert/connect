@@ -150,6 +150,75 @@ function rememberDownloaded(ids: Set<string>) {
   }
 }
 
+/* Files kept on this device after the first download (and files you sent),
+   so tapping again opens them straight away instead of downloading again. */
+const FILES = 'cx-files-v1';
+const fileKey = (id: string) => `/cx-file/${id}`;
+export async function keepFile(id: string, blob: Blob) {
+  try {
+    const c = await caches.open(FILES);
+    await c.put(fileKey(id), new Response(blob, { headers: { 'Content-Type': blob.type || 'application/octet-stream' } }));
+  } catch {
+    /* no storage: it will download again when opened */
+  }
+}
+async function keptFile(id: string): Promise<Blob | null> {
+  try {
+    const r = await (await caches.open(FILES)).match(fileKey(id));
+    return r ? await r.blob() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** First tap: downloads the file once (kept in Connect, and saved to Downloads on Android and computers) */
+async function downloadFile(m: Message): Promise<boolean> {
+  if (!m.media_url) return false;
+  const res = await fetch(m.media_url);
+  if (!res.ok) return false;
+  const blob = await res.blob();
+  await keepFile(m.id, blob);
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (!ios) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileNameFor(m, blob.type);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }
+  return true;
+}
+
+/** Later taps: opens the copy on this device. The tab is opened first, inside the tap,
+    so phones don't block it; it never shows where the file is stored. */
+async function openFile(m: Message, toast: (t: string) => void) {
+  const win = window.open('', '_blank');
+  try {
+    let blob = await keptFile(m.id);
+    if (!blob && m.media_url) {
+      if (m.media_url.startsWith('blob:')) blob = await (await fetch(m.media_url)).blob();
+      else {
+        const res = await fetch(m.media_url);
+        if (!res.ok) throw new Error();
+        blob = await res.blob();
+        await keepFile(m.id, blob);
+      }
+    }
+    if (!blob) throw new Error();
+    const file = new File([blob], fileNameFor(m, blob.type), { type: blob.type });
+    const url = URL.createObjectURL(file);
+    if (win) win.location.href = url;
+    else window.location.assign(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {
+    win?.close();
+    toast('Couldn’t open it. Check your connection and try again.');
+  }
+}
+
 const EXT: Record<string, string> = { image: 'jpg', video: 'mp4', voice: 'm4a', file: 'bin' };
 function fileNameFor(m: Message, type: string) {
   if (m.file_name && m.kind === 'file') return m.file_name;
@@ -460,15 +529,18 @@ export function Bubble({
           </button>
         ))}
       {kind === 'file' && (
-        <button type="button" className="cx-msg-file" onClick={() => onDownload(m)} disabled={!m.media_url}>
+        <button type="button" className="cx-msg-file" onClick={() => !m.failed && !m.pending && (ready ? onOpen(m) : onDownload(m))} disabled={!m.media_url}>
           <span className="cx-msg-file-ico">
             <Icon name="file" />
           </span>
           <span className="cx-msg-file-text">
             <strong>{m.file_name || 'File'}</strong>
-            <small>{size(m.file_size)} · Tap to save</small>
+            <small>
+              {size(m.file_size)}
+              {m.pending ? '' : ready ? ' · Tap to open' : ' · Tap to download'}
+            </small>
           </span>
-          <Icon name="download" size={18} />
+          {!ready && <Icon name="download" size={18} />}
         </button>
       )}
       {m.pending && m.progress !== undefined && m.progress < 1 && (
@@ -605,6 +677,8 @@ export function Chat({ id }: { id: string }) {
     retries.current.set(tmp.id, { a, caption });
     try {
       const m = await api.sendAttachment(id, a, caption, (p) => setLocal((l) => l.map((x) => (x.id === tmp.id ? { ...x, progress: p } : x))));
+      // You sent it, so it's already on this device: tapping opens it, no download
+      if (a.kind === 'file') keepFile(m.id, a.file);
       setMsgs((xs) => [...xs, m]);
       setLocal((l) => l.filter((x) => x.id !== tmp.id));
       retries.current.delete(tmp.id);
@@ -701,8 +775,24 @@ export function Chat({ id }: { id: string }) {
   };
 
   /* media: photos and videos download only when tapped; files save to the phone */
-  const download = (m: Message) => {
-    if (m.kind === 'file') return saveToPhone(m, toast);
+  const markDownloaded = (id: string) =>
+    setDownloaded((d) => {
+      const next = new Set(d).add(id);
+      rememberDownloaded(next);
+      return next;
+    });
+  const download = async (m: Message) => {
+    if (m.kind === 'file') {
+      toast('Downloading…');
+      try {
+        if (!(await downloadFile(m))) throw new Error();
+        markDownloaded(m.id);
+        toast('Downloaded. Tap it to open.');
+      } catch {
+        toast('Couldn’t download it. Check your connection and try again.');
+      }
+      return;
+    }
     setDownloaded((d) => {
       const next = new Set(d).add(m.id);
       rememberDownloaded(next);
@@ -816,7 +906,7 @@ export function Chat({ id }: { id: string }) {
                 onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && setHeld(x)}
                 onRetry={retry}
                 onDownload={download}
-                onOpen={setViewing}
+                onOpen={(x) => (x.kind === 'file' ? openFile(x, toast) : setViewing(x))}
               />
             </React.Fragment>
           );
