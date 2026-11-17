@@ -606,20 +606,23 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         path = `${conversationId}/${me}-${Date.now()}.${ext}`;
         await xhrUpload('chat', path, file, onProgress);
       }
-      const { data, error } = await sb
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          sender_id: me,
-          body: caption,
-          kind: a.kind,
-          media_path: path,
-          file_name: a.kind === 'file' ? a.file.name.slice(0, 200) : null,
-          file_size: file.size,
-          duration: a.duration ?? null,
-        })
-        .select()
-        .single();
+      const row: Record<string, unknown> = {
+        conversation_id: conversationId,
+        sender_id: me,
+        body: caption,
+        kind: a.kind,
+        media_path: path,
+        file_name: a.kind === 'file' ? a.file.name.slice(0, 200) : null,
+        file_size: file.size,
+        duration: a.duration ?? null,
+        ...(a.thumb ? { thumb: a.thumb } : {}),
+      };
+      let { data, error } = await sb.from('messages').insert(row).select().single();
+      if (error && /thumb/i.test(error.message) && row.thumb) {
+        // Database without previews yet: save the message without one (the file is already uploaded)
+        delete row.thumb;
+        ({ data, error } = await sb.from('messages').insert(row).select().single());
+      }
       if (error && /column|kind|media_path|schema cache/i.test(error.message)) throw new Error(NEEDS_UPDATE);
       fail(error);
       const link = await sign([path]);

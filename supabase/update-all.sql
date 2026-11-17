@@ -6,6 +6,7 @@
 --   4. Chat: voice notes, files, delete for everyone, delivered / seen
 --   5. Profile links (any platform)
 --   6. Speed: one-request feed and inbox, live updates
+--   7. Blurred previews for chat photos and videos
 -- Run once in Supabase -> SQL Editor (role: postgres). Safe to run again,
 -- including if you already ran some of the separate update files.
 -- =====================================================================
@@ -80,6 +81,11 @@ alter table public.messages add column if not exists duration real;
 alter table public.messages add column if not exists delivered_at timestamptz;
 alter table public.messages add column if not exists read_at timestamptz;
 alter table public.messages add column if not exists deleted_at timestamptz;
+-- Chat photos and videos carry a tiny blurred preview (a few hundred bytes),
+-- shown behind the download button before the real file is fetched
+alter table public.messages add column if not exists thumb text;
+alter table public.messages drop constraint if exists messages_thumb_check;
+alter table public.messages add constraint messages_thumb_check check (thumb is null or char_length(thumb) <= 6000);
 alter table public.messages drop constraint if exists messages_kind_check;
 alter table public.messages add constraint messages_kind_check check (kind in ('text', 'voice', 'image', 'video', 'file'));
 alter table public.messages drop constraint if exists messages_content_check;
@@ -157,7 +163,8 @@ create policy "chat files: people in the conversation read" on storage.objects f
 -- Both run with the caller's permissions (security_invoker), so every
 -- row-level rule above still applies.
 -- ---------------------------------------------------------------------
-create or replace view public.posts_feed with (security_invoker = true) as
+drop view if exists public.posts_feed;
+create view public.posts_feed with (security_invoker = true) as
   select p.*,
          to_jsonb(a.*) as author,
          (select count(*) from public.likes l where l.post_id = p.id)::int    as likes,
@@ -168,7 +175,8 @@ create or replace view public.posts_feed with (security_invoker = true) as
   from public.posts p
   join public.profiles a on a.id = p.author_id;
 
-create or replace view public.inbox with (security_invoker = true) as
+drop view if exists public.inbox;
+create view public.inbox with (security_invoker = true) as
   select c.id,
          c.last_message_at,
          to_jsonb(o.*) as other,

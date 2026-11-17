@@ -96,6 +96,8 @@ export type Message = {
   file_size?: number | null;
   /** Voice notes, in seconds */
   duration?: number | null;
+  /** Photos and videos: a tiny blurred preview (data URL) shown before download */
+  thumb?: string | null;
   delivered_at?: string | null;
   read_at?: string | null;
   deleted_at?: string | null;
@@ -105,7 +107,7 @@ export type Message = {
   failed?: boolean;
 };
 
-export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number };
+export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number; thumb?: string };
 
 export type ProfileInput = Partial<
   Pick<Profile, 'handle' | 'name' | 'bio' | 'avatar_url' | 'cover_url' | 'country' | 'skills' | 'phase' | 'phase_public' | 'instagram' | 'youtube' | 'website' | 'links'>

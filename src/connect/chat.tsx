@@ -27,7 +27,7 @@ const clock = (s: number) => {
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 };
 const size = (b?: number | null) =>
-  !b ? '' : b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+  !b ? '' : b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(0.1, Math.round((b / 1024) * 10) / 10)} kB`;
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 const dayLabel = (iso: string) => {
   const d = new Date(iso);
@@ -214,8 +214,56 @@ function Viewer({ m, onClose, onSave }: { m: Message; onClose: () => void; onSav
   );
 }
 
+/** A tiny preview (about 40px wide, a few hundred bytes) to show blurred before download */
+export async function makeThumb(file: File, kind: Attachment['kind']): Promise<string | undefined> {
+  if (kind !== 'image' && kind !== 'video') return undefined;
+  try {
+    let source: CanvasImageSource;
+    let w: number;
+    let h: number;
+    if (kind === 'image') {
+      const bmp = await createImageBitmap(file);
+      source = bmp;
+      w = bmp.width;
+      h = bmp.height;
+    } else {
+      const v = document.createElement('video');
+      v.muted = true;
+      v.playsInline = true;
+      v.preload = 'auto';
+      v.src = URL.createObjectURL(file);
+      await new Promise<void>((ok, bad) => {
+        const t = window.setTimeout(() => bad(new Error('timeout')), 4000);
+        v.onloadeddata = () => {
+          v.currentTime = Math.min(0.5, (v.duration || 1) / 2);
+        };
+        v.onseeked = () => {
+          window.clearTimeout(t);
+          ok();
+        };
+        v.onerror = () => bad(new Error('video'));
+      });
+      source = v;
+      w = v.videoWidth;
+      h = v.videoHeight;
+      window.setTimeout(() => URL.revokeObjectURL(v.src), 1000);
+    }
+    if (!w || !h) return undefined;
+    const tw = 64;
+    const th = Math.max(1, Math.round((h / w) * tw));
+    const c = document.createElement('canvas');
+    c.width = tw;
+    c.height = Math.min(th, 128);
+    c.getContext('2d')!.drawImage(source, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', 0.6);
+    return url.length <= 6000 ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /* ---------- One message ---------- */
-function Bubble({
+export function Bubble({
   m,
   mine,
   ready,
@@ -260,7 +308,16 @@ function Bubble({
   const kind = m.kind ?? 'text';
   return (
     <li
-      className={['cx-msg', mine ? 'is-mine' : '', kind !== 'text' ? `is-${kind}` : '', m.pending ? 'is-pending' : '', m.failed ? 'is-failed' : ''].filter(Boolean).join(' ')}
+      className={[
+        'cx-msg',
+        mine ? 'is-mine' : '',
+        kind !== 'text' ? `is-${kind}` : '',
+        (kind === 'image' || kind === 'video') && !m.body ? 'is-bare' : '',
+        m.pending ? 'is-pending' : '',
+        m.failed ? 'is-failed' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       {...hold}
       onClick={m.failed && onRetry ? () => onRetry(m) : undefined}
     >
@@ -278,8 +335,8 @@ function Bubble({
           )
         ) : (
           // Not downloaded yet (WhatsApp-style): nothing is fetched until it's tapped
-          <button type="button" className="cx-msg-media cx-msg-dl" onClick={() => onDownload(m)} disabled={!m.media_url}>
-            <Icon name={kind === 'image' ? 'image' : 'video'} size={30} />
+          <button type="button" className={m.thumb ? 'cx-msg-media cx-msg-dl has-thumb' : 'cx-msg-media cx-msg-dl'} onClick={() => onDownload(m)} disabled={!m.media_url}>
+            {m.thumb ? <img className="cx-msg-thumb" src={m.thumb} alt="" /> : <Icon name={kind === 'image' ? 'image' : 'video'} size={30} />}
             <span className="cx-msg-dl-btn">
               <Icon name="download" size={18} />
               {size(m.file_size) || 'Download'}
@@ -421,7 +478,8 @@ export function Chat({ id }: { id: string }) {
     };
     setLocal((l) => [...l, tmp]);
     play('send');
-    upload(tmp, a, caption);
+    const thumb = await makeThumb(a.file, a.kind);
+    upload(tmp, thumb ? { ...a, thumb } : a, caption);
   };
 
   const upload = async (tmp: Message, a: Attachment, caption: string) => {
