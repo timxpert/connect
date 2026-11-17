@@ -5,9 +5,10 @@ import { ConnectProvider, isMember, useConnect } from './context';
 import { Composer, openComposer } from './compose';
 import { onVisitorChange, visitorChosen } from './visitor';
 import { play, setSoundOn, soundOn } from './sounds';
+import { notify, registerAlerts } from './alerts';
 import { createDemoApi } from './demo-api';
 import { withCache } from './cache';
-import { navigate, useRoute, type Route } from './router';
+import { navigate, to, useRoute, type Route } from './router';
 import type { ConnectApi } from './types';
 import { A, Avatar, Icon, Loading } from './ui';
 import { Feed, PostScreen, ProfileScreen, Students } from './screens-browse';
@@ -58,31 +59,41 @@ const TABS = [
 ];
 
 /** Unread notifications and waiting connection requests, refreshed every 30 seconds */
-function useCounts() {
+type IncomingMessage = { conversation_id: string; sender_id: string; body?: string; kind?: string };
+
+function useCounts(onMessage: (m: IncomingMessage) => void) {
   const { api, me } = useConnect();
-  const [c, setC] = useState({ unread: 0, requests: 0 });
+  const [c, setC] = useState({ unread: 0, requests: 0, messages: 0 });
+  const onMessageRef = React.useRef(onMessage);
+  onMessageRef.current = onMessage;
   useEffect(() => {
     if (!me) {
-      setC({ unread: 0, requests: 0 });
+      setC({ unread: 0, requests: 0, messages: 0 });
       return;
     }
     let live = true;
     const load = async () => {
       // Tell senders their messages reached this device (grey double tick)
       api.markDelivered().catch(() => {});
-      const [unread, r] = await Promise.all([api.unreadCount(), api.listRequests()]);
-      if (live) setC({ unread, requests: r.incoming.length });
+      const [unread, r, messages] = await Promise.all([api.unreadCount(), api.listRequests(), api.unreadMessageCount().catch(() => 0)]);
+      if (live) setC({ unread, requests: r.incoming.length, messages });
     };
     load().catch(() => {});
     const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 30000);
     const on = () => load().catch(() => {});
     window.addEventListener('cx:counts', on);
-    // Live: new notifications update the bell at once; new messages get their grey tick
+    // Live: the bell, the Messages count and alerts update the moment something happens
     const stopNotices = api.subscribe('notifications', `user_id=eq.${me.id}`, on);
-    const stopMessages = api.subscribe('messages', '', () => api.markDelivered().catch(() => {}));
+    let pending = 0;
+    const stopMessages = api.subscribe('messages', '', ({ event, row }) => {
+      window.clearTimeout(pending);
+      pending = window.setTimeout(on, 250);
+      if (event === 'INSERT' && row.sender_id && row.sender_id !== me.id) onMessageRef.current(row as unknown as IncomingMessage);
+    });
     return () => {
       live = false;
       window.clearInterval(t);
+      window.clearTimeout(pending);
       window.removeEventListener('cx:counts', on);
       stopNotices();
       stopMessages();
@@ -94,11 +105,33 @@ function useCounts() {
 const Dot = ({ n }: { n: number }) => (n > 0 ? <span className="cx-dot">{n > 9 ? '9+' : n}</span> : null);
 
 function Shell({ route }: { route: Route }) {
-  const { api, me, signedIn } = useConnect();
+  const { api, me, signedIn, toast } = useConnect();
   const [menu, setMenu] = useState(false);
   const [sound, setSound] = useState(true);
   useEffect(() => setSound(soundOn()), []);
-  const counts = useCounts();
+  // A message from someone else: sound + a short note, or a phone notification
+  // when Connect is in the background. Not when you're already in that chat.
+  const onMessage = (m: IncomingMessage) => {
+    const here = route.name === 'chat' && (route as { id?: string }).id === m.conversation_id && document.visibilityState === 'visible';
+    if (here) return;
+    const what = m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? 'Photo' : m.kind === 'video' ? 'Video' : m.kind === 'file' ? 'File' : (m.body || '').slice(0, 120);
+    api
+      .getConversation(m.conversation_id)
+      .then((conv) => {
+        const name = conv?.other.name ?? 'New message';
+        if (document.visibilityState === 'visible') {
+          play('comment');
+          toast(`${name}: ${what}`);
+        } else {
+          notify(name, what, new URL(to(`/messages/${m.conversation_id}`), window.location.href).href, m.conversation_id);
+        }
+      })
+      .catch(() => {});
+  };
+  const counts = useCounts(onMessage);
+  useEffect(() => {
+    registerAlerts();
+  }, []);
 
   const member = isMember(me);
   const [visitor, setVisitorState] = useState(false);
@@ -184,6 +217,7 @@ function Shell({ route }: { route: Route }) {
               <A key={t.path} path={t.path} className={t.match.includes(route.name) ? 'is-on' : ''} aria-current={t.match.includes(route.name) ? 'page' : undefined}>
                 {t.label}
                 {t.path === '/connections' && <Dot n={counts.requests} />}
+                {t.path === '/messages' && <Dot n={counts.messages} />}
               </A>
             ))}
           </nav>
@@ -278,6 +312,7 @@ function Shell({ route }: { route: Route }) {
               <span className="cx-tab-ico">
                 <Icon name={t.icon} />
                 {t.path === '/connections' && <Dot n={counts.requests} />}
+                {t.path === '/messages' && <Dot n={counts.messages} />}
               </span>
               <span>{t.label}</span>
             </A>

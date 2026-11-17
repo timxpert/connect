@@ -122,7 +122,7 @@ export interface ConnectApi {
   session(): Promise<{ userId: string; email: string } | null>;
   onAuthChange(cb: () => void): () => void;
   /** Live updates from the database; returns a function that stops them */
-  subscribe(table: 'messages' | 'comments' | 'notifications', filter: string, cb: () => void): () => void;
+  subscribe(table: 'messages' | 'comments' | 'notifications', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
   signIn(email: string): Promise<void>;
   /** Students: email + the student ID they got when they enrolled */
   studentSignIn(email: string, studentId: string): Promise<void>;
@@ -153,6 +153,8 @@ export interface ConnectApi {
 
   listNotices(): Promise<Notice[]>;
   unreadCount(): Promise<number>;
+  /** Messages from others I haven't opened, across all chats */
+  unreadMessageCount(): Promise<number>;
   markNoticesRead(): Promise<void>;
 
   listPosts(opts: { authorId?: string; feed?: 'community' | 'everyone' | 'connections'; limit?: number }): Promise<Post[]>;

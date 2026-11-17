@@ -29,6 +29,7 @@ const LIVE = new Set<keyof ConnectApi>([
   'listConversations',
   'listRequests',
   'unreadCount',
+  'unreadMessageCount',
   'listNotices',
   'markRead',
   'markDelivered',

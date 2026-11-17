@@ -5,6 +5,7 @@ import { useConnect } from './context';
 import { hasPaymentTalk, PAYMENT_NOTE } from './safety';
 import { navigate } from './router';
 import { play } from './sounds';
+import { alertsUndecided, askForAlerts } from './alerts';
 import type { Attachment, Conversation, Message, Profile } from './types';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 
@@ -210,6 +211,122 @@ function Viewer({ m, onClose, onSave }: { m: Message; onClose: () => void; onSav
       ) : (
         <img src={m.media_url ?? undefined} alt="" onClick={(e) => e.stopPropagation()} />
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------
+   Before sending photos, videos or files: a review screen. Look at
+   what you picked, drop any you don't want, add more, write a caption,
+   then send. Nothing uploads until you tap send.
+------------------------------------------------------------------- */
+type Picked = { key: string; file: File; kind: Attachment['kind']; url: string };
+
+function SendPreview({
+  items,
+  to,
+  caption,
+  onCaption,
+  onRemove,
+  onAdd,
+  onClose,
+  onSend,
+}: {
+  items: Picked[];
+  to: string;
+  caption: string;
+  onCaption: (v: string) => void;
+  onRemove: (key: string) => void;
+  onAdd: () => void;
+  onClose: () => void;
+  onSend: () => void;
+}) {
+  const [at, setAt] = useState(0);
+  const i = Math.min(at, items.length - 1);
+  const cur = items[i];
+  const blocked = hasPaymentTalk(caption);
+  const tooBig = items.some((x) => x.file.size > MAX_FILE);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
+    window.addEventListener('keydown', k);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', k);
+      document.body.style.overflow = prev;
+    };
+  }, []);
+  if (!cur) return null;
+  return (
+    <div className="cx-pre" role="dialog" aria-modal="true" aria-label="Review before sending">
+      <header className="cx-pre-bar">
+        <button type="button" className="cx-icon-btn cx-icon-flat" onClick={onClose} aria-label="Cancel">
+          <Icon name="close" />
+        </button>
+        <span className="cx-pre-title">
+          <strong>{items.length === 1 ? cur.file.name : `${i + 1} of ${items.length}`}</strong>
+          <small>{size(cur.file.size)}</small>
+        </span>
+        <button type="button" className="cx-icon-btn cx-icon-flat" onClick={() => onRemove(cur.key)} aria-label="Remove this one">
+          <Icon name="trash" />
+        </button>
+      </header>
+
+      <div className="cx-pre-stage">
+        {cur.kind === 'image' ? (
+          <img key={cur.key} src={cur.url} alt="" />
+        ) : cur.kind === 'video' ? (
+          <video key={cur.key} src={cur.url} controls playsInline preload="metadata" />
+        ) : (
+          <div className="cx-pre-file">
+            <Icon name="file" size={40} />
+            <strong>{cur.file.name}</strong>
+            <span>{size(cur.file.size)}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="cx-pre-foot">
+        <ul className="cx-pre-strip" aria-label="Picked files">
+          {items.map((x, n) => (
+            <li key={x.key}>
+              <button type="button" className={n === i ? 'is-on' : ''} onClick={() => setAt(n)} aria-label={`Show ${x.file.name}`}>
+                {x.kind === 'image' ? (
+                  <img src={x.url} alt="" />
+                ) : x.kind === 'video' ? (
+                  <video src={`${x.url}#t=0.1`} muted playsInline preload="metadata" />
+                ) : (
+                  <Icon name="file" size={20} />
+                )}
+              </button>
+            </li>
+          ))}
+          {items.length < 10 && (
+            <li>
+              <button type="button" className="cx-pre-add" onClick={onAdd} aria-label="Add more">
+                <Icon name="plus" size={20} />
+              </button>
+            </li>
+          )}
+        </ul>
+        {(blocked || tooBig) && (
+          <p className="cx-pre-warn" role="alert">
+            {blocked ? PAYMENT_NOTE : 'Files can be up to 50 MB. Remove the large one to send.'}
+          </p>
+        )}
+        <div className="cx-pre-send">
+          <label className="sr-only" htmlFor="pre-caption">
+            Caption
+          </label>
+          <textarea id="pre-caption" rows={1} maxLength={1000} placeholder="Add a caption" value={caption} onChange={(e) => onCaption(e.target.value)} />
+          <button type="button" className="cx-send" disabled={blocked || tooBig} onClick={onSend} aria-label={`Send to ${to}`}>
+            <Icon name="send" size={20} />
+          </button>
+        </div>
+        <p className="cx-pre-to">To {to}</p>
+      </div>
     </div>
   );
 }
@@ -431,6 +548,9 @@ export function Chat({ id }: { id: string }) {
     [],
   );
 
+  const [picked, setPicked] = useState<Picked[]>([]);
+  const [caption, setCaption] = useState('');
+
   if (!signedIn) return <Empty title="Sign in to see your messages" />;
   if (me === undefined || conv === undefined) return <Loading />;
   if (!me) return <Empty title="Finish your profile first" />;
@@ -503,13 +623,39 @@ export function Chat({ id }: { id: string }) {
     upload(m, r.a, r.caption);
   };
 
+  /* picking photos, videos or files opens the review screen first */
   const pickFiles = (files: FileList | null) => {
-    if (!files) return;
-    const caption = draft.trim();
-    Array.from(files)
-      .slice(0, 10)
-      .forEach((f, i) => sendFile({ file: f, kind: kindOf(f) }, i === 0 ? caption : ''));
-    if (caption) setDraft('');
+    if (!files?.length) return;
+    if (!picked.length) {
+      // Whatever was typed becomes the caption
+      setCaption(draft.trim());
+      setDraft('');
+    }
+    const add = Array.from(files).map((f, n) => ({ key: `${Date.now()}-${n}-${f.name}`, file: f, kind: kindOf(f), url: URL.createObjectURL(f) }));
+    setPicked((p) => [...p, ...add].slice(0, 10));
+  };
+  const closePicked = () => {
+    picked.forEach((x) => URL.revokeObjectURL(x.url));
+    setPicked([]);
+    setDraft((d) => d || caption);
+    setCaption('');
+  };
+  const removePicked = (key: string) =>
+    setPicked((p) => {
+      const gone = p.find((x) => x.key === key);
+      if (gone) URL.revokeObjectURL(gone.url);
+      return p.filter((x) => x.key !== key);
+    });
+  const sendPicked = () => {
+    const list = picked;
+    const text = caption.trim();
+    if (hasPaymentTalk(text)) return;
+    setPicked([]);
+    setCaption('');
+    list.forEach((x, n) => {
+      URL.revokeObjectURL(x.url);
+      sendFile({ file: x.file, kind: x.kind }, n === 0 ? text : '');
+    });
   };
 
   /* voice notes */
@@ -782,6 +928,19 @@ export function Chat({ id }: { id: string }) {
         </div>
       )}
 
+      {picked.length > 0 && (
+        <SendPreview
+          items={picked}
+          to={other.name}
+          caption={caption}
+          onCaption={setCaption}
+          onRemove={removePicked}
+          onAdd={() => fileInput.current?.click()}
+          onClose={closePicked}
+          onSend={sendPicked}
+        />
+      )}
+
       {viewing && <Viewer m={viewing} onClose={() => setViewing(null)} onSave={() => saveToPhone(viewing, toast)} />}
     </div>
   );
@@ -804,6 +963,25 @@ export function Inbox() {
   const [people, setPeople] = useState<Profile[]>([]);
   const [q, setQ] = useState('');
   const [opening, setOpening] = useState('');
+  const [askAlerts, setAskAlerts] = useState(false);
+  useEffect(() => {
+    let dismissed = false;
+    try {
+      dismissed = localStorage.getItem('cx-alerts-asked') === '1';
+    } catch {
+      /* ignore */
+    }
+    setAskAlerts(alertsUndecided() && !dismissed);
+  }, []);
+  const answerAlerts = async (yes: boolean) => {
+    setAskAlerts(false);
+    try {
+      localStorage.setItem('cx-alerts-asked', '1');
+    } catch {
+      /* ignore */
+    }
+    if (yes && (await askForAlerts())) toast('Message alerts are on');
+  };
 
   useEffect(() => {
     if (!me) return;
@@ -849,6 +1027,18 @@ export function Inbox() {
   return (
     <div className="cx-col cx-inbox-page">
       <h1 className="cx-inbox-title">Messages</h1>
+
+      {askAlerts && (
+        <div className="cx-alerts-ask">
+          <p>Get an alert on this device when someone messages you.</p>
+          <button type="button" className="btn btn-light btn-sm" onClick={() => answerAlerts(false)}>
+            Not now
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => answerAlerts(true)}>
+            Turn on
+          </button>
+        </div>
+      )}
 
       <label className="cx-search cx-inbox-search">
         <Icon name="search" size={20} />

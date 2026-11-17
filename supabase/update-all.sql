@@ -7,6 +7,7 @@
 --   5. Profile links (any platform)
 --   6. Speed: one-request feed and inbox, live updates
 --   7. Blurred previews for chat photos and videos
+--   8. Scam filter catches 'send your account', 'bank acct', payment apps
 -- Run once in Supabase -> SQL Editor (role: postgres). Safe to run again,
 -- including if you already ran some of the separate update files.
 -- =====================================================================
@@ -211,6 +212,12 @@ begin
     end loop;
   end if;
 end $$;
+
+-- Scam filter: more ways of asking for bank details
+create or replace function public.has_payment_details(t text) returns boolean
+language sql immutable as $$
+  select coalesce(t, '') ~* '\maza\M|\macct\M|\ma/c\M|\m(account|acc|ac)\.?\s*(number|no|num|details?|info)\M|\mbank\s*(account|acct|acc|a/c|details?|info|number|no)\M|\msend\s+(me\s+)?(your\s+|ur\s+)?(bank|account|acct|acc)\M|\m(opay|palmpay|moniepoint)\M|\m(pay|transfer)\s+(it\s+|the\s+money\s+)?(in)?to\s+my\M|(^|[^0-9])[0-9]{10}([^0-9]|$)'
+$$;
 
 -- See everyone's student ID (send each student theirs on WhatsApp):
 select email, student_id, created_at from public.enrolments order by created_at;

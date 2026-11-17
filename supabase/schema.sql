@@ -403,7 +403,7 @@ for each row execute function public.unnotify_connection();
 -- ---------------------------------------------------------------------
 create or replace function public.has_payment_details(t text) returns boolean
 language sql immutable as $$
-  select coalesce(t, '') ~* '\maza\M|\macct\M|\ma/c\M|\maccount\s*(number|no|num)\M|\macc\.?\s*(number|no|num)\M|(^|[^0-9])[0-9]{10}([^0-9]|$)'
+  select coalesce(t, '') ~* '\maza\M|\macct\M|\ma/c\M|\m(account|acc|ac)\.?\s*(number|no|num|details?|info)\M|\mbank\s*(account|acct|acc|a/c|details?|info|number|no)\M|\msend\s+(me\s+)?(your\s+|ur\s+)?(bank|account|acct|acc)\M|\m(opay|palmpay|moniepoint)\M|\m(pay|transfer)\s+(it\s+|the\s+money\s+)?(in)?to\s+my\M|(^|[^0-9])[0-9]{10}([^0-9]|$)'
 $$;
 
 create or replace function public.no_payment_details() returns trigger

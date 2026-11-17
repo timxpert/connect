@@ -227,6 +227,7 @@ export function createDemoApi(): ConnectApi {
           .map<Notice>((n) => ({ id: n.id, kind: n.kind, actor: who(n.actor), post_id: n.post, read_at: n.read ? n.at : null, created_at: n.at })),
       );
     },
+    unreadMessageCount: () => wait(current ? messages.filter((m) => m.sender_id !== current && !m.read_at && !m.deleted_at && convs.some((c) => c.id === m.conversation_id && (c.a === current || c.b === current))).length : 0),
     unreadCount: () => wait(current ? notices.filter((n) => n.user === current && !n.read).length : 0),
     async markNoticesRead() {
       const me = needMe();

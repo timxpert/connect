@@ -4119,3 +4119,170 @@ button.cx-msg-file > svg:last-child {
 .cx-msg.is-bare .cx-msg-meta .cx-tick:not(.is-seen) {
   color: #fff;
 }
+
+/* Review screen before sending photos, videos and files */
+.cx-pre {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: #0e0c12;
+  color: #fff;
+  animation: fade-in 0.18s ease;
+}
+.cx-pre-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: max(8px, env(safe-area-inset-top)) 8px 8px;
+}
+.cx-pre-bar .cx-icon-btn {
+  color: #fff;
+}
+.cx-pre-title {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  text-align: center;
+  line-height: 1.25;
+}
+.cx-pre-title strong {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-pre-title small {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.cx-pre-stage {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+}
+.cx-pre-stage img,
+.cx-pre-stage video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.cx-pre-file {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 32px 28px;
+  max-width: 300px;
+  border-radius: 16px;
+  background: #1c1922;
+  text-align: center;
+  word-break: break-word;
+}
+.cx-pre-file span {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.cx-pre-foot {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px max(12px, env(safe-area-inset-bottom));
+}
+.cx-pre-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+  scrollbar-width: none;
+}
+.cx-pre-strip button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #1c1922;
+  color: #fff;
+  opacity: 0.55;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: opacity 0.15s ease;
+}
+.cx-pre-strip button.is-on {
+  opacity: 1;
+  outline-color: var(--lime);
+}
+.cx-pre-strip img,
+.cx-pre-strip video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.cx-pre-strip .cx-pre-add {
+  opacity: 1;
+  background: transparent;
+  outline: 1.5px dashed rgba(255, 255, 255, 0.35);
+}
+.cx-pre-warn {
+  margin: 0;
+  font-size: 13px;
+  color: #ffd2cc;
+}
+.cx-pre-send {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.cx-pre-send textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 120px;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 22px;
+  background: #1c1922;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  resize: none;
+  field-sizing: content;
+}
+.cx-pre-send textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+.cx-pre-send textarea:focus {
+  outline: none;
+}
+.cx-pre-to {
+  margin: -2px 0 0 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Inbox: ask once for message alerts */
+.cx-alerts-ask {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  background: var(--tint);
+  font-size: 14px;
+}
+.cx-alerts-ask p {
+  flex: 1;
+  margin: 0;
+}
+.cx .cx-pre .cx-send:disabled {
+  background: #2a2631;
+  color: rgba(255, 255, 255, 0.5);
+  opacity: 1;
+}

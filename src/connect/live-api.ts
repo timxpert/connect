@@ -195,7 +195,9 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       // Supabase Realtime: the database pushes changes the moment they happen
       const channel = sb
         .channel(`cx-${table}-${filter || 'all'}-${Math.random().toString(36).slice(2, 8)}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table, ...(filter ? { filter } : {}) }, () => cb())
+        .on('postgres_changes', { event: '*', schema: 'public', table, ...(filter ? { filter } : {}) }, (p: { eventType: string; new: Record<string, unknown> }) =>
+          cb({ event: p.eventType, row: p.new ?? {} }),
+        )
         .subscribe();
       return () => {
         sb.removeChannel(channel);
@@ -380,6 +382,13 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async unreadCount() {
       if (!(await uid())) return 0;
       const { count } = await sb.from('notifications').select('*', { count: 'exact', head: true }).is('read_at', null);
+      return count ?? 0;
+    },
+    async unreadMessageCount() {
+      const me = await uid();
+      if (!me) return 0;
+      // Row rules limit this to my own conversations
+      const { count } = await sb.from('messages').select('id', { count: 'exact', head: true }).neq('sender_id', me).is('read_at', null).is('deleted_at', null);
       return count ?? 0;
     },
     async markNoticesRead() {
