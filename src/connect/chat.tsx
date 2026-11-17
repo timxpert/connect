@@ -507,7 +507,7 @@ export function Chat({ id }: { id: string }) {
   const load = useCallback(async () => {
     const list = await api.listMessages(id);
     setMsgs(list);
-    if (me && list.some((m) => m.sender_id !== me.id && !m.read_at && !m.deleted_at)) api.markRead(id).catch(() => {});
+    if (me && list.some((m) => m.sender_id !== me.id && !m.read_at && !m.deleted_at)) api.markRead(id).then(() => window.dispatchEvent(new Event('cx:counts'))).catch(() => {});
   }, [api, id, me]);
 
   useEffect(() => {
