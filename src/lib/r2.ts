@@ -65,3 +65,47 @@ export function r2Config() {
   if (!accountId || !accessKeyId || !secretAccessKey || !publicBucket || !privateBucket || !publicUrl) return null;
   return { host: `${accountId}.r2.cloudflarestorage.com`, accessKeyId, secretAccessKey, publicBucket, privateBucket, publicUrl };
 }
+
+/** Signs a request with an Authorization header (needed for bucket settings such as CORS) */
+export function signHeaders(o: {
+  method: string;
+  host: string;
+  path: string; // already encoded, e.g. /md-media or /md-media/a.txt
+  query?: Record<string, string>;
+  headers?: Record<string, string>;
+  payloadHash?: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region?: string;
+  service?: string;
+  now?: Date;
+}): Record<string, string> {
+  const region = o.region ?? 'auto';
+  const service = o.service ?? 's3';
+  const now = o.now ?? new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const day = amzDate.slice(0, 8);
+  const scope = `${day}/${region}/${service}/aws4_request`;
+  const payloadHash = o.payloadHash ?? sha256('');
+  const headers: Record<string, string> = { host: o.host, 'x-amz-content-sha256': payloadHash, 'x-amz-date': amzDate, ...(o.headers ?? {}) };
+  const names = Object.keys(headers)
+    .map((h) => h.toLowerCase())
+    .sort();
+  const lower = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), String(v).trim()]));
+  const canonicalHeaders = names.map((h) => `${h}:${lower[h]}\n`).join('');
+  const signedHeaders = names.join(';');
+  const canonicalQuery = Object.entries(o.query ?? {})
+    .map(([k, v]) => [enc(k), enc(v)])
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([k, v]) => `${k}=${v}`)
+    .join('&');
+  const canonicalRequest = [o.method, o.path, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash].join('\n');
+  const toSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256(canonicalRequest)].join('\n');
+  const kDate = hmac(`AWS4${o.secretAccessKey}`, day);
+  const kSigning = hmac(hmac(hmac(kDate, region), service), 'aws4_request');
+  const signature = crypto.createHmac('sha256', kSigning).update(toSign).digest('hex');
+  const out: Record<string, string> = { ...headers };
+  delete out.host;
+  out.Authorization = `AWS4-HMAC-SHA256 Credential=${o.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  return out;
+}

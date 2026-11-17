@@ -1,4 +1,4 @@
-import { presign } from '@/lib/r2';
+import { presign, signHeaders } from '@/lib/r2';
 
 /**
  * Temporary setup check for R2. Shows which settings are present (never their
@@ -43,22 +43,38 @@ export async function GET() {
     ['private', env('R2_PRIVATE_BUCKET')],
   ] as const) {
     if (!bucket) continue;
+    const report: Record<string, unknown> = { name: bucket };
     try {
-      const url = presign({ ...base, method: 'GET', bucket, key: '', extra: { cors: '' }, expires: 60 });
-      const res = await fetch(url, { cache: 'no-store' });
+      // 1. CORS rules (bucket settings need a header-signed request)
+      const path = `/${encodeURIComponent(bucket)}`;
+      const headers = signHeaders({ ...base, method: 'GET', path, query: { cors: '' } });
+      const res = await fetch(`https://${base.host}${path}?cors=`, { headers, cache: 'no-store' });
       const text = await res.text();
-      (out.buckets as Record<string, unknown>)[label] = {
-        name: bucket,
-        http: res.status,
-        error: res.ok ? null : tag(text, 'Code') || text.slice(0, 200),
-        message: res.ok ? null : tag(text, 'Message'),
-        corsOrigins: res.ok ? [...text.matchAll(/<AllowedOrigin>([^<]*)<\/AllowedOrigin>/g)].map((m) => m[1]) : null,
-        corsMethods: res.ok ? [...text.matchAll(/<AllowedMethod>([^<]*)<\/AllowedMethod>/g)].map((m) => m[1]) : null,
-        corsHeaders: res.ok ? [...text.matchAll(/<AllowedHeader>([^<]*)<\/AllowedHeader>/g)].map((m) => m[1]) : null,
-      };
+      report.corsHttp = res.status;
+      if (res.ok) {
+        report.corsOrigins = [...text.matchAll(/<AllowedOrigin>([^<]*)<\/AllowedOrigin>/g)].map((m) => m[1]);
+        report.corsMethods = [...text.matchAll(/<AllowedMethod>([^<]*)<\/AllowedMethod>/g)].map((m) => m[1]);
+        report.corsHeaders = [...text.matchAll(/<AllowedHeader>([^<]*)<\/AllowedHeader>/g)].map((m) => m[1]);
+      } else {
+        report.corsError = tag(text, 'Code');
+        report.corsMessage = tag(text, 'Message');
+      }
+      // 2. A real upload with the same kind of link phones get, then tidy up
+      const key = `_connect-check/${Date.now()}.txt`;
+      const put = await fetch(presign({ ...base, method: 'PUT', bucket, key, expires: 60 }), { method: 'PUT', body: 'ok', headers: { 'Content-Type': 'text/plain' } });
+      report.uploadHttp = put.status;
+      if (!put.ok) {
+        const t = await put.text();
+        report.uploadError = tag(t, 'Code');
+        report.uploadMessage = tag(t, 'Message');
+      } else {
+        const delPath = `${path}/${key.split('/').map(encodeURIComponent).join('/')}`;
+        await fetch(`https://${base.host}${delPath}`, { method: 'DELETE', headers: signHeaders({ ...base, method: 'DELETE', path: delPath }) }).catch(() => {});
+      }
     } catch (e) {
-      (out.buckets as Record<string, unknown>)[label] = { name: bucket, error: (e as Error).message };
+      report.error = (e as Error).message;
     }
+    (out.buckets as Record<string, unknown>)[label] = report;
   }
   return Response.json(out);
 }
