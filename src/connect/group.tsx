@@ -34,7 +34,7 @@ function memberNames(people: Profile[], me: string) {
   const others = people
     .filter((p) => p.id !== me)
     .sort((a, b) => Number(b.is_sensei || b.is_moderator) - Number(a.is_sensei || a.is_moderator) || a.name.localeCompare(b.name))
-    .map((p) => p.name);
+    .map((p) => p.name.trim().split(/\s+/)[0]);
   return [...others.slice(0, 30), 'You'].join(', ');
 }
 
