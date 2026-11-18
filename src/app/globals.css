@@ -6351,3 +6351,9 @@ html[data-cx-theme='dark'] .cx-look-seg button.is-on {
   color: inherit;
   text-decoration: none;
 }
+.cx-group-names {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

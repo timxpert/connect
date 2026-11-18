@@ -28,6 +28,16 @@ const HISTORY: [GroupHistory, string][] = [
 const snippet = (m: GroupMessage) =>
   m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.body;
 
+/** "Ada, Tunde, Kemi, You": the people in the group, for the header */
+function memberNames(people: Profile[], me: string) {
+  if (!people.length) return '';
+  const others = people
+    .filter((p) => p.id !== me)
+    .sort((a, b) => Number(b.is_sensei || b.is_moderator) - Number(a.is_sensei || a.is_moderator) || a.name.localeCompare(b.name))
+    .map((p) => p.name);
+  return [...others.slice(0, 30), 'You'].join(', ');
+}
+
 function whoName(m: GroupMessage) {
   const n = m.sender?.name ?? 'Member';
   if (m.sender?.is_sensei) return /sensei/i.test(n) ? n : `${n} · Grand Sensei`;
@@ -72,7 +82,7 @@ export function GroupChat() {
 
   // people to @mention: members, plus anyone who has posted in the group (the team)
   useEffect(() => {
-    if (me) api.listStudents({ q: '', skill: '', phase: null }).then(setPeople).catch(() => {});
+    if (me) api.groupMembers().then(setPeople).catch(() => {});
   }, [api, me]);
 
   const load = useCallback(async () => {
@@ -383,7 +393,7 @@ export function GroupChat() {
           <GroupPhoto url={info.photo_url} size={40} />
           <span className="cx-person-text">
             <span className="cx-person-name">{info.name || 'Dojo group'}</span>
-            <span className="cx-person-meta">{info.announce_only ? 'Only the team can post' : `${info.members} members`}</span>
+            <span className="cx-person-meta cx-group-names">{memberNames(people, me.id) || `${info.members} members`}</span>
           </span>
         </A>
         {pinned && team && (
