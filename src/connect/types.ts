@@ -168,7 +168,7 @@ export type Assignment = {
   student?: Profile;
 };
 
-export type DeviceRow = { user_id: string; name: string; handle: string; email: string; label: string | null; last_seen_at: string | null; changes_7d: number };
+export type DeviceRow = { user_id: string; name: string; handle: string; email: string; label: string | null; last_seen_at: string | null; changes_7d: number; banned?: boolean };
 
 export type LessonInput = {
   id?: string;
@@ -279,6 +279,9 @@ export interface ConnectApi {
   checkDevice(token: string): Promise<boolean>;
   teamDevices(): Promise<DeviceRow[]>;
   resetMemberId(userId: string): Promise<string>;
+  /** Team only: ban (or unban) and remove students */
+  banUser(userId: string, on: boolean): Promise<void>;
+  removeUser(userId: string): Promise<void>;
 
   /** The Dojo group: every student and the team */
   groupInfo(): Promise<GroupInfo | null>;

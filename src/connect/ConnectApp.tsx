@@ -356,7 +356,7 @@ function Shell({ route }: { route: Route }) {
                     )}
                     {(me?.is_sensei || me?.is_moderator) && (
                       <A path="/devices" role="menuitem">
-                        Student devices
+                        Students
                       </A>
                     )}
                     {me && (

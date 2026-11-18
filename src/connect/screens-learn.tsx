@@ -947,11 +947,12 @@ export function Reviews() {
 
 /* ================= Student devices (team) ================= */
 export function Devices() {
-  const { api, me } = useConnect();
+  const { api, me, toast, ask } = useConnect();
   const team = Boolean(me?.is_sensei || me?.is_moderator);
   const [rows, setRows] = useState<DeviceRow[] | null>(null);
   const [error, setError] = useState('');
   const [sure, setSure] = useState('');
+  const [busy, setBusy] = useState('');
   const [fresh, setFresh] = useState<{ id: string; code: string } | null>(null);
   const [q, setQ] = useState('');
 
@@ -961,58 +962,137 @@ export function Devices() {
 
   if (me === undefined) return <Loading />;
   if (!team) return <Empty title="Only the Motion Dojo team can see this" />;
-  if (error) return <Empty title="Devices can’t load">{<p>{error}</p>}</Empty>;
-  if (!rows) return <Loading label="Loading devices" />;
+  if (error) return <Empty title="Students can’t load">{<p>{error}</p>}</Empty>;
+  if (!rows) return <Loading label="Loading students" />;
 
+  const refresh = async () => setRows(await api.teamDevices());
   const reset = async (r: DeviceRow) => {
     if (sure !== r.user_id) return setSure(r.user_id);
     setSure('');
     try {
       const code = await api.resetMemberId(r.user_id);
       setFresh({ id: r.user_id, code });
-      setRows(await api.teamDevices());
+      await refresh();
     } catch (e) {
-      setError((e as Error).message);
+      toast((e as Error).message);
+    }
+  };
+  const ban = async (r: DeviceRow, on: boolean) => {
+    if (
+      on &&
+      !(await ask({
+        title: `Ban ${r.name}?`,
+        body: 'They’re signed out everywhere, can’t sign in again, leave the group and Members, and their posts are hidden. You can unban them later.',
+        confirm: 'Ban',
+        danger: true,
+      }))
+    )
+      return;
+    setBusy(r.user_id);
+    try {
+      await api.banUser(r.user_id, on);
+      toast(on ? `${r.name} is banned` : `${r.name} can sign in again`);
+      await refresh();
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy('');
+    }
+  };
+  const remove = async (r: DeviceRow) => {
+    const typed = await ask({
+      title: `Remove ${r.name}?`,
+      body: `This deletes their account, everything they posted and their member ID. It can’t be undone; they’d have to enrol again. Type REMOVE to confirm.`,
+      input: 'REMOVE',
+      confirm: 'Remove',
+      danger: true,
+    });
+    if ((typed || '').trim().toUpperCase() !== 'REMOVE') return;
+    setBusy(r.user_id);
+    try {
+      await api.removeUser(r.user_id);
+      toast(`${r.name} was removed`);
+      await refresh();
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy('');
     }
   };
 
-  const shown = rows.filter((r) => !q || `${r.name} ${r.handle} ${r.email}`.toLowerCase().includes(q.toLowerCase()));
+  const match = (r: DeviceRow) => !q || `${r.name} ${r.handle} ${r.email}`.toLowerCase().includes(q.toLowerCase());
+  const active = rows.filter((r) => !r.banned && match(r));
+  const banned = rows.filter((r) => r.banned && match(r));
+  const seen = (r: DeviceRow) =>
+    r.label ? `${r.label}, last active ${r.last_seen_at ? (timeAgo(r.last_seen_at) === 'just now' ? 'just now' : `${timeAgo(r.last_seen_at)} ago`) : 'never'}` : 'Not signed in';
 
   return (
     <div className="cx-col cx-devices">
       <div className="cx-intro">
-        <h1 className="cx-h1">Student devices</h1>
-        <p>Students can be signed in on one device at a time. If an account changes device often, the member ID may have been shared.</p>
+        <h1 className="cx-h1">Students</h1>
+        <p>Each student can be signed in on one device. If an account changes device often, the member ID may have been shared.</p>
       </div>
       <label className="cx-search">
         <Icon name="search" size={20} />
         <input type="search" placeholder="Search by name or email" value={q} onChange={(e) => setQ(e.target.value)} />
       </label>
       <ul className="cx-dev-list">
-        {shown.map((r) => (
+        {active.map((r) => (
           <li key={r.user_id}>
             <span className="cx-dev-main">
-              <b>{r.name}</b>
+              <b>
+                <A path={`/u/${r.handle}`}>{r.name}</A>
+              </b>
               <small>{r.email}</small>
-              <small>
-                {r.label ? `${r.label}, last active ${r.last_seen_at ? (timeAgo(r.last_seen_at) === 'just now' ? 'just now' : `${timeAgo(r.last_seen_at)} ago`) : 'never'}` : 'Not signed in'}
-              </small>
+              <small>{seen(r)}</small>
               <small className={r.changes_7d >= 4 ? 'cx-dev-many' : ''}>
                 {r.changes_7d === 1 ? 'Signed in on 1 device this week' : `Changed device ${r.changes_7d} times this week`}
               </small>
             </span>
-            {fresh?.id === r.user_id ? (
+            {fresh?.id === r.user_id && (
               <span className="cx-dev-code">
                 New ID: <b>{fresh.code}</b>. Send it to {r.name}. The old one no longer works.
               </span>
-            ) : (
-              <button type="button" className="btn btn-sm cx-ln-delete" onClick={() => reset(r)}>
+            )}
+            <span className="cx-dev-actions">
+              <button type="button" className="btn btn-sm cx-dev-act" onClick={() => reset(r)} disabled={busy === r.user_id}>
                 {sure === r.user_id ? 'Tap again to reset' : 'Reset member ID'}
               </button>
-            )}
+              <button type="button" className="btn btn-sm cx-dev-act" onClick={() => ban(r, true)} disabled={busy === r.user_id}>
+                Ban
+              </button>
+              <button type="button" className="btn btn-sm cx-dev-act cx-ln-delete" onClick={() => remove(r)} disabled={busy === r.user_id}>
+                Remove
+              </button>
+            </span>
           </li>
         ))}
+        {active.length === 0 && <li className="cx-gi-none">{q ? `No one matches “${q}”.` : 'No students yet.'}</li>}
       </ul>
+
+      {banned.length > 0 && (
+        <section className="cx-ln-block cx-dev-banned">
+          <h2>Banned</h2>
+          <ul className="cx-dev-list">
+            {banned.map((r) => (
+              <li key={r.user_id}>
+                <span className="cx-dev-main">
+                  <b>{r.name}</b>
+                  <small>{r.email}</small>
+                </span>
+                <span className="cx-dev-actions">
+                  <button type="button" className="btn btn-sm cx-dev-act" onClick={() => ban(r, false)} disabled={busy === r.user_id}>
+                    Unban
+                  </button>
+                  <button type="button" className="btn btn-sm cx-dev-act cx-ln-delete" onClick={() => remove(r)} disabled={busy === r.user_id}>
+                    Remove
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

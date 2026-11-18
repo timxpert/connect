@@ -782,6 +782,16 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
       return (data ?? []) as DeviceRow[];
     },
+    async banUser(userId, on) {
+      const { error } = await sb.rpc('ban_user', { uid: userId, on_: on });
+      if (error && /ban_user/.test(error.message) && /function/i.test(error.message)) throw new Error('Run supabase/admin.sql in Supabase first.');
+      fail(error);
+    },
+    async removeUser(userId) {
+      const { error } = await sb.rpc('remove_user', { uid: userId });
+      if (error && /remove_user/.test(error.message) && /function/i.test(error.message)) throw new Error('Run supabase/admin.sql in Supabase first.');
+      fail(error);
+    },
     async resetMemberId(userId) {
       const { data, error } = await sb.rpc('reset_member_id', { uid: userId });
       fail(error);

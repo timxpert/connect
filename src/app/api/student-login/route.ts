@@ -45,12 +45,13 @@ export async function POST(req: Request) {
 
   const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
-  const { data: row, error } = await admin.from('enrolments').select('email, student_id').eq('email', email).maybeSingle();
+  const { data: row, error } = await admin.from('enrolments').select('*').eq('email', email).maybeSingle();
   if (error) {
     console.error('[student-login] lookup', error.message);
     return Response.json({ message: 'Something went wrong. Try again in a minute.' }, { status: 500 });
   }
   if (!row?.student_id || !same(String(row.student_id), id)) return Response.json({ message: WRONG }, { status: 401 });
+  if ((row as { banned?: boolean }).banned) return Response.json({ message: 'This account has been suspended. Contact Motion Dojo if you think this is a mistake.' }, { status: 403 });
 
   // First sign-in creates the account; later ones reuse it
   let link = await admin.auth.admin.generateLink({ type: 'magiclink', email });

@@ -532,8 +532,18 @@ export function createDemoApi(): ConnectApi {
     },
     claimDevice: async () => {},
     checkDevice: async () => true,
-    teamDevices: () => wait(people.filter((p) => p.is_student).map((p, i) => ({ user_id: p.id, name: p.name, handle: p.handle, email: `${p.handle}@example.com`, label: i % 2 ? 'Android · Chrome' : 'iPhone · Safari', last_seen_at: ago(i), changes_7d: i === 1 ? 6 : 1 }))),
+    teamDevices: () => wait(people.filter((p) => p.is_student || (p as Profile & { banned?: boolean }).banned).map((p, i) => ({ banned: Boolean((p as Profile & { banned?: boolean }).banned), user_id: p.id, name: p.name, handle: p.handle, email: `${p.handle}@example.com`, label: i % 2 ? 'Android · Chrome' : 'iPhone · Safari', last_seen_at: ago(i), changes_7d: i === 1 ? 6 : 1 }))),
     resetMemberId: async () => 'MD-SAMP-LE00',
+    async banUser(userId, on) {
+      const p = who(userId);
+      (p as Profile & { banned?: boolean }).banned = on;
+      p.is_student = !on;
+    },
+    async removeUser(userId) {
+      const i = people.findIndex((p) => p.id === userId);
+      if (i >= 0) people.splice(i, 1);
+      posts = posts.filter((p) => p.author_id !== userId);
+    },
     async getLesson(id) {
       const me = current ? who(current) : null;
       if (!me || !(me.is_student || me.is_sensei || me.is_moderator)) throw new Error('members_only');
