@@ -190,7 +190,7 @@ export function Students() {
       ) : (
         <section className="cx-guest" aria-labelledby="guest-title">
           <h1 id="guest-title">Meet the members</h1>
-          <p>Smartphone motion designers who learn, share their work and get better together.</p>
+          <p>Creatives who chose not to learn motion design alone.</p>
           <div className="cx-guest-btns">
             <a className="btn btn-primary" href={`${MAIN_SITE}/blackbelt`}>
               Become a member
