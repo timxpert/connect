@@ -4728,3 +4728,122 @@ button:active:not(:disabled),
     display: inline;
   }
 }
+
+/* ---------- Members as talent cards: who they are, then their latest work ---------- */
+.cx-talent {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 820px) {
+  .cx-talent {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+.cx-talent-card {
+  display: grid;
+  gap: 14px;
+  height: 100%;
+  align-content: start;
+  padding: 16px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(20, 10, 46, 0.05), 0 10px 24px -18px rgba(20, 10, 46, 0.3);
+  color: var(--ink);
+  text-decoration: none;
+  transition: translate 0.25s var(--ease), box-shadow 0.25s ease, scale 150ms ease-out;
+}
+@media (hover: hover) {
+  .cx-talent-card:hover {
+    translate: 0 -2px;
+    box-shadow: 0 1px 2px rgba(20, 10, 46, 0.05), 0 16px 30px -18px rgba(20, 10, 46, 0.35);
+  }
+  .cx-talent-card:hover .cx-talent-go {
+    background: var(--violet);
+    color: #fff;
+  }
+}
+.cx-talent-card:active {
+  scale: 0.98;
+}
+.cx-talent-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cx-talent-who {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.cx-talent-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.cx-talent-line {
+  overflow: hidden;
+  font-size: 0.9rem;
+  color: var(--ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx-talent-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.cx-talent-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* latest work, three across like a portfolio strip */
+.cx-talent-work {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.cx-talent-work img,
+.cx-talent-work video {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--tint);
+  pointer-events: none;
+}
+.cx-talent-go {
+  display: grid;
+  place-items: center;
+  height: 42px;
+  border-radius: 999px;
+  background: var(--tint);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.cx-talent-work[data-count='1'] {
+  grid-template-columns: 1fr;
+}
+.cx-talent-work[data-count='1'] img,
+.cx-talent-work[data-count='1'] video {
+  aspect-ratio: 16 / 9;
+}
+.cx-talent-work[data-count='2'] {
+  grid-template-columns: repeat(2, 1fr);
+}
+.cx-talent-work[data-count='2'] img,
+.cx-talent-work[data-count='2'] video {
+  aspect-ratio: 4 / 3;
+}

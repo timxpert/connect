@@ -146,6 +146,28 @@ export function Students() {
   const [skill, setSkill] = useState('');
   const [phase, setPhase] = useState<number | null>(null);
   const [list, setList] = useState<Profile[] | null>(null);
+  // each member's latest pictures and videos, to show on their card like a portfolio
+  const [work, setWork] = useState<Record<string, { shots: Post[]; count: number }>>({});
+  useEffect(() => {
+    let live = true;
+    api
+      .listPosts({ feed: 'everyone', limit: 150 })
+      .then((posts) => {
+        if (!live) return;
+        const by: Record<string, { shots: Post[]; count: number }> = {};
+        for (const x of posts) {
+          const w = (by[x.author_id] ??= { shots: [], count: 0 });
+          w.count += 1;
+          const shows = x.media_url && (x.kind === 'image' || (x.kind === 'video' && isVideoFile(x.media_url)));
+          if (shows && w.shots.length < 3) w.shots.push(x);
+        }
+        setWork(by);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [api]);
 
   useEffect(() => {
     let live = true;
@@ -218,37 +240,61 @@ export function Students() {
           {member && <p>Try another name, skill or phase.</p>}
         </Empty>
       ) : (
-        <ul className="cx-cards">
-          {list.map((p) => (
-            <li key={p.id}>
-              <A path={`/u/${p.handle}`} className="cx-card">
-                <span className="cx-card-cover" style={p.cover_url ? { backgroundImage: `url(${p.cover_url})` } : undefined} />
-                <span className="cx-card-av">
-                  <Avatar p={p} size={64} />
-                </span>
-                <span className="cx-card-name">
-                  {p.name}
-                  <BeltBadge p={p} small />
-                  {p.sample && <SampleTag />}
-                </span>
-                <span className="cx-card-meta">
-                  @{p.handle}
-                  {p.country && <> · {p.country}</>}
-                </span>
-                {visiblePhase(p, me) && <span className="cx-card-phase">Phase {visiblePhase(p, me)}: {PHASES[visiblePhase(p, me)! - 1]}</span>}
-                {p.skills.length > 0 && (
-                  <span className="cx-card-skills">
-                    {p.skills.slice(0, 3).map((k) => (
-                      <span key={k}>{k}</span>
-                    ))}
+        <ul className="cx-talent">
+          {list.map((p) => {
+            const w = work[p.id];
+            const first = p.name.split(' ')[0];
+            const headline = (p.bio || '').split(/(?<=[.!?])\s|\n/)[0].trim() || 'Motion designer';
+            return (
+              <li key={p.id}>
+                <A path={`/u/${p.handle}`} className="cx-talent-card">
+                  <span className="cx-talent-head">
+                    <Avatar p={p} size={56} />
+                    <span className="cx-talent-who">
+                      <span className="cx-talent-name">
+                        {p.name}
+                        <BeltBadge p={p} small />
+                        {p.sample && <SampleTag />}
+                      </span>
+                      <span className="cx-talent-line">{headline}</span>
+                      <span className="cx-talent-meta">
+                        {p.country && (
+                          <span>
+                            <PinIcon /> {p.country}
+                          </span>
+                        )}
+                        <span>{w?.count ? `${w.count} ${w.count === 1 ? 'post' : 'posts'}` : 'New member'}</span>
+                      </span>
+                    </span>
                   </span>
-                )}
-              </A>
-            </li>
-          ))}
+                  {w?.shots.length ? (
+                    <span className="cx-talent-work" data-count={w.shots.length}>
+                      {w.shots.map((x) =>
+                        x.kind === 'image' ? (
+                          <img key={x.id} src={x.media_url!} alt="" loading="lazy" />
+                        ) : (
+                          <video key={x.id} src={`${x.media_url}#t=0.1`} muted playsInline preload="metadata" />
+                        ),
+                      )}
+                    </span>
+                  ) : null}
+                  <span className="cx-talent-go">See {first}’s work</span>
+                </A>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </svg>
   );
 }
 
