@@ -123,7 +123,7 @@ export function Composer() {
   const addLink = async () => {
     const v = await ask({ title: 'Add a video link', body: 'YouTube, Vimeo, Instagram or TikTok.', input: 'Paste the link', confirm: 'Add' });
     if (!v) return;
-    if (!toEmbed(v)) return setErr('That link isn’t from YouTube, Vimeo, Instagram or TikTok.');
+    if (!toEmbed(v)) return setErr('That link isn’t from YouTube, Vimeo, Instagram, TikTok or Google Drive.');
     setErr('');
     clearAttach();
     setAttach({ type: 'link', url: v.trim() });

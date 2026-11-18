@@ -5384,7 +5384,6 @@ a.cx-ln-row:active {
   margin-top: 2px;
   border-radius: 0 0 var(--r-lg) var(--r-lg);
   background: var(--paper);
-  border-top: 1px dashed var(--line);
 }
 .cx-ln-phase .cx-ln-list:has(+ .cx-ln-assign) {
   border-radius: var(--r-lg) var(--r-lg) 0 0;
@@ -5537,14 +5536,11 @@ a.cx-ln-row:active {
 }
 .cx-dev-list li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 10px 14px;
   padding: 14px 16px;
   background: var(--paper);
-}
-.cx-dev-list li.is-busy {
-  background: #fff6d9;
 }
 .cx-dev-main {
   display: grid;
@@ -5556,16 +5552,9 @@ a.cx-ln-row:active {
   white-space: nowrap;
   color: var(--muted);
 }
-.cx-dev-count {
-  display: grid;
-  justify-items: end;
-  font-weight: 700;
-  font-size: 1.2rem;
-}
-.cx-dev-count small {
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 500;
+.cx-dev-main .cx-dev-many {
+  color: #8a1538;
+  font-weight: 600;
 }
 .cx-dev-list .btn,
 .cx-dev-code {
@@ -5619,4 +5608,9 @@ a.cx-ln-row:active {
 }
 .cx-player-cover:active .cx-player-play {
   scale: 0.94;
+}
+.cx-dev-list .btn {
+  min-height: 32px;
+  padding: 0;
+  margin-top: 4px;
 }

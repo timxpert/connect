@@ -103,7 +103,7 @@ function AssignmentRow({ phase, status }: { phase: number; status: PhaseStatus }
     locked: 'Finish the lessons above to hand it in',
     due: 'Ready to hand in',
     pending: 'Waiting for review',
-    changes: 'Changes asked: see the note',
+    changes: 'Changes asked',
     approved: 'Approved',
     team: 'Edit the brief',
   };
@@ -679,8 +679,6 @@ export function LessonEditor({ id }: { id?: string }) {
 }
 
 /* ================= Phase assignment ================= */
-const MAX_VIDEO = 50 * 1024 * 1024;
-const MAX_IMAGE = 20 * 1024 * 1024;
 
 const statusText: Record<Assignment['status'], string> = { pending: 'Waiting for review', approved: 'Approved', changes: 'Changes asked' };
 
@@ -723,10 +721,9 @@ export function AssignmentScreen({ phase }: { phase: number }) {
   const [mine, setMine] = useState<Assignment[] | null>(null);
   const [brief, setBrief] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
-  const [file, setFile] = useState<File | null>(null);
   const [link, setLink] = useState('');
   const [caption, setCaption] = useState('');
-  const [share, setShare] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -762,24 +759,12 @@ export function AssignmentScreen({ phase }: { phase: number }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    let kind: 'image' | 'video';
-    let url: string;
+    const url = link.trim();
+    if (!url) return setError('Paste the link to your project.');
+    if (!toEmbed(url)) return setError('Use a Google Drive link to the file, or a YouTube, Instagram, TikTok or Vimeo link.');
+    setBusy(true);
     try {
-      if (file) {
-        kind = file.type.startsWith('image/') ? 'image' : 'video';
-        if (kind === 'video' && file.size > MAX_VIDEO) return setError('Pick a video under 50 MB, or paste a YouTube, Instagram or TikTok link instead.');
-        if (kind === 'image' && file.size > MAX_IMAGE) return setError('Pick a picture under 20 MB.');
-        setShare(0);
-        url = await api.uploadImage(file, kind === 'video' ? 'videos' : 'posts', setShare);
-      } else if (link.trim()) {
-        if (!toEmbedSafe(link)) return setError('Paste a YouTube, Instagram, TikTok or Vimeo link, or upload the file.');
-        kind = 'video';
-        url = link.trim();
-      } else {
-        return setError('Add your video or picture first.');
-      }
-      await api.submitAssignment(phase, kind, url, caption.trim());
-      setFile(null);
+      await api.submitAssignment(phase, 'video', url, caption.trim());
       setLink('');
       setCaption('');
       setMine(await api.myAssignments());
@@ -787,7 +772,7 @@ export function AssignmentScreen({ phase }: { phase: number }) {
       const m = (err as Error).message;
       setError(m === 'finish_lessons' ? `Finish every lesson in phase ${phase} first.` : m === 'already_sent' ? 'You’ve already handed this in.' : m);
     } finally {
-      setShare(null);
+      setBusy(false);
     }
   };
 
@@ -810,7 +795,7 @@ export function AssignmentScreen({ phase }: { phase: number }) {
           <label className="field">
             <span>What students should hand in</span>
             <textarea rows={6} maxLength={4000} value={draft} onChange={(e) => (setDraft(e.target.value), setSaved(false))} />
-            <small>Students see this above the upload. When you approve a project it goes on the feed and the student moves to the next phase.</small>
+            <small>Students see this above the link box.</small>
           </label>
           {error && <p className="cx-error">{error}</p>}
           <div className="cx-ln-form-actions">
@@ -837,22 +822,10 @@ export function AssignmentScreen({ phase }: { phase: number }) {
 
           {(status === 'due' || status === 'changes') && (
             <form className="cx-form cx-asg-form" onSubmit={submit} noValidate>
-              <label className="cx-asg-pick">
-                <input
-                  type="file"
-                  accept="video/*,image/*"
-                  onChange={(e) => {
-                    setFile(e.target.files?.[0] ?? null);
-                    setLink('');
-                  }}
-                />
-                <Icon name="video" size={24} />
-                <span>{file ? file.name : 'Choose your video or picture'}</span>
-                <small>Up to 50 MB</small>
-              </label>
               <label className="field">
-                <span>Or paste a link</span>
-                <input value={link} inputMode="url" placeholder="YouTube, Instagram, TikTok or Vimeo" onChange={(e) => (setLink(e.target.value), setFile(null))} />
+                <span>Link to your project</span>
+                <input value={link} inputMode="url" placeholder="https://drive.google.com/file/d/…" onChange={(e) => setLink(e.target.value)} />
+                <small>Upload the video to Google Drive, tap Share, set General access to “Anyone with the link”, then copy the link and paste it here. YouTube, Instagram, TikTok and Vimeo links work too.</small>
               </label>
               <label className="field">
                 <span>About your project</span>
@@ -864,15 +837,15 @@ export function AssignmentScreen({ phase }: { phase: number }) {
                   {error}
                 </p>
               )}
-              <button type="submit" className="btn btn-primary" disabled={share !== null}>
-                {share !== null ? `Uploading ${Math.round(share * 100)}%` : 'Hand it in'}
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                {busy ? 'Sending…' : 'Hand it in'}
               </button>
             </form>
           )}
 
           {history.length > 0 && (
             <section className="cx-ln-block">
-              <h2>{history.length > 1 ? 'What you handed in' : 'What you handed in'}</h2>
+              <h2>What you handed in</h2>
               <div className="cx-asg-list">
                 {history.map((a) => (
                   <Submission key={a.id} a={a} />
@@ -886,9 +859,6 @@ export function AssignmentScreen({ phase }: { phase: number }) {
   );
 }
 
-function toEmbedSafe(url: string) {
-  return Boolean(toEmbed(url));
-}
 
 /* ================= Reviews (team) ================= */
 export function Reviews() {
@@ -1012,7 +982,7 @@ export function Devices() {
     <div className="cx-col cx-devices">
       <div className="cx-intro">
         <h1 className="cx-h1">Student devices</h1>
-        <p>Each student can be signed in on one device. Many device changes in a week can mean someone shared their member ID.</p>
+        <p>Students can be signed in on one device at a time. If an account changes device often, the member ID may have been shared.</p>
       </div>
       <label className="cx-search">
         <Icon name="search" size={20} />
@@ -1020,21 +990,20 @@ export function Devices() {
       </label>
       <ul className="cx-dev-list">
         {shown.map((r) => (
-          <li key={r.user_id} className={r.changes_7d >= 4 ? 'is-busy' : ''}>
+          <li key={r.user_id}>
             <span className="cx-dev-main">
               <b>{r.name}</b>
               <small>{r.email}</small>
               <small>
-                {r.label ? `${r.label} · seen ${r.last_seen_at ? timeAgo(r.last_seen_at) : 'never'}` : 'Not signed in'}
+                {r.label ? `${r.label}, last active ${r.last_seen_at ? (timeAgo(r.last_seen_at) === 'just now' ? 'just now' : `${timeAgo(r.last_seen_at)} ago`) : 'never'}` : 'Not signed in'}
               </small>
-            </span>
-            <span className="cx-dev-count" title="Device changes in the last 7 days">
-              {r.changes_7d}
-              <small>changes this week</small>
+              <small className={r.changes_7d >= 4 ? 'cx-dev-many' : ''}>
+                {r.changes_7d === 1 ? 'Signed in on 1 device this week' : `Changed device ${r.changes_7d} times this week`}
+              </small>
             </span>
             {fresh?.id === r.user_id ? (
               <span className="cx-dev-code">
-                New ID: <b>{fresh.code}</b>
+                New ID: <b>{fresh.code}</b>. Send it to {r.name}. The old one no longer works.
               </span>
             ) : (
               <button type="button" className="btn btn-sm cx-ln-delete" onClick={() => reset(r)}>

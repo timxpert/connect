@@ -1,5 +1,6 @@
 /* Turns a video share link into an embeddable player URL.
-   Supported: YouTube, Vimeo (incl. unlisted), Instagram posts/reels, TikTok. */
+   Supported: YouTube, Vimeo (incl. unlisted), Instagram posts/reels, TikTok,
+   Google Drive files shared with "Anyone with the link". */
 
 export function toEmbed(url: string): string | null {
   let u: URL;
@@ -10,6 +11,10 @@ export function toEmbed(url: string): string | null {
   }
   const host = u.hostname.replace(/^www\.|^m\./, '');
 
+  if (host === 'drive.google.com') {
+    const id = u.pathname.match(/\/file\/d\/([\w-]+)/)?.[1] || u.searchParams.get('id');
+    return id ? `https://drive.google.com/file/d/${id}/preview` : null;
+  }
   if (host === 'youtu.be') return `https://www.youtube.com/embed/${u.pathname.slice(1)}`;
   if (host === 'youtube.com') {
     const id = u.searchParams.get('v') || u.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]+)/)?.[1];
