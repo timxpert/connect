@@ -85,15 +85,22 @@ export function GroupChat() {
     if (me) api.groupMembers().then(setPeople).catch(() => {});
   }, [api, me]);
 
+  // the first message I hadn't read when I opened the group
+  const [unreadFrom, setUnreadFrom] = useState<string | null | undefined>(undefined);
+  const firstLoad = useRef(true);
   const load = useCallback(async () => {
-    const [list, i] = await Promise.all([api.listGroupMessages(), api.groupInfo()]);
+    const [list, i, lastRead] = await Promise.all([api.listGroupMessages(), api.groupInfo(), firstLoad.current ? api.groupLastRead().catch(() => null) : Promise.resolve(null)]);
+    if (firstLoad.current && me) {
+      firstLoad.current = false;
+      setUnreadFrom(list.find((m) => m.sender_id !== me.id && !m.deleted_at && (!lastRead || m.created_at > lastRead))?.id ?? null);
+    }
     setMsgs(list);
     setInfo(i);
     api
       .markGroupRead()
       .then(() => window.dispatchEvent(new Event('cx:counts')))
       .catch(() => {});
-  }, [api]);
+  }, [api, me]);
 
   useEffect(() => {
     if (!me) return;
@@ -111,21 +118,23 @@ export function GroupChat() {
   }, [api, me, load]);
 
   const all = [...msgs, ...local];
-  // Open at the newest message straight away (no visible scroll);
-  // later messages glide into view. Only the message list moves, never the page.
+  // Open where you left off: at the first message you haven't read (under an
+  // "Unread messages" line), or at the newest one if you've read everything.
+  // New messages after that glide into view. Only the message list moves.
   const opened = useRef(false);
   useEffect(() => {
     const el = end.current;
     const list = el?.parentElement;
     if (!el || !list) return;
     if (!opened.current) {
-      if (all.length === 0) return;
+      if (unreadFrom === undefined) return; // still finding out what's new
       opened.current = true;
-      list.scrollTop = list.scrollHeight;
+      const mark = unreadFrom ? list.querySelector<HTMLElement>('.cx-unread') : null;
+      list.scrollTop = mark ? mark.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - 8 : list.scrollHeight;
       return;
     }
     list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
-  }, [all.length]);
+  }, [all.length, unreadFrom]);
 
   useEffect(
     () => () => {
@@ -453,6 +462,7 @@ export function GroupChat() {
           return (
             <React.Fragment key={m.id}>
               {showDay && <li className="cx-day">{day}</li>}
+              {m.id === unreadFrom && <li className="cx-unread">Unread messages</li>}
               <Bubble
                   domId={`gm-${m.id}`}
                   m={m}

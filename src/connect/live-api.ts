@@ -876,6 +876,12 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         : await sb.from('group_reactions').delete().eq('message_id', id).eq('user_id', me);
       fail(error);
     },
+    async groupLastRead() {
+      const me = await uid();
+      if (!me) return null;
+      const { data } = await sb.from('group_reads').select('last_read_at').eq('user_id', me).maybeSingle();
+      return (data as { last_read_at: string } | null)?.last_read_at ?? null;
+    },
     async markGroupRead() {
       const me = await uid();
       if (!me) return;

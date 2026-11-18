@@ -648,8 +648,11 @@ export function Chat({ id }: { id: string }) {
     }
   }, [id]);
 
+  // the first message from them I hadn't read when I opened the chat
+  const [unreadFrom, setUnreadFrom] = useState<string | null | undefined>(undefined);
   const load = useCallback(async () => {
     const list = await api.listMessages(id);
+    if (me) setUnreadFrom((u) => (u !== undefined ? u : (list.find((m) => m.sender_id !== me.id && !m.read_at && !m.deleted_at)?.id ?? null)));
     setMsgs(list);
     if (me && list.some((m) => m.sender_id !== me.id && !m.read_at && !m.deleted_at)) api.markRead(id).then(() => window.dispatchEvent(new Event('cx:counts'))).catch(() => {});
   }, [api, id, me]);
@@ -673,21 +676,23 @@ export function Chat({ id }: { id: string }) {
   }, [api, id, me, load]);
 
   const all = [...msgs, ...local];
-  // Open at the newest message straight away (no visible scroll);
-  // later messages glide into view. Only the message list moves, never the page.
+  // Open where you left off: at the first message you haven't read (under an
+  // "Unread messages" line), or at the newest one if you've read everything.
+  // New messages after that glide into view. Only the message list moves.
   const opened = useRef(false);
   useEffect(() => {
     const el = end.current;
     const list = el?.parentElement;
     if (!el || !list) return;
     if (!opened.current) {
-      if (all.length === 0) return;
+      if (unreadFrom === undefined) return; // still finding out what's new
       opened.current = true;
-      list.scrollTop = list.scrollHeight;
+      const mark = unreadFrom ? list.querySelector<HTMLElement>('.cx-unread') : null;
+      list.scrollTop = mark ? mark.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - 8 : list.scrollHeight;
       return;
     }
     list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
-  }, [all.length]);
+  }, [all.length, unreadFrom]);
 
   // Stop the microphone if the person leaves mid-recording
   useEffect(
@@ -995,6 +1000,7 @@ export function Chat({ id }: { id: string }) {
           return (
             <React.Fragment key={m.id}>
               {showDay && <li className="cx-day">{day}</li>}
+              {m.id === unreadFrom && <li className="cx-unread">Unread messages</li>}
               <Bubble
                 m={m}
                 mine={m.sender_id === me.id}

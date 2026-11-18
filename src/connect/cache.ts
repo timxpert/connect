@@ -47,6 +47,7 @@ const LIVE = new Set<keyof ConnectApi>([
   'listGroupMessages',
   'groupPreview',
   'markGroupRead',
+  'groupLastRead',
 ]);
 
 const TTL = 45_000;

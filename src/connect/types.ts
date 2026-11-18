@@ -290,6 +290,8 @@ export interface ConnectApi {
   /** null removes your reaction */
   reactGroup(id: string, emoji: string | null): Promise<void>;
   markGroupRead(): Promise<void>;
+  /** When I last read the group (null: never) */
+  groupLastRead(): Promise<string | null>;
   /** Team only */
   setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null; history?: GroupHistory; name?: string; photo_url?: string | null }): Promise<void>;
   /** Everyone in the group: students and the team */

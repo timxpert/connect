@@ -6361,3 +6361,14 @@ html[data-cx-theme='dark'] .cx-look-seg button.is-on {
   white-space: nowrap;
 }
 .cx-error-detail { max-width: 40ch; margin: 0 auto 12px; color: var(--muted); font-family: ui-monospace, monospace; font-size: 0.8rem; overflow-wrap: anywhere; }
+.cx-unread {
+  align-self: stretch;
+  margin: 10px 0 6px;
+  padding: 6px 12px;
+  background: var(--paper);
+  color: var(--violet);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  list-style: none;
+}

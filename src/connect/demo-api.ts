@@ -492,6 +492,7 @@ export function createDemoApi(): ConnectApi {
       if (emoji) groupRx.set(k, emoji);
       else groupRx.delete(k);
     },
+    groupLastRead: async () => groupReadAt,
     async markGroupRead() {
       groupReadAt = new Date().toISOString();
     },
