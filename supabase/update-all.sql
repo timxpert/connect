@@ -243,7 +243,7 @@ alter table public.profiles add constraint profiles_bio_check check (char_length
 -- upgraded now. Add more emails to the list if needed.
 create table if not exists public.sensei_emails (email text primary key);
 alter table public.sensei_emails enable row level security;  -- no policies: hidden from the app
-insert into public.sensei_emails (email) values ('workwithtimxpert@gmail.com') on conflict do nothing;
+insert into public.sensei_emails (email) values ('timxpertt@gmail.com') on conflict do nothing;
 
 create or replace function public.profiles_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
