@@ -6,6 +6,7 @@ import { navigate } from './router';
 import { play } from './sounds';
 import { alertsUndecided, askForAlerts } from './alerts';
 import { presenceLabel, useOnline } from './presence';
+import { useDragToClose } from './drag';
 import type { Attachment, Conversation, Message, Profile } from './types';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 
@@ -265,6 +266,8 @@ function Viewer({ m, onClose, onSave }: { m: Message; onClose: () => void; onSav
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
   }, [onClose]);
+  // swipe the photo down to close it
+  const photo = useDragToClose<HTMLImageElement>(onClose, m.kind !== 'video');
   return (
     <div className="cx-viewer" role="dialog" aria-modal="true" aria-label="Photo" onClick={onClose}>
       <div className="cx-viewer-bar" onClick={(e) => e.stopPropagation()}>
@@ -278,7 +281,7 @@ function Viewer({ m, onClose, onSave }: { m: Message; onClose: () => void; onSav
       {m.kind === 'video' ? (
         <video src={m.media_url ?? undefined} controls autoPlay playsInline onClick={(e) => e.stopPropagation()} />
       ) : (
-        <img src={m.media_url ?? undefined} alt="" onClick={(e) => e.stopPropagation()} />
+        <img ref={photo} className="cx-drag" src={m.media_url ?? undefined} alt="" onClick={(e) => e.stopPropagation()} />
       )}
     </div>
   );
@@ -621,6 +624,8 @@ export function Chat({ id }: { id: string }) {
 
   const otherOnline = useOnline(conv?.other.id);
   const [picked, setPicked] = useState<Picked[]>([]);
+  // the hold menu can be dragged down to close
+  const heldSheet = useDragToClose<HTMLDivElement>(() => setHeld(null), Boolean(held));
   const [caption, setCaption] = useState('');
 
   if (!signedIn) return <Empty title="Sign in to see your messages" />;
@@ -975,7 +980,8 @@ export function Chat({ id }: { id: string }) {
 
       {held && (
         <div className="cx-sheet-wrap" onClick={() => setHeld(null)}>
-          <div className="cx-sheet" role="menu" onClick={(e) => e.stopPropagation()}>
+          <div className="cx-sheet cx-drag" role="menu" ref={heldSheet} onClick={(e) => e.stopPropagation()}>
+            <span className="cx-grab" aria-hidden="true" />
             {held.body && (
               <button type="button" role="menuitem" onClick={() => copy(held)}>
                 <Icon name="copy" /> Copy text

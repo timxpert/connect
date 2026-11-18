@@ -4390,3 +4390,23 @@ button:active:not(:disabled),
 .open .answer {
   height: auto;
 }
+
+/* ---------- Drag to close (connect/drag.ts) ---------- */
+.cx-drag {
+  touch-action: pinch-zoom; /* vertical drags come to us; pinch still zooms */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cx-grab {
+  justify-self: center;
+  width: 40px;
+  height: 5px;
+  margin: 0 auto 6px;
+  border-radius: 3px;
+  background: var(--line);
+}
+@media (min-width: 700px) {
+  .cx-grab {
+    display: none;
+  }
+}
