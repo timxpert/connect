@@ -14,12 +14,14 @@ create table if not exists public.lessons (
   summary    text not null default '' check (char_length(summary) <= 300),
   duration   text not null default '' check (char_length(duration) <= 20),
   video_url  text not null default '',
+  size_mb    int check (size_mb is null or size_mb between 0 and 100000),
   notes      text not null default '' check (char_length(notes) <= 8000),
   files      jsonb not null default '[]'::jsonb,
   published  boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.lessons add column if not exists size_mb int;
 create index if not exists lessons_order on public.lessons (phase, position, created_at);
 
 create table if not exists public.lesson_progress (
@@ -126,7 +128,7 @@ alter table public.notifications add constraint notifications_kind_check check (
 drop function if exists public.course_outline();
 create function public.course_outline()
 returns table (id uuid, phase int, lesson_position int, title text, summary text, duration text,
-               published boolean, has_video boolean, done boolean, is_open boolean)
+               published boolean, has_video boolean, done boolean, is_open boolean, size_mb int)
 language sql stable security definer set search_path = public as $$
   with me as (
     select auth.uid() as uid,
@@ -153,7 +155,8 @@ language sql stable security definer set search_path = public as $$
            and (o.prev_phase is null or o.prev_phase = o.phase
                 or exists (select 1 from public.assignments a
                            where a.user_id = me.uid and a.phase = o.prev_phase and a.status = 'approved'))
-         )
+         ),
+         o.size_mb
   from o, me
   order by o.phase, o.position, o.created_at, o.id
 $$;
@@ -163,7 +166,7 @@ grant execute on function public.course_outline() to anon, authenticated;
 drop function if exists public.get_lesson(uuid);
 create function public.get_lesson(lid uuid)
 returns table (id uuid, phase int, lesson_position int, title text, summary text, duration text,
-               video_url text, notes text, files jsonb, published boolean, done boolean, is_open boolean)
+               video_url text, notes text, files jsonb, published boolean, done boolean, is_open boolean, size_mb int)
 language plpgsql stable security definer set search_path = public as $$
 declare
   o record;
@@ -180,7 +183,7 @@ begin
   end if;
   return query
     select l.id, l.phase, l.position, l.title, l.summary, l.duration, l.video_url, l.notes, l.files,
-           l.published, o.done, true
+           l.published, o.done, true, l.size_mb
     from public.lessons l where l.id = lid;
 end $$;
 grant execute on function public.get_lesson(uuid) to authenticated;

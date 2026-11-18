@@ -118,6 +118,7 @@ let lessons: RawLesson[] = sampleTitles.flatMap((titles, ph) =>
     duration: `${8 + ((ph * 3 + i) % 5) * 3} min`,
     published: !(ph === 3 && i === 1),
     video_url: '',
+    size_mb: 40 + ((ph * 3 + i) % 5) * 15,
     notes: 'Sample notes for the preview.\nWhat you’ll practise in this lesson goes here.',
     files: i === 0 ? [{ name: 'Sample project file', url: 'https://example.com' }] : [],
   })),

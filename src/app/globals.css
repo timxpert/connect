@@ -5585,3 +5585,38 @@ a.cx-ln-row:active {
   font-weight: 400;
   color: var(--ink);
 }
+.cx-player-cover {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 20px;
+  border: 0;
+  background: var(--ink);
+  color: var(--on-dark);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.cx-player-cover small {
+  max-width: 34ch;
+  color: var(--on-dark-muted);
+  font-size: 0.85rem;
+}
+.cx-player-play {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--lime);
+  color: var(--ink);
+  transition: scale 0.25s var(--ease);
+}
+.cx-player-cover:hover .cx-player-play {
+  scale: 1.06;
+}
+.cx-player-cover:active .cx-player-play {
+  scale: 0.94;
+}

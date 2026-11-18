@@ -127,6 +127,8 @@ export type Lesson = {
   duration: string;
   published: boolean;
   has_video: boolean;
+  /** Video size in MB, so students know the data it uses */
+  size_mb: number | null;
   done: boolean;
   /** Open to watch: the lesson before it is done (the team sees everything) */
   open: boolean;
@@ -160,6 +162,7 @@ export type LessonInput = {
   summary: string;
   duration: string;
   video_url: string;
+  size_mb: number | null;
   notes: string;
   files: { name: string; url: string }[];
   published: boolean;

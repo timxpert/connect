@@ -254,7 +254,7 @@ export function Learn() {
                       <span className="cx-ln-text">
                         <b>{l.title}</b>
                         <small>
-                          {l.duration || (l.has_video ? 'Video' : 'No video yet')}
+                          {[l.duration || (l.has_video ? 'Video' : 'No video yet'), l.size_mb ? `${l.size_mb} MB` : ''].filter(Boolean).join(' · ')}
                           {team && !l.published && <em className="cx-ln-tag">Draft</em>}
                           {team && !l.has_video && <em className="cx-ln-tag">No video</em>}
                         </small>
@@ -312,14 +312,28 @@ function Watermark({ text }: { text: string }) {
   );
 }
 
-function Player({ url, title, mark }: { url: string; title: string; mark: string }) {
+function Player({ url, title, mark, size, autoload = false }: { url: string; title: string; mark: string; size?: number | null; autoload?: boolean }) {
   const e = embedSrc(url);
+  // Nothing loads until the student taps play, so opening a lesson to read
+  // the notes costs almost no data
+  const [on, setOn] = useState(autoload);
   if (!e) {
     return (
       <div className="cx-player is-empty">
         <Icon name="video" size={30} />
         <span>No video yet</span>
       </div>
+    );
+  }
+  if (!on) {
+    return (
+      <button type="button" className="cx-player cx-player-cover" onClick={() => setOn(true)}>
+        <span className="cx-player-play" aria-hidden="true">
+          <Icon name="play" size={28} filled />
+        </span>
+        <b>{size ? `Play · about ${size} MB` : 'Play video'}</b>
+        {e.drive && <small>To use less data, pick 360p in the player’s settings.</small>}
+      </button>
     );
   }
   return (
@@ -417,7 +431,7 @@ export function LessonScreen({ id }: { id: string }) {
   return (
     <div className="cx-col cx-lesson">
       {back}
-      <Player url={lesson.video_url ?? ''} title={lesson.title} mark={mark} />
+      <Player url={lesson.video_url ?? ''} title={lesson.title} mark={mark} size={lesson.size_mb} />
 
       <div className="cx-ln-head">
         <p className="cx-ln-where">
@@ -500,7 +514,7 @@ export function LessonScreen({ id }: { id: string }) {
 }
 
 /* ================= Add / edit a lesson (team) ================= */
-const EMPTY: LessonInput = { phase: 1, title: '', summary: '', duration: '', video_url: '', notes: '', files: [], published: true };
+const EMPTY: LessonInput = { phase: 1, title: '', summary: '', duration: '', video_url: '', size_mb: null, notes: '', files: [], published: true };
 
 export function LessonEditor({ id }: { id?: string }) {
   const { api, me } = useConnect();
@@ -514,7 +528,7 @@ export function LessonEditor({ id }: { id?: string }) {
     if (!id || !team) return;
     api
       .getLesson(id)
-      .then((l) => setF({ id: l.id, phase: l.phase, title: l.title, summary: l.summary, duration: l.duration, video_url: l.video_url ?? '', notes: l.notes ?? '', files: l.files ?? [], published: l.published }))
+      .then((l) => setF({ id: l.id, phase: l.phase, title: l.title, summary: l.summary, duration: l.duration, video_url: l.video_url ?? '', size_mb: l.size_mb ?? null, notes: l.notes ?? '', files: l.files ?? [], published: l.published }))
       .catch((e: Error) => setError(e.message));
   }, [api, id, team]);
 
@@ -590,9 +604,22 @@ export function LessonEditor({ id }: { id?: string }) {
         </label>
         {video && playable && (
           <div className="cx-ln-preview">
-            <Player url={video} title="Preview" mark={`${me?.name ?? ''} · preview`} />
+            <Player url={video} title="Preview" mark={`${me?.name ?? ''} · preview`} size={f.size_mb} />
           </div>
         )}
+        <label className="field">
+          <span>Video size (MB)</span>
+          <input
+            inputMode="numeric"
+            value={f.size_mb ?? ''}
+            placeholder="85"
+            onChange={(e) => {
+              const n = parseInt(e.target.value.replace(/\D/g, ''), 10);
+              set('size_mb', Number.isFinite(n) ? n : null);
+            }}
+          />
+          <small>Students see this before they play, so they know the data it uses. In Drive, open the file’s details to see its size.</small>
+        </label>
         <label className="field">
           <span>Length</span>
           <input value={f.duration} maxLength={20} onChange={(e) => set('duration', e.target.value)} placeholder="12 min" />
