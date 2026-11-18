@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { shakeField } from './shake';
 import { useConnect } from './context';
 import { navigate } from './router';
 import { setVisitor } from './visitor';
@@ -54,9 +55,17 @@ export function Login() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr('');
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Enter a valid email address.');
-    if (mode === 'student' && studentId.replace(/[^a-z0-9]/gi, '').length < 8)
+    const form = e.currentTarget as HTMLFormElement;
+    const emailField = form.querySelector('input[type="email"]');
+    const idField = form.querySelector('input[name="member-id"]');
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      shakeField(emailField);
+      return setErr('Enter a valid email address.');
+    }
+    if (mode === 'student' && studentId.replace(/[^a-z0-9]/gi, '').length < 8) {
+      shakeField(idField);
       return setErr('Enter your member ID, for example MD-7KQ2-X9PB.');
+    }
     setBusy(true);
     try {
       if (mode === 'student') {
@@ -66,6 +75,9 @@ export function Login() {
         setSent(true);
       }
     } catch (e2) {
+      // wrong email/ID pair: shake both so it's clear which form failed
+      shakeField(emailField);
+      if (mode === 'student') shakeField(idField);
       setErr((e2 as Error).message);
     } finally {
       setBusy(false);
@@ -102,6 +114,7 @@ export function Login() {
                 <label className="field">
                   <span>Member ID</span>
                   <input
+                    name="member-id"
                     autoComplete="off"
                     autoCapitalize="characters"
                     spellCheck={false}
@@ -269,9 +282,16 @@ export function Settings() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr('');
+    const form = e.currentTarget as HTMLFormElement;
     const handle = toHandle(f.handle || f.name);
-    if (!f.name.trim()) return setErr('Add your name.');
-    if (handle.length < 3) return setErr('Your username needs at least 3 letters or numbers.');
+    if (!f.name.trim()) {
+      shakeField(form.querySelector('input[autocomplete="name"]'));
+      return setErr('Add your name.');
+    }
+    if (handle.length < 3) {
+      shakeField(form.querySelector('input[name="handle"]'));
+      return setErr('Your username needs at least 3 letters or numbers.');
+    }
     // Students are known by their belt, so the phase is required
     if (me?.is_student && !me.is_sensei && !f.phase) return setErr('Choose your phase. Your badge shows your belt.');
     setBusy(true);
@@ -339,7 +359,7 @@ export function Settings() {
         </label>
         <label className="field">
           <span>Username</span>
-          <input value={f.handle} maxLength={24} placeholder={toHandle(f.name) || 'your_name'} onChange={(e) => set('handle', toHandle(e.target.value))} />
+          <input name="handle" value={f.handle} maxLength={24} placeholder={toHandle(f.name) || 'your_name'} onChange={(e) => set('handle', toHandle(e.target.value))} />
           <small>Letters, numbers and underscores. Your profile link uses it.</small>
         </label>
         <label className="field">
