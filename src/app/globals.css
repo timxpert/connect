@@ -1373,6 +1373,8 @@ details[open] > :not(summary) {
 /* ---------- Students directory ---------- */
 .cx-filters {
   display: grid;
+  /* minmax(0, 1fr): the swipeable chip row must not stretch the page sideways */
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   margin-bottom: 24px;
 }
@@ -1401,8 +1403,18 @@ details[open] > :not(summary) {
   color: var(--ink);
   outline: none;
 }
+.cx-filters > * {
+  min-width: 0;
+}
+.cx-filters .cx-select select {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
 .cx-select {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   gap: 10px;
   font-weight: 500;
