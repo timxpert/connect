@@ -5618,13 +5618,15 @@ a.cx-ln-row:active {
 /* ================= Dojo group ================= */
 .cx-group-ico {
   flex: none;
-  display: grid;
-  place-items: center;
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--violet);
-  color: #fff;
+  overflow: hidden;
+}
+.cx-group-ico img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .cx-group-ico-lg {
   width: 56px;
@@ -5715,14 +5717,12 @@ a.cx-ln-row:active {
   border: 0;
   border-radius: 999px;
   background: var(--paper);
-  box-shadow: 0 1px 2px rgba(20, 10, 46, 0.12);
   font: inherit;
   font-size: 0.9rem;
   cursor: pointer;
 }
 .cx-msg-rx button.is-mine {
   background: var(--tint);
-  box-shadow: inset 0 0 0 1.5px var(--violet);
 }
 .cx-msg-rx small {
   color: var(--muted);
@@ -5732,7 +5732,7 @@ a.cx-ln-row:active {
   animation: cx-flash 1.2s var(--ease);
 }
 @keyframes cx-flash {
-  0%, 40% { scale: 1.03; filter: brightness(0.93); }
+  0%, 40% { filter: brightness(0.9); }
 }
 .cx-rx-pick {
   display: flex;
@@ -5785,3 +5785,62 @@ a.cx-ln-row:active {
   color: var(--muted);
 }
 .cx-pinned, .cx-group-foot { flex: none; }
+.cx-mention {
+  color: var(--violet);
+  font-weight: 600;
+}
+.cx-msg.is-mine .cx-mention {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cx-mentions {
+  display: grid;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.cx-mentions button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cx-mentions button:hover,
+.cx-mentions button:focus-visible {
+  background: var(--tint);
+}
+.cx-mentions span {
+  display: grid;
+  line-height: 1.25;
+}
+.cx-mentions small {
+  color: var(--muted);
+}
+.cx-menu-label {
+  margin: 6px 0 0;
+  padding: 8px 16px 4px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.cx-menu-list [role='menuitemradio'] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cx-menu-list [role='menuitemradio'] svg {
+  color: var(--violet);
+}
+.cx-group .cx-menu-list { min-width: 270px; }

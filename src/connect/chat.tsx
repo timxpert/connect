@@ -453,6 +453,13 @@ export async function makeThumb(file: File, kind: Attachment['kind']): Promise<s
   }
 }
 
+/** @username in a message shows in bold violet */
+export function withMentions(text: string) {
+  const parts = text.split(/(@[A-Za-z0-9_]{2,30})/g);
+  if (parts.length === 1) return text;
+  return parts.map((p, i) => (i % 2 ? <b key={i} className="cx-mention">{p}</b> : <React.Fragment key={i}>{p}</React.Fragment>));
+}
+
 /* ---------- One message ---------- */
 export function Bubble({
   m,
@@ -577,7 +584,7 @@ export function Bubble({
         </span>
       )}
       {m.pending && kind === 'video' && (m.progress ?? 0) < 0.5 && <small className="cx-msg-prep">Making the video smaller…</small>}
-      {m.body && <p>{m.body}</p>}
+      {m.body && <p>{withMentions(m.body)}</p>}
       <span className="cx-msg-meta">
         <time dateTime={m.created_at}>{hhmm(m.created_at)}</time>
         {mine && !noTicks && <Status m={m} />}
@@ -1083,7 +1090,7 @@ export function Chat({ id }: { id: string }) {
 /* ================= Inbox ================= */
 function GroupInboxRow() {
   const { api } = useConnect();
-  const [p, setP] = useState<{ text: string; at: string; unread: number } | null>(null);
+  const [p, setP] = useState<{ name: string; text: string; at: string; unread: number } | null>(null);
   useEffect(() => {
     const load = () => api.groupPreview().then(setP).catch(() => {});
     load();
@@ -1096,11 +1103,11 @@ function GroupInboxRow() {
       <li>
         <A path="/messages/group" className={p.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
           <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true">
-            <Icon name="people" size={26} />
+            <img src="/assets/favicon-128.png" alt="" width={56} height={56} />
           </span>
           <span className="cx-inbox-text">
             <span className="cx-inbox-top">
-              <span className="cx-person-name">Dojo group</span>
+              <span className="cx-person-name">{p.name}</span>
               {p.at && <span className="cx-inbox-time">{shortTime(p.at)}</span>}
             </span>
             <span className="cx-inbox-bottom">

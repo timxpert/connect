@@ -238,6 +238,8 @@ export function Notifications() {
     if (n.kind === 'assignment_submitted') return { text: `${name} handed in an assignment.`, path: '/reviews' };
     if (n.kind === 'assignment_approved') return { text: 'Your assignment was approved. The next phase is open.', path: '/learn' };
     if (n.kind === 'assignment_changes') return { text: `${name} asked for changes on your assignment.`, path: '/learn' };
+    if (n.kind === 'group_reply') return { text: `${name} replied to you in the group${n.snippet ? `: “${n.snippet.replace(/^[^:]*:\s*/, '').slice(0, 100)}”` : '.'}`, path: '/messages/group' };
+    if (n.kind === 'group_mention') return { text: `${name} mentioned you in the group${n.snippet ? `: “${n.snippet.replace(/^[^:]*:\s*/, '').slice(0, 100)}”` : '.'}`, path: '/messages/group' };
     return { text: `${name} accepted your connection request.`, path: n.actor ? `/u/${n.actor.handle}` : '/connections' };
   };
 

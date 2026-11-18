@@ -11,11 +11,17 @@ import { useDragToClose } from './drag';
 import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { Bubble, clock, dayLabel, kindOf, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
-import type { Attachment, GroupInfo, GroupMessage } from './types';
-import { A, Empty, Icon, Loading } from './ui';
+import type { Attachment, GroupHistory, GroupInfo, GroupMessage, Profile } from './types';
+import { A, Avatar, Empty, Icon, Loading } from './ui';
 
 const MAX_FILE = 50 * 1024 * 1024;
 const EMOJI = ['👍', '❤️', '😂', '🔥', '👏', '🙏'];
+const HISTORY: [GroupHistory, string][] = [
+  ['all', 'Everything'],
+  ['14d', 'The last 14 days'],
+  ['100', 'The last 100 messages'],
+  ['none', 'Only messages after they join'],
+];
 
 const snippet = (m: GroupMessage) =>
   m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.body;
@@ -41,6 +47,9 @@ export function GroupChat() {
   const [downloaded, setDownloaded] = useState<Set<string>>(() => new Set());
   const [viewing, setViewing] = useState<GroupMessage | null>(null);
   const [error, setError] = useState('');
+  const [people, setPeople] = useState<Profile[]>([]);
+  const [caret, setCaret] = useState(0);
+  const placeCaret = useRef<number | null>(null);
   const end = useRef<HTMLLIElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -49,6 +58,20 @@ export function GroupChat() {
   useEffect(() => setDownloaded(loadDownloaded()), []);
 
   const team = Boolean(me?.is_sensei || me?.is_moderator);
+
+  // after picking a mention, put the cursor right after it
+  useEffect(() => {
+    const pos = placeCaret.current;
+    if (pos === null || !box.current) return;
+    placeCaret.current = null;
+    box.current.focus();
+    box.current.setSelectionRange(pos, pos);
+  }, [draft]);
+
+  // people to @mention: members, plus anyone who has posted in the group (the team)
+  useEffect(() => {
+    if (me) api.listStudents({ q: '', skill: '', phase: null }).then(setPeople).catch(() => {});
+  }, [api, me]);
 
   const load = useCallback(async () => {
     const [list, i] = await Promise.all([api.listGroupMessages(), api.groupInfo()]);
@@ -308,6 +331,43 @@ export function GroupChat() {
     await api.report('message', m.id, reason);
     toast('Thanks. A moderator will take a look.');
   };
+  const setHistory = async (history: GroupHistory) => {
+    setMenu(false);
+    setInfo({ ...info, history });
+    await api
+      .setGroupSettings({ history })
+      .then(() => toast(history === 'none' ? 'New members see messages from when they join' : `New members see ${HISTORY.find(([v]) => v === history)?.[1].toLowerCase()}`))
+      .catch((e: Error) => toast(e.message));
+  };
+
+  /* @mentions: suggestions while typing @name */
+  const before = draft.slice(0, caret);
+  const at = /(^|\s)@([A-Za-z0-9_]{0,30})$/.exec(before);
+  const term = at ? at[2].toLowerCase() : null;
+  const pool = new Map<string, Profile>();
+  for (const p of people) pool.set(p.id, p);
+  for (const m of msgs) if (m.sender && !pool.has(m.sender.id)) pool.set(m.sender.id, m.sender);
+  pool.delete(me.id);
+  const suggestions =
+    term === null ? [] : [...pool.values()].filter((p) => p.handle.toLowerCase().startsWith(term) || p.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(term))).slice(0, 5);
+  const mention = (p: Profile) => {
+    const start = before.length - (at ? at[2].length + 1 : 0);
+    const next = `${draft.slice(0, start)}@${p.handle} ${draft.slice(caret)}`;
+    setDraft(next);
+    const pos = start + p.handle.length + 2;
+    setCaret(pos);
+    placeCaret.current = pos;
+  };
+
+  const rename = async () => {
+    setMenu(false);
+    const name = await ask({ title: 'Rename group', input: 'Group name', confirm: 'Save' });
+    const clean = (name || '').trim().slice(0, 60);
+    if (!clean) return;
+    setInfo({ ...info, name: clean });
+    await api.setGroupSettings({ name: clean }).catch((e: Error) => toast(e.message));
+  };
+
   const toggleAnnounce = async () => {
     setMenu(false);
     const on = !info.announce_only;
@@ -330,10 +390,10 @@ export function GroupChat() {
         </A>
         <span className="cx-person">
           <span className="cx-group-ico" aria-hidden="true">
-            <Icon name="people" size={22} />
+            <img src="/assets/favicon-128.png" alt="" width={40} height={40} />
           </span>
           <span className="cx-person-text">
-            <span className="cx-person-name">Dojo group</span>
+            <span className="cx-person-name">{info.name || 'Dojo group'}</span>
             <span className="cx-person-meta">
               {info.members} members{info.announce_only ? ' · only the team can post' : ''}
             </span>
@@ -348,6 +408,9 @@ export function GroupChat() {
               <>
                 <div className="cx-menu-scrim" onClick={() => setMenu(false)} aria-hidden="true" />
                 <div className="cx-menu-list" role="menu">
+                  <button type="button" role="menuitem" onClick={rename}>
+                    Rename group
+                  </button>
                   <button type="button" role="menuitemcheckbox" aria-checked={info.announce_only} onClick={toggleAnnounce}>
                     {info.announce_only ? 'Let everyone post' : 'Only the team can post'}
                   </button>
@@ -356,6 +419,13 @@ export function GroupChat() {
                       Unpin message
                     </button>
                   )}
+                  <p className="cx-menu-label">New members can see</p>
+                  {HISTORY.map(([value, label]) => (
+                    <button key={value} type="button" role="menuitemradio" aria-checked={(info.history ?? 'all') === value} onClick={() => setHistory(value)}>
+                      {label}
+                      {(info.history ?? 'all') === value && <Icon name="check" size={18} />}
+                    </button>
+                  ))}
                 </div>
               </>
             )}
@@ -373,7 +443,7 @@ export function GroupChat() {
       )}
 
       <ol className="cx-msgs">
-        {all.length === 0 && <li className="cx-day">No messages yet. Say hello.</li>}
+        {all.length === 0 && <li className="cx-day">No messages yet</li>}
         {all.map((m) => {
           const day = dayLabel(m.created_at);
           const showDay = day !== lastDay;
@@ -424,6 +494,21 @@ export function GroupChat() {
         </div>
       ) : (
         <div className="cx-group-foot">
+          {suggestions.length > 0 && (
+            <ul className="cx-mentions" role="listbox" aria-label="Mention someone">
+              {suggestions.map((p) => (
+                <li key={p.id}>
+                  <button type="button" role="option" aria-selected="false" onMouseDown={(e) => e.preventDefault()} onClick={() => mention(p)}>
+                    <Avatar p={p} size={30} />
+                    <span>
+                      <b>{p.name}</b>
+                      <small>@{p.handle}</small>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           {replyTo && (
             <div className="cx-replying">
               <span>
@@ -459,7 +544,20 @@ export function GroupChat() {
             <label className="sr-only" htmlFor="group-box">
               Message
             </label>
-            <textarea ref={box} id="group-box" rows={1} maxLength={4000} placeholder="Message the group" value={draft} onChange={(e) => setDraft(e.target.value)} enterKeyHint="enter" />
+            <textarea
+              ref={box}
+              id="group-box"
+              rows={1}
+              maxLength={4000}
+              placeholder="Message the group"
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setCaret(e.target.selectionStart ?? e.target.value.length);
+              }}
+              onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+              enterKeyHint="enter"
+            />
             {typing ? (
               <button type="submit" className="cx-send" aria-label="Send">
                 <Icon name="send" size={20} />
@@ -544,7 +642,7 @@ export function GroupChat() {
       {picked.length > 0 && (
         <SendPreview
           items={picked}
-          to="the Dojo group"
+          to={info.name || 'the group'}
           caption={caption}
           onCaption={setCaption}
           onRemove={(key) =>

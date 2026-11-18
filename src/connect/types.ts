@@ -52,7 +52,9 @@ export type ConnectionStatus = 'none' | 'requested' | 'incoming' | 'connected';
 
 export type Notice = {
   id: string;
-  kind: 'community_post' | 'connection_request' | 'connection_accepted' | 'assignment_submitted' | 'assignment_approved' | 'assignment_changes';
+  kind: 'community_post' | 'connection_request' | 'connection_accepted' | 'assignment_submitted' | 'assignment_approved' | 'assignment_changes' | 'group_reply' | 'group_mention';
+  /** Group replies and mentions: "Name: what they wrote" */
+  snippet?: string | null;
   actor: Profile | null;
   post_id: string | null;
   read_at: string | null;
@@ -118,7 +120,9 @@ export type GroupMessage = Message & {
   reactions?: { emoji: string; count: number; mine: boolean }[];
 };
 
-export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null };
+/** What new students see from before they joined */
+export type GroupHistory = 'all' | '14d' | '100' | 'none';
+export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string };
 
 export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number; thumb?: string };
 
@@ -276,7 +280,7 @@ export interface ConnectApi {
   /** The Dojo group: every student and the team */
   groupInfo(): Promise<GroupInfo | null>;
   listGroupMessages(): Promise<GroupMessage[]>;
-  groupPreview(): Promise<{ text: string; at: string; unread: number } | null>;
+  groupPreview(): Promise<{ name: string; text: string; at: string; unread: number } | null>;
   sendGroupMessage(body: string, replyTo?: string | null): Promise<GroupMessage>;
   sendGroupAttachment(a: Attachment, caption: string, replyTo?: string | null, onProgress?: (share: number) => void): Promise<GroupMessage>;
   deleteGroupMessage(id: string): Promise<void>;
@@ -284,7 +288,7 @@ export interface ConnectApi {
   reactGroup(id: string, emoji: string | null): Promise<void>;
   markGroupRead(): Promise<void>;
   /** Team only */
-  setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null }): Promise<void>;
+  setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null; history?: GroupHistory; name?: string }): Promise<void>;
   /** Team only. hours = 0 unmutes */
   muteInGroup(userId: string, hours: number): Promise<void>;
 

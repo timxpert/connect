@@ -156,3 +156,110 @@ begin
     end loop;
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------
+-- Replies and @mentions: the person gets a notification (and a phone alert)
+-- ---------------------------------------------------------------------
+alter table public.notifications add column if not exists snippet text;
+alter table public.notifications drop constraint if exists notifications_kind_check;
+alter table public.notifications add constraint notifications_kind_check check (kind in (
+  'community_post', 'connection_request', 'connection_accepted',
+  'assignment_submitted', 'assignment_approved', 'assignment_changes',
+  'group_reply', 'group_mention'));
+
+create or replace function public.notify_group_message() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  who text;
+  txt text;
+  replied uuid;
+begin
+  select name into who from public.profiles where id = new.sender_id;
+  txt := left(case new.kind when 'voice' then 'Voice message' when 'image' then coalesce(nullif(new.body, ''), 'Photo')
+                            when 'video' then coalesce(nullif(new.body, ''), 'Video') else new.body end, 140);
+  if new.reply_to is not null then
+    select sender_id into replied from public.group_messages where id = new.reply_to;
+    if replied is not null and replied <> new.sender_id then
+      insert into public.notifications (user_id, kind, actor_id, snippet)
+      values (replied, 'group_reply', new.sender_id, coalesce(who, 'Someone') || ': ' || txt);
+    end if;
+  end if;
+  insert into public.notifications (user_id, kind, actor_id, snippet)
+  select distinct p.id, 'group_mention', new.sender_id, coalesce(who, 'Someone') || ': ' || txt
+  from regexp_matches(coalesce(new.body, ''), '@([A-Za-z0-9_]{2,30})', 'g') as m(h)
+  join public.profiles p on lower(p.handle) = lower(m.h[1])
+  where p.id <> new.sender_id
+    and p.id is distinct from replied
+    and public.in_group(p.id);
+  return new;
+end $$;
+drop trigger if exists group_messages_notify on public.group_messages;
+create trigger group_messages_notify after insert on public.group_messages
+for each row execute function public.notify_group_message();
+
+-- ---------------------------------------------------------------------
+-- Message history for new members (like WhatsApp's "share message history")
+-- all:  new students see everything sent before they joined
+-- 14d:  the last 14 days before they joined
+-- 100:  the last 100 messages before they joined
+-- none: only messages from when they joined
+-- The team always sees everything.
+-- ---------------------------------------------------------------------
+alter table public.group_settings add column if not exists history text not null default 'all';
+alter table public.group_settings drop constraint if exists group_settings_history_check;
+alter table public.group_settings add constraint group_settings_history_check check (history in ('all', '14d', '100', 'none'));
+
+create or replace function public.group_visible_from(uid uuid) returns timestamptz
+language plpgsql stable security definer set search_path = public as $$
+declare
+  joined timestamptz;
+  h text;
+  t timestamptz;
+begin
+  if public.is_team(uid) then return '-infinity'; end if;
+  select history into h from public.group_settings where id = 1;
+  if coalesce(h, 'all') = 'all' then return '-infinity'; end if;
+  -- when they joined: their enrolment (or their profile, if there's no enrolment row)
+  select coalesce(
+           (select e.created_at from public.enrolments e join auth.users u on lower(u.email) = lower(e.email) where u.id = uid),
+           (select created_at from public.profiles where id = uid))
+    into joined;
+  if joined is null then return '-infinity'; end if;
+  if h = 'none' then return joined; end if;
+  if h = '14d' then return joined - interval '14 days'; end if;
+  select created_at into t from public.group_messages where created_at < joined order by created_at desc offset 99 limit 1;
+  return coalesce(t, '-infinity');
+end $$;
+
+drop policy if exists gm_read on public.group_messages;
+create policy gm_read on public.group_messages for select to authenticated
+  using ((select public.in_group(auth.uid())) and created_at >= (select public.group_visible_from(auth.uid())));
+
+-- The group's name (the team can change it)
+alter table public.group_settings add column if not exists name text not null default 'Dojo group';
+alter table public.group_settings drop constraint if exists group_settings_name_check;
+alter table public.group_settings add constraint group_settings_name_check check (char_length(btrim(name)) between 1 and 60);
+
+-- group_info: members, settings, the name, and whether I'm muted
+drop function if exists public.group_info();
+create function public.group_info()
+returns table (members int, announce_only boolean, pinned_id uuid, muted_until timestamptz, history text, name text)
+language sql stable security definer set search_path = public as $$
+  select (select count(*)::int from public.profiles where is_student or is_sensei or is_moderator),
+         s.announce_only, s.pinned_id,
+         (select until from public.group_mutes where user_id = auth.uid() and until > now()),
+         s.history, s.name
+  from public.group_settings s where s.id = 1 and public.in_group(auth.uid())
+$$;
+grant execute on function public.group_info() to authenticated;
+
+-- Unread count respects what the person can see
+create or replace function public.group_unread() returns int
+language sql stable security definer set search_path = public as $$
+  select case when not public.in_group(auth.uid()) then 0 else (
+    select count(*)::int from public.group_messages m
+    where m.sender_id <> auth.uid() and m.deleted_at is null
+      and m.created_at >= public.group_visible_from(auth.uid())
+      and m.created_at > coalesce((select last_read_at from public.group_reads where user_id = auth.uid()), now() - interval '7 days')
+  ) end
+$$;

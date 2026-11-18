@@ -132,7 +132,7 @@ let group: RawGroup[] = [
   { id: 'g3m', conversation_id: 'group', sender_id: 's4', body: 'Sample message: yes, the bounce one is great for logo reveals.', kind: 'text', reply_to: 'g2m', created_at: ago(4) },
 ];
 const groupRx = new Map<string, string>([['g1m:s2', '🔥'], ['g1m:s4', '🔥'], ['g3m:s2', '👍']]);
-const groupSet = { announce_only: false, pinned_id: 'g1m' as string | null };
+const groupSet = { announce_only: false, pinned_id: 'g1m' as string | null, history: 'all' as 'all' | '14d' | '100' | 'none', name: 'Dojo group' };
 const groupMutes = new Map<string, number>();
 let groupReadAt = ago(6);
 const briefs: Record<number, string> = { 1: 'Sample brief: animate a 5-second logo reveal using what you learned in phase 1.' };
@@ -466,7 +466,7 @@ export function createDemoApi(): ConnectApi {
     async groupPreview() {
       const m = group[group.length - 1];
       const unread = group.filter((x) => x.sender_id !== current && x.created_at > groupReadAt).length;
-      return wait(m ? { text: `${who(m.sender_id).name}: ${m.body || 'Photo'}`, at: m.created_at, unread } : null);
+      return wait(m ? { name: groupSet.name, text: `${who(m.sender_id).name}: ${m.body || 'Photo'}`, at: m.created_at, unread } : null);
     },
     async sendGroupMessage(body, replyTo) {
       const me = needMe();

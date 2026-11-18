@@ -410,7 +410,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       await needUid();
       const { data, error } = await sb
         .from('notifications')
-        .select('id, kind, post_id, read_at, created_at, actor:profiles!notifications_actor_id_fkey(*)')
+        .select('*, actor:profiles!notifications_actor_id_fkey(*)')
         .order('created_at', { ascending: false })
         .limit(60);
       fail(error);
@@ -821,9 +821,10 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         .limit(1);
       if (error) return null;
       const r = ((data ?? []) as unknown as { body: string; kind: string; deleted_at: string | null; created_at: string; sender: { name: string } | null }[])[0];
-      const { data: n } = await sb.rpc('group_unread');
-      if (!r) return { text: 'No messages yet', at: '', unread: 0 };
-      return { text: `${r.sender?.name ?? 'Someone'}: ${preview(r)}`, at: r.created_at, unread: Number(n ?? 0) };
+      const [{ data: n }, { data: g }] = await Promise.all([sb.rpc('group_unread'), sb.from('group_settings').select('*').eq('id', 1).maybeSingle()]);
+      const name = (g as { name?: string } | null)?.name || 'Dojo group';
+      if (!r) return { name, text: 'No messages yet', at: '', unread: 0 };
+      return { name, text: `${r.sender?.name ?? 'Someone'}: ${preview(r)}`, at: r.created_at, unread: Number(n ?? 0) };
     },
     async sendGroupMessage(body, replyTo) {
       const me = await needUid();

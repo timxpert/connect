@@ -67,11 +67,13 @@ const TABS = [
 /** Unread notifications and waiting connection requests, refreshed every 30 seconds */
 type IncomingMessage = { conversation_id: string; sender_id: string; body?: string; kind?: string };
 
-function useCounts(onMessage: (m: IncomingMessage) => void) {
+function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind: string; snippet?: string }) => void) {
   const { api, me } = useConnect();
   const [c, setC] = useState({ unread: 0, requests: 0, messages: 0 });
   const onMessageRef = React.useRef(onMessage);
   onMessageRef.current = onMessage;
+  const onGroupRef = React.useRef(onGroup);
+  onGroupRef.current = onGroup;
   useEffect(() => {
     if (!me) {
       setC({ unread: 0, requests: 0, messages: 0 });
@@ -89,7 +91,11 @@ function useCounts(onMessage: (m: IncomingMessage) => void) {
     const on = () => load().catch(() => {});
     window.addEventListener('cx:counts', on);
     // Live: the bell, the Messages count and alerts update the moment something happens
-    const stopNotices = api.subscribe('notifications', `user_id=eq.${me.id}`, on);
+    const stopNotices = api.subscribe('notifications', `user_id=eq.${me.id}`, ({ event, row }) => {
+      on();
+      // Someone replied to you or mentioned you in the Dojo group
+      if (event === 'INSERT' && (row.kind === 'group_reply' || row.kind === 'group_mention')) onGroupRef.current(row as unknown as { kind: string; snippet?: string });
+    });
     let pending = 0;
     const stopMessages = api.subscribe('messages', '', ({ event, row }) => {
       window.clearTimeout(pending);
@@ -145,7 +151,18 @@ function Shell({ route }: { route: Route }) {
       })
       .catch(() => {});
   };
-  const counts = useCounts(onMessage);
+  const onGroup = (n: { kind: string; snippet?: string }) => {
+    if (route.name === 'group' && document.visibilityState === 'visible') return;
+    const title = n.kind === 'group_reply' ? 'New reply in the group' : 'You were mentioned in the group';
+    const body = n.snippet ?? '';
+    if (document.visibilityState === 'visible') {
+      play('comment');
+      toast(`${title}. ${body}`.slice(0, 160));
+    } else {
+      notify(title, body, new URL(to('/messages/group'), window.location.href).href, `group-${n.kind}`);
+    }
+  };
+  const counts = useCounts(onMessage, onGroup);
   useEffect(() => {
     registerAlerts();
   }, []);
