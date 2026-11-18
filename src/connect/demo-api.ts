@@ -132,7 +132,7 @@ let group: RawGroup[] = [
   { id: 'g3m', conversation_id: 'group', sender_id: 's4', body: 'Sample message: yes, the bounce one is great for logo reveals.', kind: 'text', reply_to: 'g2m', created_at: ago(4) },
 ];
 const groupRx = new Map<string, string>([['g1m:s2', '🔥'], ['g1m:s4', '🔥'], ['g3m:s2', '👍']]);
-const groupSet = { announce_only: false, pinned_id: 'g1m' as string | null, history: 'all' as 'all' | '14d' | '100' | 'none', name: 'Dojo group' };
+const groupSet = { announce_only: false, pinned_id: 'g1m' as string | null, history: 'all' as 'all' | '14d' | '100' | 'none', name: 'Dojo group', photo_url: null as string | null };
 const groupMutes = new Map<string, number>();
 let groupReadAt = ago(6);
 const briefs: Record<number, string> = { 1: 'Sample brief: animate a 5-second logo reveal using what you learned in phase 1.' };
@@ -369,7 +369,8 @@ export function createDemoApi(): ConnectApi {
       if (blocks.has(`${me}:${userId}`) || blocks.has(`${userId}:${me}`)) throw new Error('You can’t message this member.');
       const found = convs.find((c) => (c.a === me && c.b === userId) || (c.a === userId && c.b === me));
       if (found) return found.id;
-      if (links.get(linkOf(me, userId) ?? '') !== 'accepted') throw new Error('Connect with this member before messaging them.');
+      const inGroup = (id: string) => { const p = who(id); return p.is_student || p.is_sensei || p.is_moderator; };
+      if (links.get(linkOf(me, userId) ?? '') !== 'accepted' && !(inGroup(me) && inGroup(userId))) throw new Error('Connect with this member before messaging them.');
       const c = { id: nid(), a: me, b: userId, last: new Date().toISOString() };
       convs = [...convs, c];
       return c.id;
@@ -380,8 +381,8 @@ export function createDemoApi(): ConnectApi {
       return wait(c ? { id: c.id, other: who(c.a === me ? c.b : c.a), last_message_at: c.last, last_body: '' } : null);
     },
     listMessages: (id) => wait(messages.filter((m) => m.conversation_id === id).map((m) => ({ ...m }))),
-    async sendMessage(id, body) {
-      const m: Message = { id: nid(), conversation_id: id, sender_id: needMe(), body, created_at: new Date().toISOString(), kind: 'text' };
+    async sendMessage(id, body, quote) {
+      const m: Message = { id: nid(), conversation_id: id, sender_id: needMe(), body, quote: quote ?? null, created_at: new Date().toISOString(), kind: 'text' };
       messages = [...messages, m];
       convs = convs.map((c) => (c.id === id ? { ...c, last: m.created_at } : c));
       // Pretend the other person's phone receives it, then they read it
@@ -466,7 +467,7 @@ export function createDemoApi(): ConnectApi {
     async groupPreview() {
       const m = group[group.length - 1];
       const unread = group.filter((x) => x.sender_id !== current && x.created_at > groupReadAt).length;
-      return wait(m ? { name: groupSet.name, text: `${who(m.sender_id).name}: ${m.body || 'Photo'}`, at: m.created_at, unread } : null);
+      return wait(m ? { name: groupSet.name, photo_url: groupSet.photo_url, text: `${who(m.sender_id).name}: ${m.body || 'Photo'}`, at: m.created_at, unread } : null);
     },
     async sendGroupMessage(body, replyTo) {
       const me = needMe();
@@ -497,6 +498,7 @@ export function createDemoApi(): ConnectApi {
     async setGroupSettings(s) {
       Object.assign(groupSet, s);
     },
+    groupMembers: () => wait(people.filter((p) => p.is_student || p.is_sensei || p.is_moderator)),
     async muteInGroup(userId, hours) {
       if (hours > 0) groupMutes.set(userId, Date.now() + hours * 3600_000);
       else groupMutes.delete(userId);

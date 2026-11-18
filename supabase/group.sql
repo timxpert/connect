@@ -263,3 +263,55 @@ language sql stable security definer set search_path = public as $$
       and m.created_at > coalesce((select last_read_at from public.group_reads where user_id = auth.uid()), now() - interval '7 days')
   ) end
 $$;
+
+-- ---------------------------------------------------------------------
+-- Reply privately: people in the group can message each other directly,
+-- even before they're connected. Blocks still apply.
+-- ---------------------------------------------------------------------
+create or replace function public.can_message(x uuid, y uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select not public.is_blocked_between(x, y)
+     and (public.are_connected(x, y) or (public.in_group(x) and public.in_group(y)))
+$$;
+
+create or replace function public.open_conversation(other uuid) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  a uuid;
+  b uuid;
+  cid uuid;
+begin
+  if me is null or other is null or me = other then
+    raise exception 'invalid conversation';
+  end if;
+  if public.is_blocked_between(me, other) then
+    raise exception 'blocked';
+  end if;
+  a := least(me, other);
+  b := greatest(me, other);
+  select id into cid from public.conversations where user_a = a and user_b = b;
+  if cid is not null then
+    return cid;
+  end if;
+  if not public.can_message(me, other) then
+    raise exception 'not connected';
+  end if;
+  insert into public.conversations (user_a, user_b) values (a, b) returning id into cid;
+  return cid;
+end $$;
+
+drop policy if exists "send in own conversations" on public.messages;
+create policy "send in own conversations" on public.messages for insert with check (
+  sender_id = auth.uid()
+  and exists (select 1 from public.conversations c
+              where c.id = conversation_id and auth.uid() in (c.user_a, c.user_b)
+                and public.can_message(c.user_a, c.user_b)));
+
+-- A private reply carries the group message it answers
+alter table public.messages add column if not exists quote text;
+alter table public.messages drop constraint if exists messages_quote_check;
+alter table public.messages add constraint messages_quote_check check (quote is null or char_length(quote) <= 400);
+
+-- The group's photo (the team can change it)
+alter table public.group_settings add column if not exists photo_url text;

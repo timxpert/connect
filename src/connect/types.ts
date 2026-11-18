@@ -107,6 +107,8 @@ export type Message = {
   delivered_at?: string | null;
   read_at?: string | null;
   deleted_at?: string | null;
+  /** A private reply to a group message: JSON {name, text} */
+  quote?: string | null;
   /** Client only: still uploading / sending */
   pending?: boolean;
   progress?: number;
@@ -122,7 +124,7 @@ export type GroupMessage = Message & {
 
 /** What new students see from before they joined */
 export type GroupHistory = 'all' | '14d' | '100' | 'none';
-export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string };
+export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string; photo_url?: string | null };
 
 export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number; thumb?: string };
 
@@ -242,7 +244,8 @@ export interface ConnectApi {
   openConversation(userId: string): Promise<string>;
   getConversation(id: string): Promise<Conversation | null>;
   listMessages(conversationId: string): Promise<Message[]>;
-  sendMessage(conversationId: string, body: string): Promise<Message>;
+  /** quote: a group message this answers privately, as JSON {name, text} */
+  sendMessage(conversationId: string, body: string, quote?: string | null): Promise<Message>;
   /** Voice note, photo, video or file. Uploads privately, then sends. */
   sendAttachment(conversationId: string, a: Attachment, caption: string, onProgress?: (share: number) => void): Promise<Message>;
   deleteMessage(id: string): Promise<void>;
@@ -280,7 +283,7 @@ export interface ConnectApi {
   /** The Dojo group: every student and the team */
   groupInfo(): Promise<GroupInfo | null>;
   listGroupMessages(): Promise<GroupMessage[]>;
-  groupPreview(): Promise<{ name: string; text: string; at: string; unread: number } | null>;
+  groupPreview(): Promise<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>;
   sendGroupMessage(body: string, replyTo?: string | null): Promise<GroupMessage>;
   sendGroupAttachment(a: Attachment, caption: string, replyTo?: string | null, onProgress?: (share: number) => void): Promise<GroupMessage>;
   deleteGroupMessage(id: string): Promise<void>;
@@ -288,7 +291,9 @@ export interface ConnectApi {
   reactGroup(id: string, emoji: string | null): Promise<void>;
   markGroupRead(): Promise<void>;
   /** Team only */
-  setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null; history?: GroupHistory; name?: string }): Promise<void>;
+  setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null; history?: GroupHistory; name?: string; photo_url?: string | null }): Promise<void>;
+  /** Everyone in the group: students and the team */
+  groupMembers(): Promise<Profile[]>;
   /** Team only. hours = 0 unmutes */
   muteInGroup(userId: string, hours: number): Promise<void>;
 

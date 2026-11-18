@@ -8,6 +8,8 @@ import { play, setSoundOn, soundOn } from './sounds';
 import { notify, registerAlerts } from './alerts';
 import { startPresence } from './presence';
 import { guardDevice } from './device';
+import { CHAT_COLORS, useAppearance } from './appearance';
+import { Appearance as AppearanceScreen } from './screens-appearance';
 import { createDemoApi } from './demo-api';
 import { withCache } from './cache';
 import { navigate, to, useRoute, type Route } from './router';
@@ -16,7 +18,7 @@ import { A, Avatar, Icon, Loading } from './ui';
 import { Feed, PostScreen, ProfileScreen, Students } from './screens-browse';
 import { Login, Settings, Welcome } from './screens-me';
 import { Chat, Inbox } from './chat';
-import { GroupChat } from './group';
+import { GroupChat, GroupInfoScreen } from './group';
 import { PhasePrompt } from './phase-prompt';
 import { Connections, Notifications, Saved } from './screens-social';
 import { AssignmentScreen, Devices, Learn, LessonEditor, LessonScreen, Reviews } from './screens-learn';
@@ -61,7 +63,7 @@ const TABS = [
   { path: '/students', label: 'Members', icon: 'people' as const, match: ['students', 'profile'] },
   // On phones Connections lives in the account menu, to keep the bottom bar to five
   { path: '/connections', label: 'Connections', icon: 'link2' as const, match: ['connections'], desktopOnly: true },
-  { path: '/messages', label: 'Messages', icon: 'chat' as const, match: ['messages', 'chat', 'group'] },
+  { path: '/messages', label: 'Messages', icon: 'chat' as const, match: ['messages', 'chat', 'group', 'group-info'] },
 ];
 
 /** Unread notifications and waiting connection requests, refreshed every 30 seconds */
@@ -127,6 +129,20 @@ function Shell({ route }: { route: Route }) {
   const [menu, setMenu] = useState(false);
   const [sound, setSound] = useState(true);
   useEffect(() => setSound(soundOn()), []);
+  // Dark theme, chat colour and wallpaper (saved on this device)
+  const look = useAppearance();
+  useEffect(() => {
+    document.documentElement.dataset.cxTheme = look.dark ? 'dark' : 'light';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', look.dark ? '#16131c' : '#ffffff');
+  }, [look.dark]);
+  const bubble = CHAT_COLORS[look.chat] ?? CHAT_COLORS.violet;
+  const lookStyle = {
+    '--mine-bg': bubble.bg,
+    '--mine-ink': bubble.ink,
+    '--mine-meta': bubble.meta,
+    '--mine-seen': bubble.seen,
+    ...(look.wall === 'photo' && look.photo ? { '--wall-photo': `url("${look.photo}")` } : {}),
+  } as React.CSSProperties;
   // One device at a time: another device signing in signs this one out
   useEffect(() => {
     if (!signedIn) return;
@@ -186,7 +202,7 @@ function Shell({ route }: { route: Route }) {
   const welcome = authKnown && !signedIn && route.name !== 'login' && (route.name === 'feed' || !visitor);
 
   // Non-members only see Students, student profiles and their posts
-  const guestOk = ['students', 'profile', 'post', 'login', 'feed', 'learn', 'lesson'].includes(route.name) || (signedIn && route.name === 'settings');
+  const guestOk = ['students', 'profile', 'post', 'login', 'feed', 'learn', 'lesson', 'appearance'].includes(route.name) || (signedIn && route.name === 'settings');
   useEffect(() => {
     if (authKnown && !member && !guestOk) navigate('/students');
   }, [authKnown, member, guestOk]);
@@ -211,8 +227,12 @@ function Shell({ route }: { route: Route }) {
         return <PostScreen key={route.id} id={route.id} />;
       case 'messages':
         return <Inbox />;
+      case 'appearance':
+        return <AppearanceScreen />;
       case 'group':
         return <GroupChat />;
+      case 'group-info':
+        return <GroupInfoScreen />;
       case 'chat':
         return <Chat key={route.id} id={route.id} />;
       case 'login':
@@ -250,7 +270,7 @@ function Shell({ route }: { route: Route }) {
   }, [route, authKnown, welcome, member]);
 
   return (
-    <div className={(route.name === 'chat' || route.name === 'group') && member ? 'cx is-chat' : 'cx'}>
+    <div className={(route.name === 'chat' || route.name === 'group') && member ? 'cx is-chat' : 'cx'} style={lookStyle} data-wall={look.wall === 'photo' && !look.photo ? 'plain' : look.wall}>
       {api.mode === 'demo' && (
         <p className="cx-preview-bar">Preview with sample members. Nothing here is real until the database is connected.</p>
       )}
@@ -321,6 +341,9 @@ function Shell({ route }: { route: Route }) {
                         Saved
                       </A>
                     )}
+                    <A path="/appearance" role="menuitem">
+                      Appearance
+                    </A>
                     <A path="/settings" role="menuitem">
                       {me ? 'Edit profile' : 'Set up profile'}
                     </A>

@@ -26,6 +26,8 @@ export type Route =
   | { name: 'reviews' }
   | { name: 'devices' }
   | { name: 'group' }
+  | { name: 'group-info' }
+  | { name: 'appearance' }
   | { name: 'notfound' };
 
 const hashMode = () => typeof window !== 'undefined' && Boolean((window as unknown as { __CONNECT_HASH__?: boolean }).__CONNECT_HASH__);
@@ -45,7 +47,7 @@ export function parse(path: string): Route {
   if (a === 'students' && !b) return { name: 'students' };
   if (a === 'u' && b) return { name: 'profile', handle: b };
   if (a === 'p' && b) return { name: 'post', id: b };
-  if (a === 'messages' && b === 'group') return { name: 'group' };
+  if (a === 'messages' && b === 'group') return parts[2] === 'info' ? { name: 'group-info' } : { name: 'group' };
   if (a === 'messages') return b ? { name: 'chat', id: b } : { name: 'messages' };
   if (a === 'login') return { name: 'login' };
   if (a === 'team' && !b) return { name: 'login', team: true };
@@ -56,6 +58,7 @@ export function parse(path: string): Route {
   if (a === 'saved') return { name: 'saved' };
   if (a === 'reviews') return { name: 'reviews' };
   if (a === 'devices') return { name: 'devices' };
+  if (a === 'appearance') return { name: 'appearance' };
   if (a === 'learn') {
     if (!b) return { name: 'learn' };
     if (b === 'new') return { name: 'lesson-edit' };

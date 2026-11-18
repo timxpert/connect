@@ -8,11 +8,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useConnect } from './context';
 import { peek } from './cache';
 import { useDragToClose } from './drag';
+import { navigate } from './router';
+import { useOnline } from './presence';
 import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { Bubble, clock, dayLabel, kindOf, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
 import type { Attachment, GroupHistory, GroupInfo, GroupMessage, Profile } from './types';
-import { A, Avatar, Empty, Icon, Loading } from './ui';
+import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
 
 const MAX_FILE = 50 * 1024 * 1024;
 const EMOJI = ['👍', '❤️', '😂', '🔥', '👏', '🙏'];
@@ -301,6 +303,20 @@ export function GroupChat() {
     setMsgs((xs) => xs.map((x) => (x.id === m.id ? { ...x, deleted_at: new Date().toISOString(), body: '', media_url: null, reactions: [] } : x)));
     await api.deleteGroupMessage(m.id).catch((e: Error) => toast(e.message));
   };
+  const replyPrivately = async (m: GroupMessage) => {
+    setHeld(null);
+    try {
+      const cid = await api.openConversation(m.sender_id);
+      try {
+        sessionStorage.setItem(`cx-quote-${cid}`, JSON.stringify({ name: m.sender?.name ?? 'Member', text: snippet(m).slice(0, 300) }));
+      } catch {
+        /* ignore */
+      }
+      navigate(`/messages/${cid}`);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
   const copy = async (m: GroupMessage) => {
     setHeld(null);
     try {
@@ -331,14 +347,6 @@ export function GroupChat() {
     await api.report('message', m.id, reason);
     toast('Thanks. A moderator will take a look.');
   };
-  const setHistory = async (history: GroupHistory) => {
-    setMenu(false);
-    setInfo({ ...info, history });
-    await api
-      .setGroupSettings({ history })
-      .then(() => toast(history === 'none' ? 'New members see messages from when they join' : `New members see ${HISTORY.find(([v]) => v === history)?.[1].toLowerCase()}`))
-      .catch((e: Error) => toast(e.message));
-  };
 
   /* @mentions: suggestions while typing @name */
   const before = draft.slice(0, caret);
@@ -359,24 +367,7 @@ export function GroupChat() {
     placeCaret.current = pos;
   };
 
-  const rename = async () => {
-    setMenu(false);
-    const name = await ask({ title: 'Rename group', input: 'Group name', confirm: 'Save' });
-    const clean = (name || '').trim().slice(0, 60);
-    if (!clean) return;
-    setInfo({ ...info, name: clean });
-    await api.setGroupSettings({ name: clean }).catch((e: Error) => toast(e.message));
-  };
 
-  const toggleAnnounce = async () => {
-    setMenu(false);
-    const on = !info.announce_only;
-    setInfo({ ...info, announce_only: on });
-    await api
-      .setGroupSettings({ announce_only: on })
-      .then(() => toast(on ? 'Only the team can post now' : 'Everyone can post again'))
-      .catch((e: Error) => toast(e.message));
-  };
 
   const typing = draft.trim().length > 0;
   let lastDay = '';
@@ -388,18 +379,14 @@ export function GroupChat() {
         <A path="/messages" className="cx-icon-btn cx-icon-flat" aria-label="All messages">
           <Icon name="back" />
         </A>
-        <span className="cx-person">
-          <span className="cx-group-ico" aria-hidden="true">
-            <img src="/assets/favicon-128.png" alt="" width={40} height={40} />
-          </span>
+        <A path="/messages/group/info" className="cx-person" aria-label="Group info">
+          <GroupPhoto url={info.photo_url} size={40} />
           <span className="cx-person-text">
             <span className="cx-person-name">{info.name || 'Dojo group'}</span>
-            <span className="cx-person-meta">
-              {info.members} members{info.announce_only ? ' · only the team can post' : ''}
-            </span>
+            <span className="cx-person-meta">{info.announce_only ? 'Only the team can post' : `${info.members} members`}</span>
           </span>
-        </span>
-        {team && (
+        </A>
+        {pinned && team && (
           <div className="cx-menu cx-chat-more">
             <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Group options" aria-expanded={menu} onClick={() => setMenu((x) => !x)}>
               <Icon name="more" />
@@ -408,24 +395,12 @@ export function GroupChat() {
               <>
                 <div className="cx-menu-scrim" onClick={() => setMenu(false)} aria-hidden="true" />
                 <div className="cx-menu-list" role="menu">
-                  <button type="button" role="menuitem" onClick={rename}>
-                    Rename group
+                  <A path="/messages/group/info" role="menuitem">
+                    Group info
+                  </A>
+                  <button type="button" role="menuitem" onClick={() => (setMenu(false), pin(null))}>
+                    Unpin message
                   </button>
-                  <button type="button" role="menuitemcheckbox" aria-checked={info.announce_only} onClick={toggleAnnounce}>
-                    {info.announce_only ? 'Let everyone post' : 'Only the team can post'}
-                  </button>
-                  {pinned && (
-                    <button type="button" role="menuitem" onClick={() => (setMenu(false), pin(null))}>
-                      Unpin message
-                    </button>
-                  )}
-                  <p className="cx-menu-label">New members can see</p>
-                  {HISTORY.map(([value, label]) => (
-                    <button key={value} type="button" role="menuitemradio" aria-checked={(info.history ?? 'all') === value} onClick={() => setHistory(value)}>
-                      {label}
-                      {(info.history ?? 'all') === value && <Icon name="check" size={18} />}
-                    </button>
-                  ))}
                 </div>
               </>
             )}
@@ -595,6 +570,11 @@ export function GroupChat() {
                 <Icon name="back" /> Reply
               </button>
             )}
+            {held.sender_id !== me.id && (
+              <button type="button" role="menuitem" onClick={() => replyPrivately(held)}>
+                <Icon name="chat" /> Reply privately
+              </button>
+            )}
             {held.body && (
               <button type="button" role="menuitem" onClick={() => copy(held)}>
                 <Icon name="copy" /> Copy text
@@ -656,6 +636,208 @@ export function GroupChat() {
           onClose={closePicked}
           onSend={sendPicked}
         />
+      )}
+
+      {viewing && <Viewer m={viewing} onClose={() => setViewing(null)} onSave={() => saveToPhone(viewing, toast)} />}
+    </div>
+  );
+}
+
+/** The group's picture: the photo the team chose, or the Motion Dojo logo */
+export function GroupPhoto({ url, size }: { url?: string | null; size: number }) {
+  return (
+    <span className="cx-group-ico" style={{ width: size, height: size }} aria-hidden="true">
+      <img src={url || '/assets/favicon-128.png'} alt="" width={size} height={size} />
+    </span>
+  );
+}
+
+/* ================= Group info ================= */
+function MemberRow({ p, me }: { p: Profile; me: string }) {
+  const online = useOnline(p.id);
+  return (
+    <li>
+      <A path={`/u/${p.handle}`} className="cx-gi-member">
+        <span className="cx-av-wrap">
+          <Avatar p={p} size={44} />
+          {online && <span className="cx-online-dot" aria-label="Online" />}
+        </span>
+        <span className="cx-gi-text">
+          <b>
+            {p.id === me ? 'You' : p.name}
+            {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
+          </b>
+          <small>@{p.handle}</small>
+        </span>
+        {p.is_sensei ? <em className="cx-gi-role">Grand Sensei</em> : p.is_moderator ? <em className="cx-gi-role">Team</em> : null}
+      </A>
+    </li>
+  );
+}
+
+export function GroupInfoScreen() {
+  const { api, me, toast, ask } = useConnect();
+  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  const [info, setInfo] = useState<GroupInfo | null | undefined>(() => peek<GroupInfo | null>('groupInfo'));
+  const [members, setMembers] = useState<Profile[] | null>(null);
+  const [media, setMedia] = useState<GroupMessage[]>([]);
+  const [tab, setTab] = useState<'members' | 'media' | 'settings'>('members');
+  const [q, setQ] = useState('');
+  const [viewing, setViewing] = useState<GroupMessage | null>(null);
+  const [busy, setBusy] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!me) return;
+    api.groupInfo().then(setInfo).catch(() => setInfo(null));
+    api.groupMembers().then(setMembers).catch(() => setMembers([]));
+    api
+      .listGroupMessages()
+      .then((l) => setMedia(l.filter((m) => !m.deleted_at && (m.kind === 'image' || m.kind === 'video') && m.media_url).reverse()))
+      .catch(() => {});
+  }, [api, me]);
+
+  if (me === undefined || info === undefined) return <Loading />;
+  if (!me || info === null) return <Empty title="The group is for Black Belt members" />;
+
+  const save = async (s: Parameters<typeof api.setGroupSettings>[0], done?: string) => {
+    setInfo({ ...info, ...s });
+    await api
+      .setGroupSettings(s)
+      .then(() => done && toast(done))
+      .catch((e: Error) => toast(e.message));
+  };
+  const rename = async () => {
+    const name = ((await ask({ title: 'Group name', input: info.name || 'Dojo group', confirm: 'Save' })) || '').trim().slice(0, 60);
+    if (name) save({ name });
+  };
+  const changePhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const url = await api.uploadImage(file, 'avatars');
+      await save({ photo_url: url }, 'Group photo updated');
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const term = q.trim().toLowerCase();
+  const list = (members ?? [])
+    .filter((p) => !term || p.name.toLowerCase().includes(term) || p.handle.toLowerCase().includes(term))
+    // the team first, then everyone by name
+    .sort((a, b) => Number(b.is_sensei || b.is_moderator) - Number(a.is_sensei || a.is_moderator) || a.name.localeCompare(b.name));
+
+  return (
+    <div className="cx-col cx-gi">
+      <A path="/messages/group" className="cx-back">
+        <Icon name="back" size={20} />
+        Back to the group
+      </A>
+
+      <div className="cx-gi-head">
+        <GroupPhoto url={info.photo_url} size={96} />
+        <h1>{info.name || 'Dojo group'}</h1>
+        <p>{info.members} members</p>
+        {team && (
+          <div className="cx-gi-actions">
+            <button type="button" className="btn btn-light btn-sm" onClick={() => photoInput.current?.click()} disabled={busy}>
+              {busy ? 'Uploading…' : 'Change photo'}
+            </button>
+            <button type="button" className="btn btn-light btn-sm" onClick={rename}>
+              Rename
+            </button>
+            <input ref={photoInput} type="file" accept="image/*" className="sr-only" onChange={(e) => (changePhoto(e.target.files?.[0]), (e.target.value = ''))} />
+          </div>
+        )}
+      </div>
+
+      <div className="cx-gi-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === 'members'} onClick={() => setTab('members')}>
+          Members
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'media'} onClick={() => setTab('media')}>
+          Media{media.length ? ` (${media.length})` : ''}
+        </button>
+        {team && (
+          <button type="button" role="tab" aria-selected={tab === 'settings'} onClick={() => setTab('settings')}>
+            Settings
+          </button>
+        )}
+      </div>
+
+      {tab === 'members' &&
+        (!members ? (
+          <Loading label="Loading members" />
+        ) : (
+          <>
+            <label className="cx-search cx-gi-search">
+              <Icon name="search" size={20} />
+              <input type="search" placeholder="Search members" value={q} onChange={(e) => setQ(e.target.value)} />
+            </label>
+            <ul className="cx-gi-list">
+              {list.map((p) => (
+                <MemberRow key={p.id} p={p} me={me.id} />
+              ))}
+              {list.length === 0 && <li className="cx-gi-none">No one matches “{q}”.</li>}
+            </ul>
+          </>
+        ))}
+
+      {tab === 'media' &&
+        (media.length === 0 ? (
+          <Empty title="No photos or videos yet" />
+        ) : (
+          <ul className="cx-gi-media">
+            {media.map((m) => (
+              <li key={m.id}>
+                <button type="button" onClick={() => setViewing(m)} aria-label={m.kind === 'video' ? 'Play video' : 'Open photo'}>
+                  {m.kind === 'image' ? <img src={m.thumb || m.media_url!} alt="" loading="lazy" /> : m.thumb ? <img src={m.thumb} alt="" /> : <Icon name="video" size={26} />}
+                  {m.kind === 'video' && (
+                    <span className="cx-gi-play">
+                      <Icon name="play" size={16} filled />
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ))}
+
+      {tab === 'settings' && team && (
+        <div className="cx-gi-settings">
+          <section>
+            <h2>Who can post</h2>
+            <div className="cx-look-seg cx-gi-seg" role="radiogroup">
+              <button type="button" role="radio" aria-checked={!info.announce_only} className={!info.announce_only ? 'is-on' : ''} onClick={() => save({ announce_only: false }, 'Everyone can post')}>
+                Everyone
+              </button>
+              <button type="button" role="radio" aria-checked={info.announce_only} className={info.announce_only ? 'is-on' : ''} onClick={() => save({ announce_only: true }, 'Only the team can post')}>
+                Only the team
+              </button>
+            </div>
+          </section>
+          <section>
+            <h2>What new members can see</h2>
+            <ul className="cx-gi-options" role="radiogroup">
+              {HISTORY.map(([value, label]) => (
+                <li key={value}>
+                  <button type="button" role="radio" aria-checked={(info.history ?? 'all') === value} onClick={() => save({ history: value })}>
+                    <span>{label}</span>
+                    {(info.history ?? 'all') === value && <Icon name="check" size={20} />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+          {info.photo_url && (
+            <button type="button" className="btn btn-sm cx-ln-delete" onClick={() => save({ photo_url: null }, 'Group photo removed')}>
+              Remove group photo
+            </button>
+          )}
+        </div>
       )}
 
       {viewing && <Viewer m={viewing} onClose={() => setViewing(null)} onSave={() => saveToPhone(viewing, toast)} />}

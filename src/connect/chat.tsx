@@ -453,6 +453,17 @@ export async function makeThumb(file: File, kind: Attachment['kind']): Promise<s
   }
 }
 
+/** A private reply's quote: {name, text} from the group */
+export function readQuote(q: string | null | undefined): { name: string; text: string } | null {
+  if (!q) return null;
+  try {
+    const v = JSON.parse(q) as { name?: string; text?: string };
+    return v.text ? { name: v.name ?? 'Member', text: v.text } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** @username in a message shows in bold violet */
 export function withMentions(text: string) {
   const parts = text.split(/(@[A-Za-z0-9_]{2,30})/g);
@@ -622,7 +633,20 @@ export function Chat({ id }: { id: string }) {
   const retries = useRef(new Map<string, { a: Attachment; caption: string }>());
   const [downloaded, setDownloaded] = useState<Set<string>>(() => new Set());
   const [viewing, setViewing] = useState<Message | null>(null);
-  useEffect(() => setDownloaded(loadDownloaded()), []);
+  // "Reply privately" from the group: the group message to answer
+  const [quote, setQuote] = useState<string | null>(null);
+  useEffect(() => {
+    setDownloaded(loadDownloaded());
+    try {
+      const q = sessionStorage.getItem(`cx-quote-${id}`);
+      if (q) {
+        setQuote(q);
+        sessionStorage.removeItem(`cx-quote-${id}`);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [id]);
 
   const load = useCallback(async () => {
     const list = await api.listMessages(id);
@@ -683,12 +707,14 @@ export function Chat({ id }: { id: string }) {
   const sendText = async () => {
     const body = draft.trim();
     if (!body) return;
+    const q = quote;
     setDraft('');
+    setQuote(null);
     play('send');
-    const tmp: Message = { id: `tmp-${Date.now()}`, conversation_id: id, sender_id: me.id, body, created_at: new Date().toISOString(), kind: 'text', pending: true };
+    const tmp: Message = { id: `tmp-${Date.now()}`, conversation_id: id, sender_id: me.id, body, quote: q, created_at: new Date().toISOString(), kind: 'text', pending: true };
     setLocal((l) => [...l, tmp]);
     try {
-      const m = await api.sendMessage(id, body);
+      const m = await api.sendMessage(id, body, q);
       setMsgs((xs) => [...xs, m]);
       setLocal((l) => l.filter((x) => x.id !== tmp.id));
     } catch (e) {
@@ -965,6 +991,7 @@ export function Chat({ id }: { id: string }) {
                 onRetry={retry}
                 onDownload={download}
                 onOpen={(x) => (x.kind === 'file' ? openFile(x, toast) : setViewing(x))}
+                quote={readQuote(m.quote) ? { name: `${readQuote(m.quote)!.name} in the group`, text: readQuote(m.quote)!.text } : null}
               />
             </React.Fragment>
           );
@@ -993,6 +1020,18 @@ export function Chat({ id }: { id: string }) {
           </button>
         </div>
       ) : (
+        <div className="cx-group-foot">
+        {quote && readQuote(quote) && (
+          <div className="cx-replying">
+            <span>
+              <b>Replying privately to {readQuote(quote)!.name}</b>
+              <small>{readQuote(quote)!.text}</small>
+            </span>
+            <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Cancel reply" onClick={() => setQuote(null)}>
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+        )}
         <form
           className="cx-compose cx-chat-compose"
           onSubmit={(e) => {
@@ -1029,6 +1068,7 @@ export function Chat({ id }: { id: string }) {
             </button>
           )}
         </form>
+        </div>
       )}
 
       {held && (
@@ -1090,7 +1130,7 @@ export function Chat({ id }: { id: string }) {
 /* ================= Inbox ================= */
 function GroupInboxRow() {
   const { api } = useConnect();
-  const [p, setP] = useState<{ name: string; text: string; at: string; unread: number } | null>(null);
+  const [p, setP] = useState<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>(null);
   useEffect(() => {
     const load = () => api.groupPreview().then(setP).catch(() => {});
     load();
@@ -1103,7 +1143,7 @@ function GroupInboxRow() {
       <li>
         <A path="/messages/group" className={p.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
           <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true">
-            <img src="/assets/favicon-128.png" alt="" width={56} height={56} />
+            <img src={p.photo_url || '/assets/favicon-128.png'} alt="" width={56} height={56} />
           </span>
           <span className="cx-inbox-text">
             <span className="cx-inbox-top">

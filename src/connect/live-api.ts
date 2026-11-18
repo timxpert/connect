@@ -4,7 +4,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { prepareImage } from './resize';
-import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupMessage, Lesson, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -636,9 +636,13 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const link = paths.length ? await sign(paths) : () => null;
       return rows.map((m) => (m.media_path ? { ...m, media_url: link(m.media_path) } : m));
     },
-    async sendMessage(conversationId, body) {
+    async sendMessage(conversationId, body, quote) {
       const me = await needUid();
-      const { data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body }).select().single();
+      let { data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body, ...(quote ? { quote } : {}) }).select().single();
+      if (error && quote && /quote/.test(error.message)) {
+        // database without private replies yet: send it without the quote
+        ({ data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body }).select().single());
+      }
       fail(error);
       return data as unknown as Message;
     },
@@ -785,10 +789,10 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     },
 
     async groupInfo() {
-      const { data, error } = await sb.rpc('group_info');
+      const [{ data, error }, { data: g }] = await Promise.all([sb.rpc('group_info'), sb.from('group_settings').select('*').eq('id', 1).maybeSingle()]);
       if (error) return null;
-      const r = ((data ?? []) as { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null }[])[0];
-      return r ?? null;
+      const r = ((data ?? []) as GroupInfo[])[0];
+      return r ? { ...r, photo_url: (g as { photo_url?: string | null } | null)?.photo_url ?? null } : null;
     },
     async listGroupMessages() {
       const me = await uid();
@@ -823,8 +827,9 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const r = ((data ?? []) as unknown as { body: string; kind: string; deleted_at: string | null; created_at: string; sender: { name: string } | null }[])[0];
       const [{ data: n }, { data: g }] = await Promise.all([sb.rpc('group_unread'), sb.from('group_settings').select('*').eq('id', 1).maybeSingle()]);
       const name = (g as { name?: string } | null)?.name || 'Dojo group';
-      if (!r) return { name, text: 'No messages yet', at: '', unread: 0 };
-      return { name, text: `${r.sender?.name ?? 'Someone'}: ${preview(r)}`, at: r.created_at, unread: Number(n ?? 0) };
+      const photo_url = (g as { photo_url?: string | null } | null)?.photo_url ?? null;
+      if (!r) return { name, photo_url, text: 'No messages yet', at: '', unread: 0 };
+      return { name, photo_url, text: `${r.sender?.name ?? 'Someone'}: ${preview(r)}`, at: r.created_at, unread: Number(n ?? 0) };
     },
     async sendGroupMessage(body, replyTo) {
       const me = await needUid();
@@ -875,6 +880,11 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async setGroupSettings(s) {
       const { error } = await sb.from('group_settings').update(s).eq('id', 1);
       fail(error);
+    },
+    async groupMembers() {
+      const { data, error } = await sb.from('profiles').select('*').or('is_student.eq.true,is_sensei.eq.true,is_moderator.eq.true').order('name').limit(1000);
+      fail(error);
+      return (data ?? []) as Profile[];
     },
     async muteInGroup(userId, hours) {
       const me = await needUid();
