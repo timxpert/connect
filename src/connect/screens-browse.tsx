@@ -8,6 +8,8 @@ import { play } from './sounds';
 import { timeAgo } from './media';
 import { profileLinks } from './links';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
+
+const MAIN_SITE = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://joinmotiondojo.com';
 import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, BeltBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, visiblePhase, POST_DELETED } from './ui';
 
 /* ================= Feed ================= */
@@ -158,10 +160,25 @@ export function Students() {
 
   return (
     <div className="cx-col">
-      <div className="cx-intro">
-        <h1 className="cx-h1">Members</h1>
-        <p>Everyone on Black Belt in Motion Design.</p>
-      </div>
+      {member ? (
+        <div className="cx-intro">
+          <h1 className="cx-h1">Members</h1>
+          <p>Everyone on Black Belt in Motion Design.</p>
+        </div>
+      ) : (
+        <section className="cx-guest" aria-labelledby="guest-title">
+          <h1 id="guest-title">Meet the Motion Dojo members</h1>
+          <p>Smartphone motion designers learning Alight Motion together on Black Belt. Tap anyone to see their work.</p>
+          <div className="cx-guest-btns">
+            <a className="btn btn-paper" href={`${MAIN_SITE}/blackbelt`}>
+              Become a member
+            </a>
+            <A path="/login" className="cx-guest-signin">
+              Already a member? Sign in
+            </A>
+          </div>
+        </section>
+      )}
 
       {member && (
       <div className="cx-filters">
@@ -201,24 +218,31 @@ export function Students() {
           {member && <p>Try another name, skill or phase.</p>}
         </Empty>
       ) : (
-        <ul className="cx-people">
+        <ul className="cx-cards">
           {list.map((p) => (
             <li key={p.id}>
-              <A path={`/u/${p.handle}`} className="cx-person-row">
-                <Avatar p={p} size={56} />
-                <span className="cx-person-row-text">
-                  <span className="cx-person-name">
-                    {p.name}
-                    <BeltBadge p={p} />
-                    {p.sample && <SampleTag />}
-                  </span>
-                  <span className="cx-person-meta">
-                    @{p.handle}
-                    {p.country && <> · {p.country}</>}
-                    {visiblePhase(p, me) && <> · Phase {visiblePhase(p, me)}: {PHASES[visiblePhase(p, me)! - 1]}</>}
-                  </span>
-                  {p.skills.length > 0 && <span className="cx-person-skills">{p.skills.slice(0, 4).join(' · ')}</span>}
+              <A path={`/u/${p.handle}`} className="cx-card">
+                <span className="cx-card-cover" style={p.cover_url ? { backgroundImage: `url(${p.cover_url})` } : undefined} />
+                <span className="cx-card-av">
+                  <Avatar p={p} size={64} />
                 </span>
+                <span className="cx-card-name">
+                  {p.name}
+                  <BeltBadge p={p} small />
+                  {p.sample && <SampleTag />}
+                </span>
+                <span className="cx-card-meta">
+                  @{p.handle}
+                  {p.country && <> · {p.country}</>}
+                </span>
+                {visiblePhase(p, me) && <span className="cx-card-phase">Phase {visiblePhase(p, me)}: {PHASES[visiblePhase(p, me)! - 1]}</span>}
+                {p.skills.length > 0 && (
+                  <span className="cx-card-skills">
+                    {p.skills.slice(0, 3).map((k) => (
+                      <span key={k}>{k}</span>
+                    ))}
+                  </span>
+                )}
               </A>
             </li>
           ))}

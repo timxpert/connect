@@ -148,7 +148,9 @@ function Shell({ route }: { route: Route }) {
 
   // First visit, not signed in: ask "Are you a member?" before anything else
   const authKnown = me !== undefined;
-  const welcome = authKnown && !signedIn && !visitor && route.name !== 'login';
+  // The home address always asks again, so someone who tapped "just looking" by
+  // mistake (or pressed back) can still say they're a member
+  const welcome = authKnown && !signedIn && route.name !== 'login' && (route.name === 'feed' || !visitor);
 
   // Non-members only see Students, student profiles and their posts
   const guestOk = ['students', 'profile', 'post', 'login', 'feed'].includes(route.name) || (signedIn && route.name === 'settings');
@@ -279,10 +281,12 @@ function Shell({ route }: { route: Route }) {
                   </div>
                 )}
               </div>
-            ) : route.name === 'login' ? null : (
-              <A path="/login" className="btn btn-light btn-sm">
-                Sign in
-              </A>
+            ) : route.name === 'login' || welcome ? null : (
+              // visitors: the next step is joining, not signing in
+              <a href={`${MAIN_SITE}/blackbelt`} className="btn btn-lime btn-sm cx-join">
+                <span className="cx-join-long">Become a member</span>
+                <span className="cx-join-short">Join</span>
+              </a>
             )}
           </div>
         </div>

@@ -4586,3 +4586,145 @@ button:active:not(:disabled),
 .cx-auth-top img {
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);
 }
+
+/* ---------- Members page: visitor welcome band + member cards ---------- */
+.cx-guest {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 28px 22px;
+  border-radius: 24px;
+  background: var(--violet);
+  color: #fff;
+}
+.cx-guest h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 5vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+.cx-guest p {
+  margin: 0;
+  max-width: 46ch;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.55;
+}
+.cx-guest-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin-top: 6px;
+}
+.cx-guest .btn-paper {
+  background: #fff;
+  color: var(--violet);
+}
+.cx-guest-signin {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cx-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 760px) {
+  .cx-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+.cx-card {
+  display: grid;
+  justify-items: center;
+  height: 100%;
+  padding: 0 12px 16px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(20, 10, 46, 0.05), 0 10px 24px -18px rgba(20, 10, 46, 0.3);
+  color: var(--ink);
+  text-align: center;
+  text-decoration: none;
+  transition: translate 0.25s var(--ease), box-shadow 0.25s ease, scale 150ms ease-out;
+}
+@media (hover: hover) {
+  .cx-card:hover {
+    translate: 0 -2px;
+    box-shadow: 0 1px 2px rgba(20, 10, 46, 0.05), 0 16px 30px -18px rgba(20, 10, 46, 0.35);
+  }
+}
+.cx-card:active {
+  scale: 0.98;
+}
+.cx-card-cover {
+  width: calc(100% + 24px);
+  height: 64px;
+  margin: 0 -12px;
+  background: var(--tint) center / cover no-repeat;
+}
+.cx-card-av {
+  margin-top: -32px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px #fff;
+  line-height: 0;
+}
+.cx-card-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 6px;
+  margin-top: 10px;
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+.cx-card-meta {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.cx-card-phase {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--violet);
+  font-weight: 600;
+}
+.cx-card-skills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 10px;
+}
+.cx-card-skills span {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--tint);
+  font-size: 0.72rem;
+  color: var(--ink);
+}
+.cx-card {
+  align-content: start;
+}
+.cx-join-short {
+  display: none;
+}
+@media (max-width: 480px) {
+  .cx-join-long {
+    display: none;
+  }
+  .cx-join-short {
+    display: inline;
+  }
+}
