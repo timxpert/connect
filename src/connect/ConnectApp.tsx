@@ -270,7 +270,7 @@ function Shell({ route }: { route: Route }) {
   }, [route, authKnown, welcome, member]);
 
   return (
-    <div className={(route.name === 'chat' || route.name === 'group') && member ? 'cx is-chat' : 'cx'} style={lookStyle} data-wall={look.wall === 'photo' && !look.photo ? 'plain' : look.wall}>
+    <div className={(route.name === 'chat' || route.name === 'group') && member ? 'cx is-chat' : 'cx'} style={lookStyle} data-wall={look.wall === 'photo' && !look.photo ? 'plain' : look.wall} data-pattern={look.wall === 'photo' && look.photo ? 'none' : look.pattern}>
       {api.mode === 'demo' && (
         <p className="cx-preview-bar">Preview with sample members. Nothing here is real until the database is connected.</p>
       )}

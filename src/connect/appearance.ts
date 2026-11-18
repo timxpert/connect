@@ -6,14 +6,15 @@ import { useEffect, useState } from 'react';
 
 export type ThemeChoice = 'light' | 'dark' | 'system';
 export type ChatColor = 'violet' | 'midnight' | 'lime' | 'ocean' | 'rose' | 'sunset' | 'forest';
-export type Wallpaper = 'plain' | 'dots' | 'keyframes' | 'lavender' | 'mint' | 'night' | 'photo';
+export type Wallpaper = 'plain' | 'lavender' | 'mint' | 'sky' | 'peach' | 'night' | 'photo';
+export type Pattern = 'none' | 'dots' | 'keyframes';
 
-export type Appearance = { theme: ThemeChoice; chat: ChatColor; wall: Wallpaper; photo: string | null };
+export type Appearance = { theme: ThemeChoice; chat: ChatColor; wall: Wallpaper; pattern: Pattern; photo: string | null };
 
 const KEY = 'cx-appearance-v1';
 const PHOTO = 'cx-wallpaper-photo';
 const EVENT = 'cx:appearance';
-const DEFAULT: Appearance = { theme: 'light', chat: 'violet', wall: 'plain', photo: null };
+const DEFAULT: Appearance = { theme: 'light', chat: 'violet', wall: 'plain', pattern: 'none', photo: null };
 
 /** Your bubble colour, its text, the time stamp and the "seen" tick */
 export const CHAT_COLORS: Record<ChatColor, { label: string; bg: string; ink: string; meta: string; seen: string }> = {
@@ -28,18 +29,29 @@ export const CHAT_COLORS: Record<ChatColor, { label: string; bg: string; ink: st
 
 export const WALLPAPERS: { id: Wallpaper; label: string }[] = [
   { id: 'plain', label: 'Plain' },
-  { id: 'dots', label: 'Dots' },
-  { id: 'keyframes', label: 'Keyframes' },
   { id: 'lavender', label: 'Lavender' },
   { id: 'mint', label: 'Mint' },
+  { id: 'sky', label: 'Sky' },
+  { id: 'peach', label: 'Peach' },
   { id: 'night', label: 'Night' },
+];
+
+export const PATTERNS: { id: Pattern; label: string }[] = [
+  { id: 'none', label: 'None' },
+  { id: 'dots', label: 'Dots' },
+  { id: 'keyframes', label: 'Keyframes' },
 ];
 
 export function readAppearance(): Appearance {
   try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '{}') as Partial<Appearance>;
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}') as Partial<Appearance> & { wall?: string };
+    // dots and keyframes used to be wallpapers; they're patterns now
+    if (saved.wall === 'dots' || saved.wall === 'keyframes') {
+      saved.pattern = saved.wall;
+      saved.wall = 'plain';
+    }
     const photo = localStorage.getItem(PHOTO);
-    return { ...DEFAULT, ...saved, photo };
+    return { ...DEFAULT, ...saved, photo } as Appearance;
   } catch {
     return DEFAULT;
   }

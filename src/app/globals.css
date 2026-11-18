@@ -5864,45 +5864,53 @@ a.cx-ln-row:active {
   color: var(--mine-bg, var(--violet));
 }
 
-/* Wallpapers: behind the messages in a chat */
-.cx[data-wall='dots'] .cx-chat,
-.cx-look-wall[data-wall='dots'],
-.cx-look-preview[data-wall='dots'] {
-  background-color: var(--ground);
-  background-image: radial-gradient(var(--wall-ink, rgba(20, 10, 46, 0.09)) 1.2px, transparent 1.6px);
+/* Wallpapers: a colour (or your photo) behind the messages, plus an optional pattern */
+.cx, .cx-look-preview, .cx-look-wall {
+  --wall-bg: var(--ground);
+  --pat-dot: rgba(20, 10, 46, 0.1);
+  --pat-kf: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cg fill='%23140a2e' fill-opacity='.08'%3E%3Crect x='10' y='10' width='9' height='9' transform='rotate(45 14.5 14.5)'/%3E%3Crect x='38' y='38' width='7' height='7' transform='rotate(45 41.5 41.5)'/%3E%3C/g%3E%3C/svg%3E");
+}
+[data-wall='lavender'] { --wall-bg: #ece4ff; }
+[data-wall='mint'] { --wall-bg: #e3f3e8; }
+[data-wall='sky'] { --wall-bg: #e2eefc; }
+[data-wall='peach'] { --wall-bg: #fde9dc; }
+[data-wall='night'] {
+  --wall-bg: #140a2e;
+  --pat-dot: rgba(255, 255, 255, 0.1);
+  --pat-kf: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cg fill='%23ffffff' fill-opacity='.08'%3E%3Crect x='10' y='10' width='9' height='9' transform='rotate(45 14.5 14.5)'/%3E%3Crect x='38' y='38' width='7' height='7' transform='rotate(45 41.5 41.5)'/%3E%3C/g%3E%3C/svg%3E");
+}
+.cx[data-wall] .cx-chat,
+.cx-look-preview,
+.cx-look-wall {
+  background-color: var(--wall-bg);
+}
+.cx[data-pattern='dots'] .cx-chat,
+.cx-look-preview[data-pattern='dots'],
+.cx-look-wall[data-pattern='dots'] {
+  background-image: radial-gradient(var(--pat-dot) 1.2px, transparent 1.6px);
   background-size: 18px 18px;
 }
-.cx[data-wall='keyframes'] .cx-chat,
-.cx-look-wall[data-wall='keyframes'],
-.cx-look-preview[data-wall='keyframes'] {
-  background-color: var(--ground);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cg fill='%236d32e8' fill-opacity='.09'%3E%3Crect x='10' y='10' width='9' height='9' transform='rotate(45 14.5 14.5)'/%3E%3Crect x='38' y='38' width='7' height='7' transform='rotate(45 41.5 41.5)'/%3E%3C/g%3E%3C/svg%3E");
+.cx[data-pattern='keyframes'] .cx-chat,
+.cx-look-preview[data-pattern='keyframes'],
+.cx-look-wall[data-pattern='keyframes'] {
+  background-image: var(--pat-kf);
+  background-size: 56px 56px;
 }
-.cx[data-wall='lavender'] .cx-chat,
-.cx-look-wall[data-wall='lavender'],
-.cx-look-preview[data-wall='lavender'] {
-  background: #ece4ff;
-}
-.cx[data-wall='mint'] .cx-chat,
-.cx-look-wall[data-wall='mint'],
-.cx-look-preview[data-wall='mint'] {
-  background: #e3f3e8;
-}
-.cx[data-wall='night'] .cx-chat,
-.cx-look-wall[data-wall='night'],
-.cx-look-preview[data-wall='night'] {
-  background: #140a2e;
-}
-.cx[data-wall='photo'] .cx-chat,
-.cx-look-preview[data-wall='photo'] {
+.cx[data-wall='photo'] .cx-chat {
   background: var(--ground) var(--wall-photo) center / cover no-repeat;
 }
-.cx-look-wall[data-wall='plain'],
-.cx-look-preview[data-wall='plain'] {
-  background: var(--ground);
+.cx-look-preview {
+  background-position: center;
+  background-size: cover;
+}
+.cx-look-preview[data-pattern='dots'] { background-size: 18px 18px; }
+.cx-look-preview[data-pattern='keyframes'] { background-size: 56px 56px; }
+.cx-look-sub {
+  margin: 18px 0 10px;
+  font-size: 0.95rem;
 }
 /* Day labels and notes stay readable on any wallpaper */
-.cx:not([data-wall='plain']) .cx-chat .cx-day {
+.cx:not([data-wall='plain'][data-pattern='none']) .cx-chat .cx-day {
   justify-self: center;
   align-self: center;
   padding: 3px 10px;
@@ -6141,22 +6149,17 @@ html[data-cx-theme='dark'] .cx-ln-note.is-ok {
 html[data-cx-theme='dark'] .cx-look-colors button.is-on {
   box-shadow: 0 0 0 3px var(--ground), 0 0 0 5px var(--ink);
 }
-/* wallpapers that are light in the light theme get a dark version */
-html[data-cx-theme='dark'] .cx[data-wall='lavender'] .cx-chat,
-html[data-cx-theme='dark'] .cx-look-wall[data-wall='lavender'],
-html[data-cx-theme='dark'] .cx-look-preview[data-wall='lavender'] {
-  background: #221a38;
+/* wallpaper colours: darker versions in the dark theme */
+html[data-cx-theme='dark'] .cx,
+html[data-cx-theme='dark'] .cx-look-preview,
+html[data-cx-theme='dark'] .cx-look-wall {
+  --pat-dot: rgba(255, 255, 255, 0.08);
+  --pat-kf: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cg fill='%23ffffff' fill-opacity='.06'%3E%3Crect x='10' y='10' width='9' height='9' transform='rotate(45 14.5 14.5)'/%3E%3Crect x='38' y='38' width='7' height='7' transform='rotate(45 41.5 41.5)'/%3E%3C/g%3E%3C/svg%3E");
 }
-html[data-cx-theme='dark'] .cx[data-wall='mint'] .cx-chat,
-html[data-cx-theme='dark'] .cx-look-wall[data-wall='mint'],
-html[data-cx-theme='dark'] .cx-look-preview[data-wall='mint'] {
-  background: #13261c;
-}
-html[data-cx-theme='dark'] .cx[data-wall='keyframes'] .cx-chat,
-html[data-cx-theme='dark'] .cx-look-wall[data-wall='keyframes'],
-html[data-cx-theme='dark'] .cx-look-preview[data-wall='keyframes'] {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cg fill='%23a77bff' fill-opacity='.08'%3E%3Crect x='10' y='10' width='9' height='9' transform='rotate(45 14.5 14.5)'/%3E%3Crect x='38' y='38' width='7' height='7' transform='rotate(45 41.5 41.5)'/%3E%3C/g%3E%3C/svg%3E");
-}
+html[data-cx-theme='dark'] [data-wall='lavender'] { --wall-bg: #221a38; }
+html[data-cx-theme='dark'] [data-wall='mint'] { --wall-bg: #13261c; }
+html[data-cx-theme='dark'] [data-wall='sky'] { --wall-bg: #142236; }
+html[data-cx-theme='dark'] [data-wall='peach'] { --wall-bg: #2e1d14; }
 html[data-cx-theme='dark'] .cx-sample {
   background: var(--tint);
   color: var(--muted);
