@@ -190,19 +190,7 @@ export function Students() {
       ) : (
         <section className="cx-guest" aria-labelledby="guest-title">
           <h1 id="guest-title">Meet the members</h1>
-          <p>Smartphone motion designers learning Alight Motion together. Tap anyone to see their work.</p>
-          {list && list.length > 0 && (
-            <div className="cx-guest-faces">
-              <span className="cx-guest-stack" aria-hidden="true">
-                {list.slice(0, 5).map((m) => (
-                  <Avatar key={m.id} p={m} size={34} />
-                ))}
-              </span>
-              <span>
-                {list.length} {list.length === 1 ? 'member' : 'members'}
-              </span>
-            </div>
-          )}
+          <p>Smartphone motion designers learning Alight Motion together.</p>
           <div className="cx-guest-btns">
             <a className="btn btn-primary" href={`${MAIN_SITE}/blackbelt`}>
               Become a member
