@@ -44,10 +44,11 @@ export const PATTERNS: { id: Pattern; label: string }[] = [
 
 export function readAppearance(): Appearance {
   try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '{}') as Partial<Appearance> & { wall?: string };
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}') as Partial<Appearance>;
     // dots and keyframes used to be wallpapers; they're patterns now
-    if (saved.wall === 'dots' || saved.wall === 'keyframes') {
-      saved.pattern = saved.wall;
+    const oldWall = saved.wall as string | undefined;
+    if (oldWall === 'dots' || oldWall === 'keyframes') {
+      saved.pattern = oldWall;
       saved.wall = 'plain';
     }
     const photo = localStorage.getItem(PHOTO);
