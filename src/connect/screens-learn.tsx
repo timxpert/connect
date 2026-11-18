@@ -99,9 +99,9 @@ export function Learn() {
       <div className="cx-intro">
         <h1 className="cx-h1">Learn</h1>
         {learner ? (
-          <p>Black Belt in Motion Design. Finish a lesson and mark it done to open the next one.</p>
+          <p>Mark a lesson done to open the next one.</p>
         ) : (
-          <p>The Black Belt in Motion Design lessons. Members watch them here, one after another.</p>
+          <p>Every lesson in Black Belt in Motion Design.</p>
         )}
         {team && (
           <A path="/learn/new" className="btn btn-primary btn-sm">
@@ -133,14 +133,14 @@ export function Learn() {
               </span>
             </A>
           ) : done === published.length ? (
-            <p className="cx-ln-finished">You’ve finished every lesson so far.</p>
+            <p className="cx-ln-finished">You’ve done every lesson there is so far.</p>
           ) : null}
         </section>
       )}
 
       {!signedIn || (me && !learner) ? (
         <div className="cx-ln-join">
-          <p>Join Black Belt to watch the lessons, track your progress and share your work with the class.</p>
+          <p>Join Black Belt to watch the lessons.</p>
           <a href={`${MAIN_SITE}/blackbelt`} className="btn btn-lime btn-sm">
             Become a member
           </a>
@@ -148,9 +148,7 @@ export function Learn() {
       ) : null}
 
       {list.length === 0 ? (
-        <Empty title={team ? 'No lessons yet' : 'Lessons are on the way'}>
-          <p>{team ? 'Add the first lesson and it shows up here for students.' : 'The first lessons will appear here soon.'}</p>
-        </Empty>
+        <Empty title="No lessons yet">{team && <p>Add the first lesson and students will see it here.</p>}</Empty>
       ) : (
         PHASES.map((name, i) => {
           const phase = i + 1;
@@ -181,7 +179,7 @@ export function Learn() {
                       <span className="cx-ln-text">
                         <b>{l.title}</b>
                         <small>
-                          {l.duration || (l.has_video ? 'Video' : 'Coming soon')}
+                          {l.duration || (l.has_video ? 'Video' : 'No video yet')}
                           {team && !l.published && <em className="cx-ln-tag">Draft</em>}
                           {team && !l.has_video && <em className="cx-ln-tag">No video</em>}
                         </small>
@@ -244,7 +242,7 @@ function Player({ url, title, mark }: { url: string; title: string; mark: string
     return (
       <div className="cx-player is-empty">
         <Icon name="video" size={30} />
-        <span>The video for this lesson is coming soon.</span>
+        <span>No video yet</span>
       </div>
     );
   }
@@ -309,7 +307,7 @@ export function LessonScreen({ id }: { id: string }) {
       <div className="cx-col">
         {back}
         <Empty title="This lesson is for Black Belt members">
-          <p>Join to watch every lesson and track your progress.</p>
+          <p>Join Black Belt to watch it.</p>
           <a href={`${MAIN_SITE}/blackbelt`} className="btn btn-lime btn-sm">
             Become a member
           </a>
@@ -322,10 +320,7 @@ export function LessonScreen({ id }: { id: string }) {
       <div className="cx-col">
         {back}
         <Empty title="This lesson isn’t open yet">
-          <p>Finish the lesson before it and mark it done, and this one opens.</p>
-          <A path="/learn" className="btn btn-primary btn-sm">
-            See where you are
-          </A>
+          <p>Mark the lesson before it as done to open this one.</p>
         </Empty>
       </div>
     );
@@ -334,9 +329,7 @@ export function LessonScreen({ id }: { id: string }) {
     return (
       <div className="cx-col">
         {back}
-        <Empty title="Lesson not found">
-          <p>It may have been moved or removed.</p>
-        </Empty>
+        <Empty title="Lesson not found" />
       </div>
     );
   }

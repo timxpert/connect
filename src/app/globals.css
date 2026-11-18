@@ -4940,10 +4940,7 @@ button:active:not(:disabled),
 .cx-ln-progress {
   display: grid;
   gap: 12px;
-  margin-bottom: 32px;
-  padding: 20px;
-  border-radius: var(--r-lg);
-  background: var(--paper);
+  margin-bottom: 36px;
 }
 .cx-ln-progress-row {
   display: flex;
@@ -5044,11 +5041,9 @@ button:active:not(:disabled),
   letter-spacing: -0.02em;
 }
 .cx-ln-phase h2 small {
-  color: var(--violet);
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 .cx-ln-phase header span {
   color: var(--muted);
