@@ -4573,3 +4573,16 @@ button:active:not(:disabled),
 .cx-auth-top {
   border-radius: 28px;
 }
+
+/* sign-in band: flat Dojo violet, no gradient */
+.cx-auth-top {
+  background: var(--violet);
+  padding-bottom: 80px;
+}
+.cx-auth-top p {
+  max-width: 30ch;
+  color: rgba(255, 255, 255, 0.85);
+}
+.cx-auth-top img {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);
+}

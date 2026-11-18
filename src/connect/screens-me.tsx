@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { shakeField } from './shake';
-import Velaris from './velaris';
 import { useConnect } from './context';
 import { navigate } from './router';
 import { setVisitor } from './visitor';
@@ -58,9 +57,10 @@ function AuthIcon({ name }: { name: 'mail' | 'id' }) {
   );
 }
 
-export function Login() {
+export function Login({ team = false }: { team?: boolean }) {
   const { api, signedIn, me } = useConnect();
-  const [mode, setMode] = useState<'student' | 'link'>('student');
+  // members sign in with email + member ID; the team uses /team (an email link)
+  const mode: 'student' | 'link' = team ? 'link' : 'student';
   const [email, setEmail] = useState('');
   const [studentId, setStudentId] = useState('');
   const [sent, setSent] = useState(false);
@@ -104,21 +104,15 @@ export function Login() {
     }
   };
 
-  const switchTo = (m: 'student' | 'link') => {
-    setMode(m);
-    setErr('');
-    setSent(false);
-  };
 
   const member = mode === 'student';
   return (
     <div className="cx-auth">
       {/* top band: the Dojo gradient, the logo and what this page is */}
       <div className="cx-auth-top">
-        <Velaris className="cx-auth-bg" bg="#140a2e" colors={['#6d32e8', '#a77bff', '#3a1a8c', '#140a2e']} speed={1.2} grain={0.35} />
         <img src="/assets/favicon-128.png" alt="" width={48} height={48} />
-        <h1>{member ? 'Sign in to Connect' : 'Team sign-in'}</h1>
-        <p>{member ? 'For Motion Dojo members' : 'For the Motion Dojo team'}</p>
+        <h1>{member ? 'Sign in' : 'Team sign-in'}</h1>
+        <p>{member ? 'Use the email you enrolled with and your member ID.' : 'We’ll email you a link.'}</p>
       </div>
 
       <div className="cx-auth-card">
@@ -141,7 +135,7 @@ export function Login() {
                 <input
                   type="email"
                   autoComplete="email"
-                  placeholder={member ? 'The email you enrolled with' : 'you@example.com'}
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -177,14 +171,6 @@ export function Login() {
             </button>
           </form>
         )}
-
-        <div className="cx-auth-or" aria-hidden="true">
-          <span>or</span>
-        </div>
-        <button type="button" className="btn cx-auth-switch" onClick={() => switchTo(member ? 'link' : 'student')}>
-          <AuthIcon name={member ? 'mail' : 'id'} />
-          {member ? 'Team? Sign in with an email link' : 'Member? Sign in with your ID'}
-        </button>
 
         <p className="cx-auth-foot">
           Not a member yet?{' '}

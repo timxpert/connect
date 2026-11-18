@@ -13,7 +13,7 @@ export type Route =
   | { name: 'post'; id: string }
   | { name: 'messages' }
   | { name: 'chat'; id: string }
-  | { name: 'login' }
+  | { name: 'login'; team?: boolean }
   | { name: 'settings' }
   | { name: 'new' }
   | { name: 'connections' }
@@ -40,6 +40,7 @@ export function parse(path: string): Route {
   if (a === 'p' && b) return { name: 'post', id: b };
   if (a === 'messages') return b ? { name: 'chat', id: b } : { name: 'messages' };
   if (a === 'login') return { name: 'login' };
+  if (a === 'team' && !b) return { name: 'login', team: true };
   if (a === 'settings') return { name: 'settings' };
   if (a === 'new') return { name: 'new' };
   if (a === 'connections') return { name: 'connections' };

@@ -179,7 +179,7 @@ function Shell({ route }: { route: Route }) {
       case 'chat':
         return <Chat key={route.id} id={route.id} />;
       case 'login':
-        return <Login />;
+        return <Login key={route.team ? 'team' : 'member'} team={route.team} />;
       case 'settings':
         return <Settings />;
       case 'new':
@@ -279,7 +279,7 @@ function Shell({ route }: { route: Route }) {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : route.name === 'login' ? null : (
               <A path="/login" className="btn btn-light btn-sm">
                 Sign in
               </A>

@@ -242,7 +242,9 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       return () => data.subscription.unsubscribe();
     },
     async signIn(email) {
-      const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+      // Only accounts that already exist (the team) get a link; nobody can make a new account this way
+      const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo, shouldCreateUser: false } });
+      if (error && /signups? not allowed|not found|otp_disabled/i.test(error.message)) throw new Error('That email isn’t on the team list.');
       fail(error);
     },
     async studentSignIn(email, studentId) {
