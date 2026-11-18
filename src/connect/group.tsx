@@ -129,8 +129,26 @@ export function GroupChat() {
     if (!opened.current) {
       if (unreadFrom === undefined) return; // still finding out what's new
       opened.current = true;
-      const mark = unreadFrom ? list.querySelector<HTMLElement>('.cx-unread') : null;
-      list.scrollTop = mark ? mark.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - 8 : list.scrollHeight;
+      const place = () => {
+        const mark = unreadFrom ? list.querySelector<HTMLElement>('.cx-unread') : null;
+        list.scrollTop = mark ? mark.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - 8 : list.scrollHeight;
+      };
+      place();
+      // Photos and videos load after this and push things down: keep the same
+      // spot for a few seconds, unless the person starts scrolling themselves.
+      let touched = false;
+      const stop = () => (touched = true);
+      const again = () => !touched && place();
+      list.addEventListener('load', again, true);
+      list.addEventListener('loadedmetadata', again, true);
+      list.addEventListener('touchstart', stop, { passive: true });
+      list.addEventListener('wheel', stop, { passive: true });
+      window.setTimeout(() => {
+        list.removeEventListener('load', again, true);
+        list.removeEventListener('loadedmetadata', again, true);
+        list.removeEventListener('touchstart', stop);
+        list.removeEventListener('wheel', stop);
+      }, 6000);
       return;
     }
     list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
