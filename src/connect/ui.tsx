@@ -346,6 +346,16 @@ export function PersonLine({ p, when }: { p: Profile; when?: string }) {
 
 /* ---------- Media ---------- */
 /** Uploaded video files (not share links) play in a plain <video> */
+/** Bios are 150 characters at most; longer ones (written before the limit) are cut at the last whole word */
+export const BIO_MAX = 150;
+export function shortBio(bio: string | null | undefined) {
+  const b = (bio ?? '').trim();
+  if (b.length <= BIO_MAX) return b;
+  const cut = b.slice(0, BIO_MAX);
+  const space = cut.lastIndexOf(' ');
+  return (space > 100 ? cut.slice(0, space) : cut).replace(/[\s,;:–-]+$/, '') + '…';
+}
+
 export const isVideoFile = (url: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) || url.startsWith('blob:');
 
 export function Media({ post, priority = false }: { post: Pick<Post, 'kind' | 'media_url' | 'caption'>; priority?: boolean }) {

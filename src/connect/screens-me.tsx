@@ -244,7 +244,7 @@ export function Settings() {
       setF({
         name: me.name,
         handle: me.handle,
-        bio: me.bio,
+        bio: (me.bio ?? '').slice(0, 150),
         country: me.country,
         skills: me.skills,
         phase: me.phase,
@@ -390,8 +390,8 @@ export function Settings() {
         </label>
         <label className="field">
           <span>Bio</span>
-          <textarea rows={3} maxLength={400} value={f.bio} onChange={(e) => set('bio', e.target.value)} />
-          <small>{400 - f.bio.length} characters left</small>
+          <textarea rows={3} maxLength={150} value={f.bio} onChange={(e) => set('bio', e.target.value.slice(0, 150))} />
+          <small>{150 - f.bio.length} characters left</small>
         </label>
         <label className="field">
           <span>Country</span>

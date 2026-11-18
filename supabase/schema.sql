@@ -62,7 +62,7 @@ create table if not exists public.profiles (
   id            uuid primary key references auth.users (id) on delete cascade,
   handle        text not null unique check (handle ~ '^[a-z0-9_]{3,24}$'),
   name          text not null check (char_length(name) between 1 and 60),
-  bio           text not null default '' check (char_length(bio) <= 400),
+  bio           text not null default '' check (char_length(bio) <= 150),
   avatar_url    text,
   cover_url     text,
   country       text not null default '' check (char_length(country) <= 60),

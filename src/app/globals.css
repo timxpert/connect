@@ -4847,3 +4847,53 @@ button:active:not(:disabled),
 .cx-talent-work[data-count='2'] video {
   aspect-ratio: 4 / 3;
 }
+
+/* visitor intro straight on the page, not on a card */
+.cx-guest {
+  gap: 14px;
+  margin-bottom: 24px;
+  padding: 8px 0 4px;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+}
+.cx-guest h1 {
+  font-size: clamp(2rem, 7vw, 2.8rem);
+  letter-spacing: -0.035em;
+}
+.cx-guest p {
+  color: var(--muted);
+  font-size: 1.02rem;
+}
+.cx-guest-faces {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.cx-guest-stack {
+  display: flex;
+}
+.cx-guest-stack > * {
+  margin-left: -8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2.5px var(--paper);
+}
+.cx-guest-stack > :first-child {
+  margin-left: 0;
+}
+.cx-guest-signin {
+  color: var(--violet);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+.cx-guest .btn-primary {
+  color: #fff;
+}
+.cx .cx-guest-signin,
+.cx-guest .cx-guest-signin {
+  color: var(--violet);
+  text-decoration: none;
+}

@@ -232,3 +232,8 @@ language sql security definer set search_path = public as $$
   update public.profiles set last_seen_at = now() where id = auth.uid();
 $$;
 grant execute on function public.touch_seen() to authenticated;
+
+-- 10. Bios: 150 characters at most. Cuts any longer bio, then sets the limit.
+update public.profiles set bio = left(bio, 150) where char_length(bio) > 150;
+alter table public.profiles drop constraint if exists profiles_bio_check;
+alter table public.profiles add constraint profiles_bio_check check (char_length(bio) <= 150);

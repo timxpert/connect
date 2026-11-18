@@ -10,7 +10,7 @@ import { profileLinks } from './links';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
 
 const MAIN_SITE = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://joinmotiondojo.com';
-import { A, Avatar, Empty, Icon, isVideoFile, BELTS, LikeButton, Loading, Media, BeltBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, visiblePhase, POST_DELETED } from './ui';
+import { A, Avatar, Empty, Icon, isVideoFile, shortBio, BELTS, LikeButton, Loading, Media, BeltBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, visiblePhase, POST_DELETED } from './ui';
 
 /* ================= Feed ================= */
 type FeedName = 'community' | 'everyone' | 'connections';
@@ -189,14 +189,26 @@ export function Students() {
         </div>
       ) : (
         <section className="cx-guest" aria-labelledby="guest-title">
-          <h1 id="guest-title">Meet the Motion Dojo members</h1>
-          <p>Smartphone motion designers learning Alight Motion together on Black Belt. Tap anyone to see their work.</p>
+          <h1 id="guest-title">Meet the members</h1>
+          <p>Smartphone motion designers learning Alight Motion together. Tap anyone to see their work.</p>
+          {list && list.length > 0 && (
+            <div className="cx-guest-faces">
+              <span className="cx-guest-stack" aria-hidden="true">
+                {list.slice(0, 5).map((m) => (
+                  <Avatar key={m.id} p={m} size={34} />
+                ))}
+              </span>
+              <span>
+                {list.length} {list.length === 1 ? 'member' : 'members'}
+              </span>
+            </div>
+          )}
           <div className="cx-guest-btns">
-            <a className="btn btn-paper" href={`${MAIN_SITE}/blackbelt`}>
+            <a className="btn btn-primary" href={`${MAIN_SITE}/blackbelt`}>
               Become a member
             </a>
             <A path="/login" className="cx-guest-signin">
-              Already a member? Sign in
+              Sign in
             </A>
           </div>
         </section>
@@ -244,7 +256,7 @@ export function Students() {
           {list.map((p) => {
             const w = work[p.id];
             const first = p.name.split(' ')[0];
-            const headline = (p.bio || '').split(/(?<=[.!?])\s|\n/)[0].trim() || 'Motion designer';
+            const headline = shortBio(p.bio).split(/(?<=[.!?])\s|\n/)[0].trim() || 'Motion designer';
             return (
               <li key={p.id}>
                 <A path={`/u/${p.handle}`} className="cx-talent-card">
@@ -415,7 +427,6 @@ export function ProfileScreen({ handle }: { handle: string }) {
     toast(blocked ? `Unblocked ${p.name}.` : `Blocked ${p.name}. They can’t message you.`);
   };
 
-  const skillsLine = p.skills.join(' · ');
 
   return (
     <div className={p.is_sensei ? 'cx-pf is-sensei' : 'cx-pf'}>
@@ -503,7 +514,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
             @{p.handle}
             {status === 'connected' && <span className="cx-pf-connected"> · Connected</span>}
           </p>
-          {p.bio && <p className="cx-bio">{p.bio}</p>}
+          {p.bio && <p className="cx-bio">{shortBio(p.bio)}</p>}
 
           <ul className="cx-pf-meta">
             {p.is_sensei ? null : p.is_student ? (
@@ -525,7 +536,6 @@ export function ProfileScreen({ handle }: { handle: string }) {
               ))}
             </ul>
           )}
-          {skillsLine && <p className="cx-pf-skills">{skillsLine}</p>}
 
           <p className="cx-pf-stats">
             <span>
