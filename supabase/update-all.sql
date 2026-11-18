@@ -271,3 +271,45 @@ end $$;
 update public.profiles p set is_sensei = true
 from auth.users u
 where u.id = p.id and lower(u.email) in (select lower(email) from public.sensei_emails);
+
+-- 12. A member ID for the grand sensei, so he can sign in with email + ID like
+-- students (no email link). Being on the enrolment list never makes the grand
+-- sensei a student: he keeps posting to the Community feed as grand sensei and
+-- doesn't appear in the Members list.
+create or replace function public.profiles_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  uemail text;
+begin
+  if tg_op = 'INSERT' then
+    select lower(email) into uemail from auth.users where id = new.id;
+    new.is_student   := exists (select 1 from public.enrolments where lower(email) = uemail);
+    new.is_moderator := false;
+    new.is_sensei    := exists (select 1 from public.sensei_emails where lower(email) = uemail);
+  elsif auth.uid() is not null
+        and coalesce(auth.role(), '') <> 'service_role'
+        and coalesce(current_setting('connect.trusted', true), '') <> 'on' then
+    new.is_student   := old.is_student;
+    new.is_moderator := old.is_moderator;
+    new.is_sensei    := old.is_sensei;
+  end if;
+  if new.is_sensei then
+    new.is_student := false;
+  end if;
+  if not new.is_student or new.is_sensei then
+    new.phase := null;
+  end if;
+  return new;
+end $$;
+
+insert into public.enrolments (email, source)
+select lower(email), 'team' from public.sensei_emails
+on conflict (email) do nothing;
+
+update public.profiles p set is_student = false
+where p.is_sensei and p.is_student;
+
+-- Your member ID (keep it private: it works like a password)
+select e.email, e.student_id as member_id
+from public.enrolments e
+where lower(e.email) in (select lower(email) from public.sensei_emails);

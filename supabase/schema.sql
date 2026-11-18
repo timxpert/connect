@@ -24,7 +24,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.enrolments (
   email      text primary key,
   reference  text,
-  source     text not null default 'paystack',   -- 'paystack' | 'manual'
+  source     text not null default 'paystack',   -- 'paystack' | 'manual' | 'team'
   created_at timestamptz not null default now()
 );
 
@@ -246,6 +246,9 @@ begin
     new.is_student   := old.is_student;
     new.is_moderator := old.is_moderator;
     new.is_sensei    := old.is_sensei;
+  end if;
+  if new.is_sensei then
+    new.is_student := false;  -- the grand sensei is never listed as a student
   end if;
   if not new.is_student or new.is_sensei then
     new.phase := null;
