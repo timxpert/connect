@@ -189,8 +189,8 @@ export function Students() {
         </div>
       ) : (
         <section className="cx-guest" aria-labelledby="guest-title">
-          <h1 id="guest-title">Meet the members</h1>
-          <p>Connect with smartphone motion designers and see what they can create.</p>
+          <h1 id="guest-title">Meet the Keyframe Ninjas</h1>
+          <p>Meet them, connect with them and see their best work.</p>
           <div className="cx-guest-btns">
             <a className="btn btn-primary" href={`${MAIN_SITE}/blackbelt`}>
               Become a member
