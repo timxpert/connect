@@ -6360,3 +6360,4 @@ html[data-cx-theme='dark'] .cx-look-seg button.is-on {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.cx-error-detail { max-width: 40ch; margin: 0 auto 12px; color: var(--muted); font-family: ui-monospace, monospace; font-size: 0.8rem; overflow-wrap: anywhere; }

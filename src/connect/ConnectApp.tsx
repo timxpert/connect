@@ -57,6 +57,29 @@ export function ConnectApp() {
   );
 }
 
+/** If a screen breaks, say so on that screen (with the reason) instead of failing silently */
+class ScreenGuard extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    console.error('[connect] screen error', error);
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="cx-empty">
+        <p className="cx-empty-title">This screen didn’t open</p>
+        <p className="cx-error-detail">{this.state.error.message}</p>
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => window.location.reload()}>
+          Reload
+        </button>
+      </div>
+    );
+  }
+}
+
 const TABS = [
   { path: '/', label: 'Feed', icon: 'home' as const, match: ['feed', 'post'] },
   { path: '/learn', label: 'Learn', icon: 'learn' as const, match: ['learn', 'lesson', 'lesson-edit', 'assignment'] },
@@ -386,7 +409,7 @@ function Shell({ route }: { route: Route }) {
       )}
 
       <main className="cx-main" id="main">
-        {screen}
+        <ScreenGuard key={JSON.stringify(route)}>{screen}</ScreenGuard>
       </main>
 
       {member && !welcome && (
