@@ -82,3 +82,87 @@ begin
     order by (p.banned_at is not null), 7 desc, d.last_seen_at desc nulls last;
 end $$;
 grant execute on function public.team_devices() to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Removing and banning people from the group (they stay on Connect)
+-- Remove: they leave the group and can join again themselves.
+-- Ban:    they leave the group and can't join again until the team lets them.
+-- ---------------------------------------------------------------------
+create table if not exists public.group_removed (
+  user_id uuid primary key references public.profiles (id) on delete cascade,
+  banned  boolean not null default false,
+  by      uuid references public.profiles (id) on delete set null,
+  at      timestamptz not null default now()
+);
+alter table public.group_removed enable row level security;
+drop policy if exists gremoved_read on public.group_removed;
+create policy gremoved_read on public.group_removed for select to authenticated
+  using (user_id = auth.uid() or public.is_team(auth.uid()));
+
+create or replace function public.in_group(uid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select is_student or is_sensei or is_moderator from public.profiles where id = uid), false)
+     and not exists (select 1 from public.group_removed r where r.user_id = uid)
+$$;
+
+create or replace function public.remove_from_group(uid uuid, ban boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_team(auth.uid()) then raise exception 'team_only'; end if;
+  if public.is_team(uid) then raise exception 'cant_remove_team'; end if;
+  insert into public.group_removed (user_id, banned, by) values (uid, ban, auth.uid())
+  on conflict (user_id) do update set banned = excluded.banned, by = excluded.by, at = now();
+end $$;
+grant execute on function public.remove_from_group(uuid, boolean) to authenticated;
+
+create or replace function public.add_to_group(uid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_team(auth.uid()) then raise exception 'team_only'; end if;
+  delete from public.group_removed where user_id = uid;
+end $$;
+grant execute on function public.add_to_group(uuid) to authenticated;
+
+-- Someone who was removed (not banned) can come back
+create or replace function public.rejoin_group() returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from public.group_removed where user_id = auth.uid() and not banned;
+  if exists (select 1 from public.group_removed where user_id = auth.uid()) then
+    raise exception 'banned_from_group';
+  end if;
+end $$;
+grant execute on function public.rejoin_group() to authenticated;
+
+-- 'member', 'removed', 'banned' or 'none' (not a Black Belt member)
+create or replace function public.my_group_status() returns text
+language sql stable security definer set search_path = public as $$
+  select case
+    when exists (select 1 from public.group_removed where user_id = auth.uid() and banned) then 'banned'
+    when exists (select 1 from public.group_removed where user_id = auth.uid()) then 'removed'
+    when public.in_group(auth.uid()) then 'member'
+    else 'none' end
+$$;
+grant execute on function public.my_group_status() to authenticated;
+
+-- Everyone in the group (for the member list and @mentions)
+create or replace function public.group_members() returns setof public.profiles
+language sql stable security definer set search_path = public as $$
+  select p.* from public.profiles p
+  where public.in_group(auth.uid()) and public.in_group(p.id)
+  order by p.name
+$$;
+grant execute on function public.group_members() to authenticated;
+
+-- The member count leaves out people who were removed
+drop function if exists public.group_info();
+create function public.group_info()
+returns table (members int, announce_only boolean, pinned_id uuid, muted_until timestamptz, history text, name text)
+language sql stable security definer set search_path = public as $$
+  select (select count(*)::int from public.profiles p where public.in_group(p.id)),
+         s.announce_only, s.pinned_id,
+         (select until from public.group_mutes where user_id = auth.uid() and until > now()),
+         s.history, s.name
+  from public.group_settings s where s.id = 1 and public.in_group(auth.uid())
+$$;
+grant execute on function public.group_info() to authenticated;

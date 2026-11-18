@@ -299,6 +299,13 @@ export interface ConnectApi {
   setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null; history?: GroupHistory; name?: string; photo_url?: string | null }): Promise<void>;
   /** Everyone in the group: students and the team */
   groupMembers(): Promise<Profile[]>;
+  /** Am I in the group, removed from it, banned from it, or not a member at all */
+  groupStatus(): Promise<'member' | 'removed' | 'banned' | 'none'>;
+  rejoinGroup(): Promise<void>;
+  /** Team only */
+  removeFromGroup(userId: string, ban: boolean): Promise<void>;
+  addToGroup(userId: string): Promise<void>;
+  groupRemoved(): Promise<{ profile: Profile; banned: boolean }[]>;
   /** Team only. hours = 0 unmutes */
   muteInGroup(userId: string, hours: number): Promise<void>;
 

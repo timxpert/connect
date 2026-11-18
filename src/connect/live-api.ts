@@ -902,9 +902,36 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
     },
     async groupMembers() {
-      const { data, error } = await sb.from('profiles').select('*').or('is_student.eq.true,is_sensei.eq.true,is_moderator.eq.true').order('name').limit(1000);
+      const { data, error } = await sb.rpc('group_members');
+      if (!error) return (data ?? []) as Profile[];
+      // database without the member list yet
+      const r = await sb.from('profiles').select('*').or('is_student.eq.true,is_sensei.eq.true,is_moderator.eq.true').order('name').limit(1000);
+      fail(r.error);
+      return (r.data ?? []) as Profile[];
+    },
+    async groupStatus() {
+      const { data, error } = await sb.rpc('my_group_status');
+      if (error) return 'member';
+      return data as 'member' | 'removed' | 'banned' | 'none';
+    },
+    async rejoinGroup() {
+      const { error } = await sb.rpc('rejoin_group');
+      if (error?.message.includes('banned_from_group')) throw new Error('You can’t join the group right now.');
       fail(error);
-      return (data ?? []) as Profile[];
+    },
+    async removeFromGroup(userId, ban) {
+      const { error } = await sb.rpc('remove_from_group', { uid: userId, ban });
+      if (error && /remove_from_group/.test(error.message)) throw new Error('Run supabase/admin.sql in Supabase first.');
+      fail(error);
+    },
+    async addToGroup(userId) {
+      const { error } = await sb.rpc('add_to_group', { uid: userId });
+      fail(error);
+    },
+    async groupRemoved() {
+      const { data, error } = await sb.from('group_removed').select('banned, profile:profiles!group_removed_user_id_fkey(*)').order('at', { ascending: false });
+      if (error) return [];
+      return ((data ?? []) as unknown as { banned: boolean; profile: Profile }[]).filter((r) => r.profile);
     },
     async muteInGroup(userId, hours) {
       const me = await needUid();

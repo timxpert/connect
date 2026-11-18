@@ -981,7 +981,7 @@ export function Devices() {
     if (
       on &&
       !(await ask({
-        title: `Ban ${r.name}?`,
+        title: `Ban ${r.name} from Connect?`,
         body: 'They’re signed out everywhere, can’t sign in again, leave the group and Members, and their posts are hidden. You can unban them later.',
         confirm: 'Ban',
         danger: true,
@@ -1001,17 +1001,17 @@ export function Devices() {
   };
   const remove = async (r: DeviceRow) => {
     const typed = await ask({
-      title: `Remove ${r.name}?`,
-      body: `This deletes their account, everything they posted and their member ID. It can’t be undone; they’d have to enrol again. Type REMOVE to confirm.`,
-      input: 'REMOVE',
-      confirm: 'Remove',
+      title: `Delete ${r.name}’s account?`,
+      body: `This deletes their account, everything they posted and their member ID. It can’t be undone; they’d have to enrol again. Type DELETE to confirm.`,
+      input: 'DELETE',
+      confirm: 'Delete',
       danger: true,
     });
-    if ((typed || '').trim().toUpperCase() !== 'REMOVE') return;
+    if ((typed || '').trim().toUpperCase() !== 'DELETE') return;
     setBusy(r.user_id);
     try {
       await api.removeUser(r.user_id);
-      toast(`${r.name} was removed`);
+      toast(`${r.name}’s account was deleted`);
       await refresh();
     } catch (e) {
       toast((e as Error).message);
@@ -1059,10 +1059,10 @@ export function Devices() {
                 {sure === r.user_id ? 'Tap again to reset' : 'Reset member ID'}
               </button>
               <button type="button" className="btn btn-sm cx-dev-act" onClick={() => ban(r, true)} disabled={busy === r.user_id}>
-                Ban
+                Ban from Connect
               </button>
               <button type="button" className="btn btn-sm cx-dev-act cx-ln-delete" onClick={() => remove(r)} disabled={busy === r.user_id}>
-                Remove
+                Delete account
               </button>
             </span>
           </li>
@@ -1072,7 +1072,7 @@ export function Devices() {
 
       {banned.length > 0 && (
         <section className="cx-ln-block cx-dev-banned">
-          <h2>Banned</h2>
+          <h2>Banned from Connect</h2>
           <ul className="cx-dev-list">
             {banned.map((r) => (
               <li key={r.user_id}>
@@ -1085,7 +1085,7 @@ export function Devices() {
                     Unban
                   </button>
                   <button type="button" className="btn btn-sm cx-dev-act cx-ln-delete" onClick={() => remove(r)} disabled={busy === r.user_id}>
-                    Remove
+                    Delete account
                   </button>
                 </span>
               </li>

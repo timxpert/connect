@@ -134,6 +134,8 @@ let group: RawGroup[] = [
 const groupRx = new Map<string, string>([['g1m:s2', '🔥'], ['g1m:s4', '🔥'], ['g3m:s2', '👍']]);
 const groupSet = { announce_only: false, pinned_id: 'g1m' as string | null, history: 'all' as 'all' | '14d' | '100' | 'none', name: 'Dojo group', photo_url: null as string | null };
 const groupMutes = new Map<string, number>();
+/** removed from the group: id -> banned */
+const groupOut = new Map<string, boolean>();
 let groupReadAt = ago(6);
 const briefs: Record<number, string> = { 1: 'Sample brief: animate a 5-second logo reveal using what you learned in phase 1.' };
 
@@ -447,7 +449,7 @@ export function createDemoApi(): ConnectApi {
     listLessons: () => wait(outline()),
     async groupInfo() {
       const me = current ? who(current) : null;
-      if (!me || !(me.is_student || me.is_sensei || me.is_moderator)) return null;
+      if (!me || !(me.is_student || me.is_sensei || me.is_moderator) || groupOut.has(me.id)) return null;
       const until = groupMutes.get(me.id);
       return wait({ members: people.filter((p) => p.is_student || p.is_sensei).length, ...groupSet, muted_until: until && until > Date.now() ? new Date(until).toISOString() : null });
     },
@@ -499,7 +501,26 @@ export function createDemoApi(): ConnectApi {
     async setGroupSettings(s) {
       Object.assign(groupSet, s);
     },
-    groupMembers: () => wait(people.filter((p) => p.is_student || p.is_sensei || p.is_moderator)),
+    groupMembers: () => wait(people.filter((p) => (p.is_student || p.is_sensei || p.is_moderator) && !groupOut.has(p.id))),
+    groupStatus: async () => {
+      if (!current) return 'none';
+      const out = groupOut.get(current);
+      if (out !== undefined) return out ? 'banned' : 'removed';
+      const p = who(current);
+      return p.is_student || p.is_sensei || p.is_moderator ? 'member' : 'none';
+    },
+    async rejoinGroup() {
+      const me = needMe();
+      if (groupOut.get(me)) throw new Error('You can’t join the group right now.');
+      groupOut.delete(me);
+    },
+    async removeFromGroup(userId, ban) {
+      groupOut.set(userId, ban);
+    },
+    async addToGroup(userId) {
+      groupOut.delete(userId);
+    },
+    groupRemoved: () => wait([...groupOut].map(([id, banned]) => ({ profile: who(id), banned }))),
     async muteInGroup(userId, hours) {
       if (hours > 0) groupMutes.set(userId, Date.now() + hours * 3600_000);
       else groupMutes.delete(userId);

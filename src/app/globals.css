@@ -6396,3 +6396,23 @@ html[data-cx-theme='dark'] .cx-look-seg button.is-on {
   margin: 28px 0 10px;
   font-size: 1.05rem;
 }
+.cx-gi-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cx-gi-row > .cx-gi-member {
+  flex: 1;
+  min-width: 0;
+}
+.cx-gi-removed h2 {
+  margin: 24px 0 8px;
+  font-size: 1rem;
+}
+.cx-sheet-title {
+  margin: 0;
+  padding: 4px 16px 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}

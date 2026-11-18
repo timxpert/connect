@@ -168,7 +168,7 @@ export function GroupChat() {
 
   if (!signedIn) return <Empty title="Sign in to see the group" />;
   if (me === undefined || info === undefined) return error ? <Empty title="The group can’t load">{<p>{error}</p>}</Empty> : <Loading />;
-  if (!me || info === null) return <Empty title="The Dojo group is for Black Belt members" />;
+  if (!me || info === null) return <NotInGroup onBack={() => load().catch(() => {})} />;
 
   const muted = info.muted_until && new Date(info.muted_until).getTime() > Date.now();
   const canSend = !muted && (team || !info.announce_only);
@@ -648,10 +648,18 @@ export function GroupChat() {
                 <Icon name="bookmark" /> {info.pinned_id === held.id ? 'Unpin' : 'Pin to the top'}
               </button>
             )}
-            {team && held.sender_id !== me.id && !held.sender?.is_sensei && (
-              <button type="button" role="menuitem" onClick={() => mute(held)}>
-                <Icon name="close" /> Mute {held.sender?.name} for 24 hours
-              </button>
+            {team && held.sender_id !== me.id && !held.sender?.is_sensei && !held.sender?.is_moderator && (
+              <>
+                <button type="button" role="menuitem" onClick={() => mute(held)}>
+                  <Icon name="close" /> Mute {held.sender?.name} for 24 hours
+                </button>
+                <button type="button" role="menuitem" className="cx-danger" onClick={() => (setHeld(null), outOfGroup(api, ask, toast, held.sender!, false))}>
+                  <Icon name="out" /> Remove {held.sender?.name} from the group
+                </button>
+                <button type="button" role="menuitem" className="cx-danger" onClick={() => (setHeld(null), outOfGroup(api, ask, toast, held.sender!, true))}>
+                  <Icon name="close" /> Ban {held.sender?.name} from the group
+                </button>
+              </>
             )}
             {held.sender_id === me.id || team ? (
               <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>
@@ -703,10 +711,73 @@ export function GroupPhoto({ url, size }: { url?: string | null; size: number })
 }
 
 /* ================= Group info ================= */
-function MemberRow({ p, me }: { p: Profile; me: string }) {
+/** Team: take someone out of the group. Ban: they can't join again by themselves. */
+async function outOfGroup(
+  api: ReturnType<typeof useConnect>['api'],
+  ask: ReturnType<typeof useConnect>['ask'],
+  toast: (t: string) => void,
+  p: Profile,
+  ban: boolean,
+  done?: () => void,
+) {
+  const ok = await ask({
+    title: ban ? `Ban ${p.name} from the group?` : `Remove ${p.name} from the group?`,
+    body: ban
+      ? 'They leave the group and can’t join again until you let them back. They stay on Connect.'
+      : 'They leave the group but can join again. They stay on Connect.',
+    confirm: ban ? 'Ban' : 'Remove',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await api.removeFromGroup(p.id, ban);
+    toast(ban ? `${p.name} is banned from the group` : `${p.name} was removed from the group`);
+    done?.();
+  } catch (e) {
+    toast((e as Error).message);
+  }
+}
+
+/** Shown instead of the chat to someone who isn't in the group */
+function NotInGroup({ onBack }: { onBack: () => void }) {
+  const { api, toast } = useConnect();
+  const [status, setStatus] = useState<'member' | 'removed' | 'banned' | 'none' | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.groupStatus().then(setStatus).catch(() => setStatus('none'));
+  }, [api]);
+  if (!status) return <Loading />;
+  if (status === 'removed')
+    return (
+      <Empty title="You were removed from the group">
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await api.rejoinGroup();
+              onBack();
+            } catch (e) {
+              toast((e as Error).message);
+              setBusy(false);
+            }
+          }}
+        >
+          Join again
+        </button>
+      </Empty>
+    );
+  if (status === 'banned') return <Empty title="You can’t join the group right now" />;
+  return <Empty title="The group is for Black Belt members" />;
+}
+
+function MemberRow({ p, me, onMenu }: { p: Profile; me: string; onMenu?: (p: Profile) => void }) {
   const online = useOnline(p.id);
   return (
-    <li>
+    <li className="cx-gi-row">
+
       <A path={`/u/${p.handle}`} className="cx-gi-member">
         <span className="cx-av-wrap">
           <Avatar p={p} size={44} />
@@ -721,6 +792,11 @@ function MemberRow({ p, me }: { p: Profile; me: string }) {
         </span>
         {p.is_sensei ? <em className="cx-gi-role">Grand Sensei</em> : p.is_moderator ? <em className="cx-gi-role">Team</em> : null}
       </A>
+      {onMenu && p.id !== me && !p.is_sensei && !p.is_moderator && (
+        <button type="button" className="cx-icon-btn cx-icon-flat" aria-label={`Options for ${p.name}`} onClick={() => onMenu(p)}>
+          <Icon name="more" />
+        </button>
+      )}
     </li>
   );
 }
@@ -735,12 +811,20 @@ export function GroupInfoScreen() {
   const [q, setQ] = useState('');
   const [viewing, setViewing] = useState<GroupMessage | null>(null);
   const [busy, setBusy] = useState(false);
+  const [removed, setRemoved] = useState<{ profile: Profile; banned: boolean }[]>([]);
+  const [acting, setActing] = useState<Profile | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
+  const sheet = useDragToClose<HTMLDivElement>(() => setActing(null), Boolean(acting));
+  const reloadMembers = () => {
+    api.groupMembers().then(setMembers).catch(() => setMembers([]));
+    if (me?.is_sensei || me?.is_moderator) api.groupRemoved().then(setRemoved).catch(() => {});
+    api.groupInfo().then((i) => i && setInfo(i)).catch(() => {});
+  };
 
   useEffect(() => {
     if (!me) return;
     api.groupInfo().then(setInfo).catch(() => setInfo(null));
-    api.groupMembers().then(setMembers).catch(() => setMembers([]));
+    reloadMembers();
     api
       .listGroupMessages()
       .then((l) => setMedia(l.filter((m) => !m.deleted_at && (m.kind === 'image' || m.kind === 'video') && m.media_url).reverse()))
@@ -829,11 +913,40 @@ export function GroupInfoScreen() {
             </label>
             <ul className="cx-gi-list">
               {list.map((p) => (
-                <MemberRow key={p.id} p={p} me={me.id} />
+                <MemberRow key={p.id} p={p} me={me.id} onMenu={team ? setActing : undefined} />
               ))}
               {list.length === 0 && <li className="cx-gi-none">No one matches “{q}”.</li>}
             </ul>
+            {team && removed.length > 0 && (
+              <section className="cx-gi-removed">
+                <h2>Not in the group</h2>
+                <ul className="cx-gi-list">
+                  {removed.map(({ profile: p, banned }) => (
+                    <li key={p.id} className="cx-gi-row">
+                      <A path={`/u/${p.handle}`} className="cx-gi-member">
+                        <Avatar p={p} size={44} />
+                        <span className="cx-gi-text">
+                          <b>{p.name}</b>
+                          <small>{banned ? 'Banned' : 'Removed'}</small>
+                        </span>
+                      </A>
+                      <button
+                        type="button"
+                        className="btn btn-light btn-sm"
+                        onClick={async () => {
+                          await api.addToGroup(p.id).then(() => toast(`${p.name} is back in the group`)).catch((e: Error) => toast(e.message));
+                          reloadMembers();
+                        }}
+                      >
+                        Add back
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </>
+
         ))}
 
       {tab === 'media' &&
@@ -887,6 +1000,45 @@ export function GroupInfoScreen() {
               Remove group photo
             </button>
           )}
+        </div>
+      )}
+
+      {acting && (
+        <div className="cx-sheet-wrap" onClick={() => setActing(null)}>
+          <div className="cx-sheet cx-drag" role="menu" ref={sheet} onClick={(e) => e.stopPropagation()}>
+            <span className="cx-grab" aria-hidden="true" />
+            <p className="cx-sheet-title">{acting.name}</p>
+            <button type="button" role="menuitem" onClick={() => navigate(`/u/${acting.handle}`)}>
+              <Icon name="user" /> View profile
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="cx-danger"
+              onClick={() => {
+                const p = acting;
+                setActing(null);
+                outOfGroup(api, ask, toast, p, false, reloadMembers);
+              }}
+            >
+              <Icon name="out" /> Remove from the group
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="cx-danger"
+              onClick={() => {
+                const p = acting;
+                setActing(null);
+                outOfGroup(api, ask, toast, p, true, reloadMembers);
+              }}
+            >
+              <Icon name="close" /> Ban from the group
+            </button>
+            <button type="button" role="menuitem" onClick={() => setActing(null)}>
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
