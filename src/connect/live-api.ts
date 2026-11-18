@@ -823,7 +823,11 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         .select('body, kind, deleted_at, created_at, sender:profiles!group_messages_sender_id_fkey(name)')
         .order('created_at', { ascending: false })
         .limit(1);
-      if (error) return null;
+      if (error) {
+        // still show the group in Messages; opening it shows what's wrong
+        console.warn('[connect] group preview', error.message);
+        return { name: 'Dojo group', photo_url: null, text: 'Tap to open', at: '', unread: 0 };
+      }
       const r = ((data ?? []) as unknown as { body: string; kind: string; deleted_at: string | null; created_at: string; sender: { name: string } | null }[])[0];
       const [{ data: n }, { data: g }] = await Promise.all([sb.rpc('group_unread'), sb.from('group_settings').select('*').eq('id', 1).maybeSingle()]);
       const name = (g as { name?: string } | null)?.name || 'Dojo group';

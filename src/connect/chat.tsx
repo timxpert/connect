@@ -1132,7 +1132,11 @@ function GroupInboxRow() {
   const { api } = useConnect();
   const [p, setP] = useState<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>(null);
   useEffect(() => {
-    const load = () => api.groupPreview().then(setP).catch(() => {});
+    const load = () =>
+      api
+        .groupPreview()
+        .then(setP)
+        .catch(() => setP((x) => x ?? { name: 'Dojo group', text: 'Tap to open', at: '', unread: 0 }));
     load();
     const stop = api.subscribe('group_messages', '', load);
     return stop;
