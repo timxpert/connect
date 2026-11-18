@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { shakeField } from './shake';
+import Velaris from './velaris';
 import { useConnect } from './context';
 import { navigate } from './router';
 import { setVisitor } from './visitor';
@@ -38,6 +39,25 @@ export function Welcome() {
 }
 
 /* ================= Sign in ================= */
+function AuthIcon({ name }: { name: 'mail' | 'id' }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {name === 'mail' ? (
+        <>
+          <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
+          <path d="m4 7.5 8 5.5 8-5.5" />
+        </>
+      ) : (
+        <>
+          <rect x="3" y="5" width="18" height="14" rx="2.5" />
+          <circle cx="9" cy="11" r="2.2" />
+          <path d="M5.8 16.2c.6-1.6 1.8-2.4 3.2-2.4s2.6.8 3.2 2.4M14.5 10h3.5M14.5 13.5h3.5" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export function Login() {
   const { api, signedIn, me } = useConnect();
   const [mode, setMode] = useState<'student' | 'link'>('student');
@@ -90,29 +110,49 @@ export function Login() {
     setSent(false);
   };
 
+  const member = mode === 'student';
   return (
-    <div className="cx-narrow">
-      <div className="cx-panel">
-        <h1 className="cx-h1">{mode === 'student' ? 'Member sign-in' : 'Team sign-in'}</h1>
+    <div className="cx-auth">
+      {/* top band: the Dojo gradient, the logo and what this page is */}
+      <div className="cx-auth-top">
+        <Velaris className="cx-auth-bg" bg="#140a2e" colors={['#6d32e8', '#a77bff', '#3a1a8c', '#140a2e']} speed={1.2} grain={0.35} />
+        <img src="/assets/favicon-128.png" alt="" width={48} height={48} />
+        <h1>{member ? 'Sign in to Connect' : 'Team sign-in'}</h1>
+        <p>{member ? 'For Motion Dojo members' : 'For the Motion Dojo team'}</p>
+      </div>
+
+      <div className="cx-auth-card">
         {sent ? (
-          <p className="cx-lead">
-            Check <strong>{email}</strong> for a sign-in link. It works once and expires after an hour.
-          </p>
-        ) : (
-          <>
-            <p className="cx-lead">
-              {mode === 'student'
-                ? 'Use the email you enrolled with and the member ID you got after paying.'
-                : 'For the Motion Dojo team. We’ll email you a link that signs you in.'}
+          <div className="cx-auth-sent">
+            <span className="cx-auth-sent-ico" aria-hidden="true">
+              <AuthIcon name="mail" />
+            </span>
+            <h2>Check your email</h2>
+            <p>
+              We sent a sign-in link to <strong>{email}</strong>. It works once and expires after an hour.
             </p>
-            <form className="cx-form" onSubmit={submit} noValidate>
-              <label className="field">
-                <span>Email address</span>
-                <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </label>
-              {mode === 'student' && (
-                <label className="field">
-                  <span>Member ID</span>
+          </div>
+        ) : (
+          <form className="cx-form" onSubmit={submit} noValidate>
+            <label className="field cx-auth-field">
+              <span>Email</span>
+              <span className="cx-auth-input">
+                <AuthIcon name="mail" />
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder={member ? 'The email you enrolled with' : 'you@example.com'}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </span>
+            </label>
+            {member && (
+              <label className="field cx-auth-field">
+                <span>Member ID</span>
+                <span className="cx-auth-input">
+                  <AuthIcon name="id" />
                   <input
                     name="member-id"
                     autoComplete="off"
@@ -123,43 +163,44 @@ export function Login() {
                     onChange={(e) => setStudentId(e.target.value.toUpperCase())}
                     required
                   />
-                  <small>Lost it? Ask the community manager on WhatsApp.</small>
-                </label>
-              )}
-              {err && (
-                <p className="cx-error" role="alert">
-                  {err}
-                </p>
-              )}
-              <button type="submit" className="btn btn-primary" disabled={busy}>
-                {mode === 'student' ? (busy ? 'Signing in…' : 'Sign in') : busy ? 'Sending…' : 'Email me a sign-in link'}
-              </button>
-            </form>
-          </>
-        )}
-        <p className="cx-login-alt">
-          {mode === 'student' ? (
-            <>
-              <button
-                type="button"
-                className="cx-link-btn"
-                onClick={() => {
-                  setVisitor(true);
-                  navigate('/students');
-                }}
-              >
-                Not a member? Look around
-              </button>
-              <button type="button" className="cx-link-btn cx-quiet" onClick={() => switchTo('link')}>
-                Motion Dojo team
-              </button>
-            </>
-          ) : (
-            <button type="button" className="cx-link-btn" onClick={() => switchTo('student')}>
-              Back to member sign-in
+                </span>
+                <small>Lost it? Ask the community manager.</small>
+              </label>
+            )}
+            {err && (
+              <p className="cx-error" role="alert">
+                {err}
+              </p>
+            )}
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {member ? (busy ? 'Signing in…' : 'Sign in') : busy ? 'Sending…' : 'Email me a sign-in link'}
             </button>
-          )}
+          </form>
+        )}
+
+        <div className="cx-auth-or" aria-hidden="true">
+          <span>or</span>
+        </div>
+        <button type="button" className="btn cx-auth-switch" onClick={() => switchTo(member ? 'link' : 'student')}>
+          <AuthIcon name={member ? 'mail' : 'id'} />
+          {member ? 'Team? Sign in with an email link' : 'Member? Sign in with your ID'}
+        </button>
+
+        <p className="cx-auth-foot">
+          Not a member yet?{' '}
+          <button
+            type="button"
+            className="cx-link-btn"
+            onClick={() => {
+              setVisitor(true);
+              navigate('/students');
+            }}
+          >
+            Look around
+          </button>
         </p>
+      </div>
+
         {api.demoSignIn && (
           <div className="cx-demo">
             <p>
@@ -178,7 +219,6 @@ export function Login() {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

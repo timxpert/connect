@@ -4410,3 +4410,166 @@ button:active:not(:disabled),
     display: none;
   }
 }
+
+/* ---------- Sign in: Dojo band on top, form card overlapping it ---------- */
+.velaris {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+.velaris-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.72;
+}
+.cx-auth {
+  width: min(100%, 460px);
+  margin: 0 auto;
+  padding-bottom: 32px;
+}
+.cx-auth-top {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 36px 24px 84px;
+  border-radius: 0 0 28px 28px;
+  background: #140a2e;
+  color: #fff;
+  text-align: center;
+}
+@media (min-width: 520px) {
+  .cx-auth {
+    padding-top: 24px;
+  }
+  .cx-auth-top {
+    border-radius: 28px;
+  }
+}
+.cx-auth-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+.cx-auth-top img {
+  margin-bottom: 8px;
+  border-radius: 14px;
+}
+.cx-auth-top h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.cx-auth-top p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+.cx-auth-card {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  margin: -56px 16px 0;
+  padding: 24px 20px 20px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(20, 10, 46, 0.05), 0 18px 40px -24px rgba(20, 10, 46, 0.35);
+}
+.cx-auth-card .cx-form {
+  gap: 16px;
+}
+.cx-auth-card .btn {
+  width: 100%;
+}
+/* fields with an icon inside, like the references */
+.cx-auth-field > span:first-child {
+  font-size: 0.85rem;
+}
+.cx-auth-input {
+  position: relative;
+  display: block;
+}
+.cx-auth-input svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  translate: 0 -50%;
+  color: var(--muted);
+  pointer-events: none;
+}
+.cx .cx-auth-input input,
+.cx-auth-input input {
+  width: 100%;
+  padding-left: 44px;
+}
+.cx-auth-input:focus-within svg {
+  color: var(--violet);
+}
+/* "or" divider */
+.cx-auth-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.cx-auth-or::before,
+.cx-auth-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.btn.cx-auth-switch {
+  gap: 10px;
+  background: var(--tint);
+  color: var(--ink);
+}
+.btn.cx-auth-switch:hover:not(:disabled) {
+  background: #e9e6e0;
+}
+.cx-auth-foot {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.cx-auth-sent {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.cx-auth-sent h2 {
+  margin: 4px 0 0;
+  font-size: 1.2rem;
+}
+.cx-auth-sent p {
+  margin: 0;
+  color: var(--muted);
+}
+.cx-auth-sent-ico {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--tint);
+  color: var(--violet);
+}
+.cx-auth .cx-demo {
+  margin: 16px 16px 0;
+}
+.cx-auth-switch svg {
+  flex: none;
+}
+.cx-auth-top {
+  border-radius: 28px;
+}
