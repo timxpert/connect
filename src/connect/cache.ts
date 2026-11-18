@@ -4,6 +4,7 @@
    cache, so nothing shown is out of date after you act. */
 
 import type { ConnectApi } from './types';
+import { forgetDevice } from './device';
 
 // Reads that are safe to reuse for a moment
 const CACHED = new Set<keyof ConnectApi>([
@@ -19,6 +20,7 @@ const CACHED = new Set<keyof ConnectApi>([
   'getConversation',
   'listLessons',
   'getLesson',
+  'getBriefs',
 ]);
 // Reads that must always be fresh (polling, auth)
 const LIVE = new Set<keyof ConnectApi>([
@@ -36,6 +38,11 @@ const LIVE = new Set<keyof ConnectApi>([
   'listNotices',
   'markRead',
   'markDelivered',
+  'myAssignments',
+  'reviewQueue',
+  'teamDevices',
+  'claimDevice',
+  'checkDevice',
 ]);
 
 const TTL = 45_000;
@@ -138,6 +145,7 @@ export function withCache(api: ConnectApi): ConnectApi {
         return (...args: unknown[]) => {
           clear();
           forget();
+          forgetDevice();
           return (fn as (...a: unknown[]) => unknown).apply(target, args);
         };
       }

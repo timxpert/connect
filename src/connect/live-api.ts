@@ -4,7 +4,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { prepareImage } from './resize';
-import type { Comment, ConnectApi, ConnectionStatus, Conversation, Lesson, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, Lesson, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -262,7 +262,8 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       }
     },
     async signOut() {
-      await sb.auth.signOut();
+      // only this device: the one-device rule must not sign out the new device
+      await sb.auth.signOut({ scope: 'local' });
     },
 
     async me() {
@@ -723,6 +724,61 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async moveLesson(id, dir) {
       const { error } = await sb.rpc('move_lesson', { lid: id, dir });
       fail(error);
+    },
+
+    async myAssignments() {
+      const me = await uid();
+      if (!me) return [];
+      const { data, error } = await sb.from('assignments').select('*').eq('user_id', me).order('created_at', { ascending: false });
+      fail(error);
+      return (data ?? []) as Assignment[];
+    },
+    async submitAssignment(phase, kind, mediaUrl, caption) {
+      const { error } = await sb.rpc('submit_assignment', { ph: phase, media_kind: kind, url: mediaUrl, note: caption });
+      if (error) throw new Error(/members_only|finish_lessons|already_sent|no_media/.exec(error.message)?.[0] ?? error.message);
+    },
+    async getBriefs() {
+      const { data } = await sb.from('phase_briefs').select('phase, brief');
+      return Object.fromEntries(((data ?? []) as { phase: number; brief: string }[]).map((b) => [b.phase, b.brief]));
+    },
+    async saveBrief(phase, brief) {
+      const { error } = await sb.from('phase_briefs').upsert({ phase, brief });
+      fail(error);
+    },
+    async reviewQueue() {
+      const { data, error } = await sb
+        .from('assignments')
+        .select('*, student:profiles!assignments_user_id_fkey(*)')
+        .order('created_at', { ascending: true })
+        .limit(200);
+      fail(error);
+      const rows = (data ?? []) as Assignment[];
+      // waiting first, oldest first; then the latest reviewed
+      return [...rows.filter((r) => r.status === 'pending'), ...rows.filter((r) => r.status !== 'pending').reverse()];
+    },
+    async reviewAssignment(id, approve, note) {
+      const { error } = await sb.rpc('review_assignment', { aid: id, approve, note });
+      fail(error);
+    },
+    async claimDevice(token, label) {
+      const { error } = await sb.rpc('claim_device', { tok: token, lbl: label });
+      fail(error);
+    },
+    async checkDevice(token) {
+      const { data, error } = await sb.rpc('check_device', { tok: token });
+      // database not updated yet, or offline: don't sign anyone out
+      if (error) return true;
+      return Boolean(data);
+    },
+    async teamDevices() {
+      const { data, error } = await sb.rpc('team_devices');
+      fail(error);
+      return (data ?? []) as DeviceRow[];
+    },
+    async resetMemberId(userId) {
+      const { data, error } = await sb.rpc('reset_member_id', { uid: userId });
+      fail(error);
+      return String(data ?? '');
     },
 
     async report(target, id, reason) {

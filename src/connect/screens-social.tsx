@@ -235,6 +235,9 @@ export function Notifications() {
     const name = n.actor?.name ?? 'Someone';
     if (n.kind === 'community_post') return { text: `${name} posted to the Community feed.`, path: n.post_id ? `/p/${n.post_id}` : '/' };
     if (n.kind === 'connection_request') return { text: `${name} wants to connect with you.`, path: '/connections' };
+    if (n.kind === 'assignment_submitted') return { text: `${name} handed in an assignment.`, path: '/reviews' };
+    if (n.kind === 'assignment_approved') return { text: 'Your assignment was approved. The next phase is open.', path: '/learn' };
+    if (n.kind === 'assignment_changes') return { text: `${name} asked for changes on your assignment.`, path: '/learn' };
     return { text: `${name} accepted your connection request.`, path: n.actor ? `/u/${n.actor.handle}` : '/connections' };
   };
 

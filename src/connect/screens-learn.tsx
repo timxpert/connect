@@ -8,8 +8,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useConnect } from './context';
 import { peek } from './cache';
 import { navigate } from './router';
-import { PHASES, type Lesson, type LessonInput } from './types';
-import { A, Empty, Icon, Loading } from './ui';
+import { PHASES, type Assignment, type DeviceRow, type Lesson, type LessonInput } from './types';
+import { A, Avatar, Empty, Icon, Loading, Media } from './ui';
+import { timeAgo, toEmbed } from './media';
 
 const MAIN_SITE = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://joinmotiondojo.com';
 
@@ -75,6 +76,64 @@ function Notes({ text }: { text: string }) {
   );
 }
 
+/* ---------- Phase assignments ---------- */
+type PhaseStatus = 'locked' | 'due' | 'pending' | 'changes' | 'approved' | 'team';
+
+function useAssignments(on: boolean) {
+  const { api } = useConnect();
+  const [list, setList] = useState<Assignment[]>([]);
+  useEffect(() => {
+    if (on) api.myAssignments().then(setList).catch(() => {});
+  }, [api, on]);
+  return list;
+}
+
+/** Where a student is with a phase's assignment */
+function phaseStatus(lessons: Lesson[], mine: Assignment[], phase: number): PhaseStatus {
+  const latest = mine.filter((a) => a.phase === phase).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  if (mine.some((a) => a.phase === phase && a.status === 'approved')) return 'approved';
+  if (latest?.status === 'pending') return 'pending';
+  const pub = lessons.filter((l) => l.phase === phase && l.published);
+  if (pub.length === 0 || pub.some((l) => !l.done)) return 'locked';
+  return latest?.status === 'changes' ? 'changes' : 'due';
+}
+
+function AssignmentRow({ phase, status }: { phase: number; status: PhaseStatus }) {
+  const text: Record<PhaseStatus, string> = {
+    locked: 'Finish the lessons above to hand it in',
+    due: 'Ready to hand in',
+    pending: 'Waiting for review',
+    changes: 'Changes asked: see the note',
+    approved: 'Approved',
+    team: 'Edit the brief',
+  };
+  const open = status !== 'locked';
+  const body = (
+    <>
+      <span className={`cx-ln-mark${status === 'approved' ? ' is-done' : status === 'due' || status === 'changes' ? ' is-open' : ''}`} aria-hidden="true">
+        {status === 'approved' ? <Icon name="check" size={18} /> : status === 'locked' ? <Icon name="lock" size={16} /> : <Icon name="send" size={16} />}
+      </span>
+      <span className="cx-ln-text">
+        <b>Phase {phase} assignment</b>
+        <small>{text[status]}</small>
+      </span>
+    </>
+  );
+  return (
+    <div className={`cx-ln-assign${open ? '' : ' is-locked'} is-${status}`}>
+      {open ? (
+        <A path={`/learn/assignment/${phase}`} className="cx-ln-row">
+          {body}
+        </A>
+      ) : (
+        <div className="cx-ln-row" aria-disabled="true">
+          {body}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ================= Course outline ================= */
 export function Learn() {
   const { api, me, signedIn } = useConnect();
@@ -85,6 +144,10 @@ export function Learn() {
   const published = useMemo(() => (list ?? []).filter((l) => l.published), [list]);
   const done = published.filter((l) => l.done).length;
   const next = (list ?? []).find((l) => l.open && !l.done && l.published);
+  const mine = useAssignments(learner && !team);
+  const status = (phase: number) => phaseStatus(list ?? [], mine, phase);
+  const due = PHASES.map((_, i) => i + 1).find((p) => ['due', 'changes'].includes(status(p)));
+  const waiting = PHASES.map((_, i) => i + 1).find((p) => status(p) === 'pending');
 
   const move = async (l: Lesson, dir: -1 | 1) => {
     await api.moveLesson(l.id, dir).catch(() => {});
@@ -122,7 +185,19 @@ export function Learn() {
           <div className="cx-ln-bar" role="progressbar" aria-valuemin={0} aria-valuemax={published.length} aria-valuenow={done}>
             <span style={{ width: `${(done / published.length) * 100}%` }} />
           </div>
-          {next ? (
+          {!next && due ? (
+            <A path={`/learn/assignment/${due}`} className="cx-ln-next">
+              <span className="cx-ln-next-ico">
+                <Icon name="send" size={20} />
+              </span>
+              <span>
+                <small>{status(due) === 'changes' ? 'Changes asked' : 'Up next'} · Phase {due} assignment</small>
+                <b>Hand in your project</b>
+              </span>
+            </A>
+          ) : !next && waiting ? (
+            <p className="cx-ln-finished">Your phase {waiting} assignment is waiting for review. The next phase opens when it’s approved.</p>
+          ) : next ? (
             <A path={`/learn/${next.id}`} className="cx-ln-next">
               <span className="cx-ln-next-ico">
                 <Icon name="play" size={20} filled />
@@ -212,6 +287,7 @@ export function Learn() {
                   );
                 })}
               </ol>
+              {pub.length > 0 && (learner || team) && <AssignmentRow phase={phase} status={team ? 'team' : status(phase)} />}
             </section>
           );
         })
@@ -571,6 +647,376 @@ export function LessonEditor({ id }: { id?: string }) {
           )}
         </div>
       </form>
+    </div>
+  );
+}
+
+/* ================= Phase assignment ================= */
+const MAX_VIDEO = 50 * 1024 * 1024;
+const MAX_IMAGE = 20 * 1024 * 1024;
+
+const statusText: Record<Assignment['status'], string> = { pending: 'Waiting for review', approved: 'Approved', changes: 'Changes asked' };
+
+function Submission({ a, showStudent = false }: { a: Assignment; showStudent?: boolean }) {
+  return (
+    <div className="cx-asg">
+      {showStudent && a.student && (
+        <A path={`/u/${a.student.handle}`} className="cx-asg-who">
+          <Avatar p={a.student} size={36} />
+          <span>
+            <b>{a.student.name}</b>
+            <small>
+              Phase {a.phase} · {timeAgo(a.created_at)}
+            </small>
+          </span>
+        </A>
+      )}
+      <Media post={{ kind: a.kind, media_url: a.media_url, caption: a.caption }} />
+      {a.caption && <p className="cx-asg-caption">{a.caption}</p>}
+      {!showStudent && (
+        <p className={`cx-asg-status is-${a.status}`}>
+          {statusText[a.status]} · {timeAgo(a.reviewed_at ?? a.created_at)}
+        </p>
+      )}
+      {a.feedback && (
+        <blockquote className="cx-asg-feedback">
+          <small>Feedback</small>
+          {a.feedback}
+        </blockquote>
+      )}
+    </div>
+  );
+}
+
+export function AssignmentScreen({ phase }: { phase: number }) {
+  const { api, me } = useConnect();
+  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  const learner = Boolean(me?.is_student);
+  const { list } = useLessons();
+  const [mine, setMine] = useState<Assignment[] | null>(null);
+  const [brief, setBrief] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [link, setLink] = useState('');
+  const [caption, setCaption] = useState('');
+  const [share, setShare] = useState<number | null>(null);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.getBriefs().then((b) => {
+      setBrief(b[phase] ?? '');
+      setDraft(b[phase] ?? '');
+    }).catch(() => setBrief(''));
+    if (learner) api.myAssignments().then(setMine).catch(() => setMine([]));
+    else setMine([]);
+  }, [api, phase, learner]);
+
+  const back = (
+    <A path="/learn" className="cx-back">
+      <Icon name="back" size={20} />
+      All lessons
+    </A>
+  );
+  if (me === undefined || !list || mine === null || brief === null) return <Loading />;
+  if (!learner && !team) {
+    return (
+      <div className="cx-col">
+        {back}
+        <Empty title="Assignments are for Black Belt members" />
+      </div>
+    );
+  }
+
+  const status = team ? 'team' : phaseStatus(list, mine, phase);
+  const history = mine.filter((a) => a.phase === phase);
+  const approvedPost = history.find((a) => a.status === 'approved')?.post_id;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    let kind: 'image' | 'video';
+    let url: string;
+    try {
+      if (file) {
+        kind = file.type.startsWith('image/') ? 'image' : 'video';
+        if (kind === 'video' && file.size > MAX_VIDEO) return setError('Pick a video under 50 MB, or paste a YouTube, Instagram or TikTok link instead.');
+        if (kind === 'image' && file.size > MAX_IMAGE) return setError('Pick a picture under 20 MB.');
+        setShare(0);
+        url = await api.uploadImage(file, kind === 'video' ? 'videos' : 'posts', setShare);
+      } else if (link.trim()) {
+        if (!toEmbedSafe(link)) return setError('Paste a YouTube, Instagram, TikTok or Vimeo link, or upload the file.');
+        kind = 'video';
+        url = link.trim();
+      } else {
+        return setError('Add your video or picture first.');
+      }
+      await api.submitAssignment(phase, kind, url, caption.trim());
+      setFile(null);
+      setLink('');
+      setCaption('');
+      setMine(await api.myAssignments());
+    } catch (err) {
+      const m = (err as Error).message;
+      setError(m === 'finish_lessons' ? `Finish every lesson in phase ${phase} first.` : m === 'already_sent' ? 'You’ve already handed this in.' : m);
+    } finally {
+      setShare(null);
+    }
+  };
+
+  return (
+    <div className="cx-col cx-ln-assignment">
+      {back}
+      <p className="cx-ln-where">
+        Phase {phase} · {PHASES[phase - 1]}
+      </p>
+      <h1 className="cx-h1">Phase {phase} assignment</h1>
+
+      {team ? (
+        <form
+          className="cx-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await api.saveBrief(phase, draft.trim()).then(() => setSaved(true)).catch((err: Error) => setError(err.message));
+          }}
+        >
+          <label className="field">
+            <span>What students should hand in</span>
+            <textarea rows={6} maxLength={4000} value={draft} onChange={(e) => (setDraft(e.target.value), setSaved(false))} />
+            <small>Students see this above the upload. When you approve a project it goes on the feed and the student moves to the next phase.</small>
+          </label>
+          {error && <p className="cx-error">{error}</p>}
+          <div className="cx-ln-form-actions">
+            <button type="submit" className="btn btn-primary">
+              {saved ? 'Saved' : 'Save brief'}
+            </button>
+            <A path="/reviews" className="btn cx-ln-edit">
+              Review assignments
+            </A>
+          </div>
+        </form>
+      ) : (
+        <>
+          {brief ? <Notes text={brief} /> : <p className="cx-ln-summary">Hand in the project you made in this phase.</p>}
+
+          {status === 'locked' && <p className="cx-ln-note">Finish every lesson in phase {phase} to hand it in.</p>}
+          {status === 'pending' && <p className="cx-ln-note">Handed in. The next phase opens when it’s approved.</p>}
+          {status === 'approved' && (
+            <p className="cx-ln-note is-ok">
+              Approved. {phase < 4 ? `Phase ${phase + 1} is open.` : 'You’ve finished Black Belt.'}{' '}
+              {approvedPost && <A path={`/p/${approvedPost}`}>See it on the feed</A>}
+            </p>
+          )}
+
+          {(status === 'due' || status === 'changes') && (
+            <form className="cx-form cx-asg-form" onSubmit={submit} noValidate>
+              <label className="cx-asg-pick">
+                <input
+                  type="file"
+                  accept="video/*,image/*"
+                  onChange={(e) => {
+                    setFile(e.target.files?.[0] ?? null);
+                    setLink('');
+                  }}
+                />
+                <Icon name="video" size={24} />
+                <span>{file ? file.name : 'Choose your video or picture'}</span>
+                <small>Up to 50 MB</small>
+              </label>
+              <label className="field">
+                <span>Or paste a link</span>
+                <input value={link} inputMode="url" placeholder="YouTube, Instagram, TikTok or Vimeo" onChange={(e) => (setLink(e.target.value), setFile(null))} />
+              </label>
+              <label className="field">
+                <span>About your project</span>
+                <textarea rows={3} maxLength={1000} value={caption} onChange={(e) => setCaption(e.target.value)} />
+                <small>Once it’s approved, it goes on the feed with this text.</small>
+              </label>
+              {error && (
+                <p className="cx-error" role="alert">
+                  {error}
+                </p>
+              )}
+              <button type="submit" className="btn btn-primary" disabled={share !== null}>
+                {share !== null ? `Uploading ${Math.round(share * 100)}%` : 'Hand it in'}
+              </button>
+            </form>
+          )}
+
+          {history.length > 0 && (
+            <section className="cx-ln-block">
+              <h2>{history.length > 1 ? 'What you handed in' : 'What you handed in'}</h2>
+              <div className="cx-asg-list">
+                {history.map((a) => (
+                  <Submission key={a.id} a={a} />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function toEmbedSafe(url: string) {
+  return Boolean(toEmbed(url));
+}
+
+/* ================= Reviews (team) ================= */
+export function Reviews() {
+  const { api, me } = useConnect();
+  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  const [list, setList] = useState<Assignment[] | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (team) api.reviewQueue().then(setList).catch((e: Error) => setError(e.message));
+  }, [api, team]);
+
+  if (me === undefined) return <Loading />;
+  if (!team) return <Empty title="Only the Motion Dojo team can review assignments" />;
+  if (error) return <Empty title="Reviews can’t load">{<p>{error}</p>}</Empty>;
+  if (!list) return <Loading label="Loading assignments" />;
+
+  const waiting = list.filter((a) => a.status === 'pending');
+  const done = list.filter((a) => a.status !== 'pending').slice(0, 30);
+
+  const review = async (a: Assignment, approve: boolean) => {
+    const note = (notes[a.id] ?? '').trim();
+    if (!approve && !note) return setError('Write what to change before sending it back.');
+    setBusy(a.id);
+    setError('');
+    try {
+      await api.reviewAssignment(a.id, approve, note);
+      setList(await api.reviewQueue());
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  return (
+    <div className="cx-col cx-reviews">
+      <div className="cx-intro">
+        <h1 className="cx-h1">Assignment reviews</h1>
+        <p>{waiting.length ? `${waiting.length} waiting.` : 'Nothing waiting.'} Approving posts the project to the feed and opens the student’s next phase.</p>
+      </div>
+      {error && <p className="cx-error">{error}</p>}
+      <div className="cx-asg-list">
+        {waiting.map((a) => (
+          <div key={a.id} className="cx-asg-review">
+            <Submission a={a} showStudent />
+            <label className="field">
+              <span>Note to {a.student?.name ?? 'the student'}</span>
+              <textarea rows={2} maxLength={2000} value={notes[a.id] ?? ''} onChange={(e) => setNotes({ ...notes, [a.id]: e.target.value })} />
+              <small>Needed when you ask for changes. Optional when you approve.</small>
+            </label>
+            <div className="cx-ln-form-actions">
+              <button type="button" className="btn btn-primary" disabled={busy === a.id} onClick={() => review(a, true)}>
+                Approve
+              </button>
+              <button type="button" className="btn cx-ln-edit" disabled={busy === a.id} onClick={() => review(a, false)}>
+                Ask for changes
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {done.length > 0 && (
+        <section className="cx-ln-block cx-reviewed">
+          <h2>Reviewed</h2>
+          <ul>
+            {done.map((a) => (
+              <li key={a.id}>
+                <b>{a.student?.name}</b> · Phase {a.phase} · <span className={`cx-asg-status is-${a.status}`}>{statusText[a.status]}</span>
+                {a.post_id && (
+                  <>
+                    {' · '}
+                    <A path={`/p/${a.post_id}`}>Post</A>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/* ================= Student devices (team) ================= */
+export function Devices() {
+  const { api, me } = useConnect();
+  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  const [rows, setRows] = useState<DeviceRow[] | null>(null);
+  const [error, setError] = useState('');
+  const [sure, setSure] = useState('');
+  const [fresh, setFresh] = useState<{ id: string; code: string } | null>(null);
+  const [q, setQ] = useState('');
+
+  useEffect(() => {
+    if (team) api.teamDevices().then(setRows).catch((e: Error) => setError(e.message));
+  }, [api, team]);
+
+  if (me === undefined) return <Loading />;
+  if (!team) return <Empty title="Only the Motion Dojo team can see this" />;
+  if (error) return <Empty title="Devices can’t load">{<p>{error}</p>}</Empty>;
+  if (!rows) return <Loading label="Loading devices" />;
+
+  const reset = async (r: DeviceRow) => {
+    if (sure !== r.user_id) return setSure(r.user_id);
+    setSure('');
+    try {
+      const code = await api.resetMemberId(r.user_id);
+      setFresh({ id: r.user_id, code });
+      setRows(await api.teamDevices());
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const shown = rows.filter((r) => !q || `${r.name} ${r.handle} ${r.email}`.toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <div className="cx-col cx-devices">
+      <div className="cx-intro">
+        <h1 className="cx-h1">Student devices</h1>
+        <p>Each student can be signed in on one device. Many device changes in a week can mean someone shared their member ID.</p>
+      </div>
+      <label className="cx-search">
+        <Icon name="search" size={20} />
+        <input type="search" placeholder="Search by name or email" value={q} onChange={(e) => setQ(e.target.value)} />
+      </label>
+      <ul className="cx-dev-list">
+        {shown.map((r) => (
+          <li key={r.user_id} className={r.changes_7d >= 4 ? 'is-busy' : ''}>
+            <span className="cx-dev-main">
+              <b>{r.name}</b>
+              <small>{r.email}</small>
+              <small>
+                {r.label ? `${r.label} · seen ${r.last_seen_at ? timeAgo(r.last_seen_at) : 'never'}` : 'Not signed in'}
+              </small>
+            </span>
+            <span className="cx-dev-count" title="Device changes in the last 7 days">
+              {r.changes_7d}
+              <small>changes this week</small>
+            </span>
+            {fresh?.id === r.user_id ? (
+              <span className="cx-dev-code">
+                New ID: <b>{fresh.code}</b>
+              </span>
+            ) : (
+              <button type="button" className="btn btn-sm cx-ln-delete" onClick={() => reset(r)}>
+                {sure === r.user_id ? 'Tap again to reset' : 'Reset member ID'}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

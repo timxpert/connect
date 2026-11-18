@@ -3,7 +3,7 @@
    be clicked through before Supabase is connected. Every sample profile is
    flagged `sample: true` and the UI labels it. Nothing here is real. */
 
-import type { Comment, ConnectApi, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
+import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
 
 const now = Date.now();
 const ago = (h: number) => new Date(now - h * 3600_000).toISOString();
@@ -123,6 +123,8 @@ let lessons: RawLesson[] = sampleTitles.flatMap((titles, ph) =>
   })),
 );
 const progress = new Set<string>(['s1:l11', 's1:l12']);
+let assignments: Assignment[] = [];
+const briefs: Record<number, string> = { 1: 'Sample brief: animate a 5-second logo reveal using what you learned in phase 1.' };
 
 function outline(): Lesson[] {
   const me = current ? who(current) : null;
@@ -131,7 +133,9 @@ function outline(): Lesson[] {
   const list = lessons.filter((l) => l.published || team).sort((a, b) => a.phase - b.phase || a.position - b.position);
   return list.map((l, i) => {
     const done = Boolean(current && progress.has(`${current}:${l.id}`));
-    const prevDone = i === 0 || Boolean(current && progress.has(`${current}:${list[i - 1].id}`));
+    const prev = list[i - 1];
+    const gate = !prev || prev.phase === l.phase || assignments.some((a) => a.user_id === current && a.phase === prev.phase && a.status === 'approved');
+    const prevDone = (i === 0 || Boolean(current && progress.has(`${current}:${list[i - 1].id}`))) && gate;
     const { video_url, notes, files, ...rest } = l;
     void notes;
     void files;
@@ -429,6 +433,36 @@ export function createDemoApi(): ConnectApi {
     isBlocked: (id) => wait(Boolean(current && blocks.has(`${current}:${id}`))),
 
     listLessons: () => wait(outline()),
+    myAssignments: () => wait(assignments.filter((a) => a.user_id === current)),
+    async submitAssignment(phase, kind, mediaUrl, caption) {
+      const me = needMe();
+      if (outline().some((l) => l.phase === phase && l.published && !l.done)) throw new Error('finish_lessons');
+      if (assignments.some((a) => a.user_id === me && a.phase === phase && a.status !== 'changes')) throw new Error('already_sent');
+      assignments.unshift({ id: nid(), user_id: me, phase, kind, media_url: mediaUrl, caption, status: 'pending', feedback: '', reviewed_at: null, post_id: null, created_at: new Date().toISOString() });
+    },
+    getBriefs: () => wait({ ...briefs }),
+    async saveBrief(phase, brief) {
+      briefs[phase] = brief;
+    },
+    reviewQueue: () => wait(assignments.map((a) => ({ ...a, student: who(a.user_id) }))),
+    async reviewAssignment(id, approve, note) {
+      const a = assignments.find((x) => x.id === id);
+      if (!a) return;
+      a.status = approve ? 'approved' : 'changes';
+      a.feedback = note;
+      a.reviewed_at = new Date().toISOString();
+      if (approve) {
+        const pid = nid();
+        posts.unshift({ id: pid, author_id: a.user_id, kind: a.kind, media_url: a.media_url, caption: a.caption, tag: 'sharing', community: false, assignment_phase: a.phase, created_at: new Date().toISOString() });
+        a.post_id = pid;
+        const s = who(a.user_id);
+        s.phase = Math.min(4, Math.max(s.phase ?? 1, a.phase + 1));
+      }
+    },
+    claimDevice: async () => {},
+    checkDevice: async () => true,
+    teamDevices: () => wait(people.filter((p) => p.is_student).map((p, i) => ({ user_id: p.id, name: p.name, handle: p.handle, email: `${p.handle}@example.com`, label: i % 2 ? 'Android · Chrome' : 'iPhone · Safari', last_seen_at: ago(i), changes_7d: i === 1 ? 6 : 1 }))),
+    resetMemberId: async () => 'MD-SAMP-LE00',
     async getLesson(id) {
       const me = current ? who(current) : null;
       if (!me || !(me.is_student || me.is_sensei || me.is_moderator)) throw new Error('members_only');

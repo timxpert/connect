@@ -38,6 +38,8 @@ export type Post = {
   tag: 'sharing' | 'feedback';
   /** A grand sensei post on the Community feed */
   community: boolean;
+  /** An approved phase assignment: shows "Passed phase N" */
+  assignment_phase?: number | null;
   created_at: string;
   author: Profile;
   likes: number;
@@ -50,7 +52,7 @@ export type ConnectionStatus = 'none' | 'requested' | 'incoming' | 'connected';
 
 export type Notice = {
   id: string;
-  kind: 'community_post' | 'connection_request' | 'connection_accepted';
+  kind: 'community_post' | 'connection_request' | 'connection_accepted' | 'assignment_submitted' | 'assignment_approved' | 'assignment_changes';
   actor: Profile | null;
   post_id: string | null;
   read_at: string | null;
@@ -132,6 +134,24 @@ export type Lesson = {
   notes?: string;
   files?: { name: string; url: string }[];
 };
+
+export type Assignment = {
+  id: string;
+  user_id: string;
+  phase: number;
+  kind: 'image' | 'video';
+  media_url: string;
+  caption: string;
+  status: 'pending' | 'approved' | 'changes';
+  feedback: string;
+  reviewed_at: string | null;
+  post_id: string | null;
+  created_at: string;
+  /** Team review list only */
+  student?: Profile;
+};
+
+export type DeviceRow = { user_id: string; name: string; handle: string; email: string; label: string | null; last_seen_at: string | null; changes_7d: number };
 
 export type LessonInput = {
   id?: string;
@@ -224,6 +244,22 @@ export interface ConnectApi {
   saveLesson(input: LessonInput): Promise<Lesson>;
   deleteLesson(id: string): Promise<void>;
   moveLesson(id: string, dir: -1 | 1): Promise<void>;
+
+  /** Phase assignments */
+  myAssignments(): Promise<Assignment[]>;
+  /** Throws 'finish_lessons', 'already_sent', 'members_only' */
+  submitAssignment(phase: number, kind: 'image' | 'video', mediaUrl: string, caption: string): Promise<void>;
+  getBriefs(): Promise<Record<number, string>>;
+  /** Team only */
+  saveBrief(phase: number, brief: string): Promise<void>;
+  reviewQueue(): Promise<Assignment[]>;
+  reviewAssignment(id: string, approve: boolean, note: string): Promise<void>;
+
+  /** One device at a time (students). Team accounts are exempt. */
+  claimDevice(token: string, label: string): Promise<void>;
+  checkDevice(token: string): Promise<boolean>;
+  teamDevices(): Promise<DeviceRow[]>;
+  resetMemberId(userId: string): Promise<string>;
 
   report(target: 'post' | 'comment' | 'profile' | 'message', id: string, reason: string): Promise<void>;
   setBlock(userId: string, on: boolean): Promise<void>;

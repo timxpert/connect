@@ -7,6 +7,7 @@ import { onVisitorChange, visitorChosen } from './visitor';
 import { play, setSoundOn, soundOn } from './sounds';
 import { notify, registerAlerts } from './alerts';
 import { startPresence } from './presence';
+import { guardDevice } from './device';
 import { createDemoApi } from './demo-api';
 import { withCache } from './cache';
 import { navigate, to, useRoute, type Route } from './router';
@@ -17,7 +18,7 @@ import { Login, Settings, Welcome } from './screens-me';
 import { Chat, Inbox } from './chat';
 import { PhasePrompt } from './phase-prompt';
 import { Connections, Notifications, Saved } from './screens-social';
-import { Learn, LessonEditor, LessonScreen } from './screens-learn';
+import { AssignmentScreen, Devices, Learn, LessonEditor, LessonScreen, Reviews } from './screens-learn';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -55,7 +56,7 @@ export function ConnectApp() {
 
 const TABS = [
   { path: '/', label: 'Feed', icon: 'home' as const, match: ['feed', 'post'] },
-  { path: '/learn', label: 'Learn', icon: 'learn' as const, match: ['learn', 'lesson', 'lesson-edit'] },
+  { path: '/learn', label: 'Learn', icon: 'learn' as const, match: ['learn', 'lesson', 'lesson-edit', 'assignment'] },
   { path: '/students', label: 'Members', icon: 'people' as const, match: ['students', 'profile'] },
   // On phones Connections lives in the account menu, to keep the bottom bar to five
   { path: '/connections', label: 'Connections', icon: 'link2' as const, match: ['connections'], desktopOnly: true },
@@ -113,6 +114,11 @@ function Shell({ route }: { route: Route }) {
   const [menu, setMenu] = useState(false);
   const [sound, setSound] = useState(true);
   useEffect(() => setSound(soundOn()), []);
+  // One device at a time: another device signing in signs this one out
+  useEffect(() => {
+    if (!signedIn) return;
+    return guardDevice(api, () => navigate('/login'));
+  }, [api, signedIn]);
   // A message from someone else: sound + a short note, or a phone notification
   // when Connect is in the background. Not when you're already in that chat.
   const onMessage = (m: IncomingMessage) => {
@@ -199,6 +205,12 @@ function Shell({ route }: { route: Route }) {
         return <Learn />;
       case 'lesson':
         return <LessonScreen key={route.id} id={route.id} />;
+      case 'assignment':
+        return <AssignmentScreen key={route.phase} phase={route.phase} />;
+      case 'reviews':
+        return <Reviews />;
+      case 'devices':
+        return <Devices />;
       case 'lesson-edit':
         return <LessonEditor key={route.id ?? 'new'} id={route.id} />;
       default:
@@ -266,6 +278,16 @@ function Shell({ route }: { route: Route }) {
                       <A path="/connections" role="menuitem" className="cx-menu-phone">
                         Connections
                         {counts.requests > 0 && <b className="cx-menu-count">{counts.requests}</b>}
+                      </A>
+                    )}
+                    {(me?.is_sensei || me?.is_moderator) && (
+                      <A path="/reviews" role="menuitem">
+                        Assignment reviews
+                      </A>
+                    )}
+                    {(me?.is_sensei || me?.is_moderator) && (
+                      <A path="/devices" role="menuitem">
+                        Student devices
                       </A>
                     )}
                     {me && (

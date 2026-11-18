@@ -1,5 +1,6 @@
 'use client';
 
+import { takeKicked } from './device';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { shakeField } from './shake';
 import { useConnect } from './context';
@@ -66,6 +67,7 @@ export function Login({ team = false }: { team?: boolean }) {
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [kicked] = useState(takeKicked);
 
   useEffect(() => {
     if (signedIn && me) navigate('/');
@@ -128,6 +130,11 @@ export function Login({ team = false }: { team?: boolean }) {
           </div>
         ) : (
           <form className="cx-form" onSubmit={submit} noValidate>
+            {kicked && (
+              <p className="cx-error" role="alert">
+                You were signed out because your account was opened on another device. Your account works on one device at a time.
+              </p>
+            )}
             <label className="field cx-auth-field">
               <span>Email</span>
               <span className="cx-auth-input">
