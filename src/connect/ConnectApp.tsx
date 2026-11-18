@@ -17,6 +17,7 @@ import { Login, Settings, Welcome } from './screens-me';
 import { Chat, Inbox } from './chat';
 import { PhasePrompt } from './phase-prompt';
 import { Connections, Notifications, Saved } from './screens-social';
+import { Learn, LessonEditor, LessonScreen } from './screens-learn';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -54,8 +55,10 @@ export function ConnectApp() {
 
 const TABS = [
   { path: '/', label: 'Feed', icon: 'home' as const, match: ['feed', 'post'] },
+  { path: '/learn', label: 'Learn', icon: 'learn' as const, match: ['learn', 'lesson', 'lesson-edit'] },
   { path: '/students', label: 'Members', icon: 'people' as const, match: ['students', 'profile'] },
-  { path: '/connections', label: 'Connections', icon: 'link2' as const, match: ['connections'] },
+  // On phones Connections lives in the account menu, to keep the bottom bar to five
+  { path: '/connections', label: 'Connections', icon: 'link2' as const, match: ['connections'], desktopOnly: true },
   { path: '/messages', label: 'Messages', icon: 'chat' as const, match: ['messages', 'chat'] },
 ];
 
@@ -153,7 +156,7 @@ function Shell({ route }: { route: Route }) {
   const welcome = authKnown && !signedIn && route.name !== 'login' && (route.name === 'feed' || !visitor);
 
   // Non-members only see Students, student profiles and their posts
-  const guestOk = ['students', 'profile', 'post', 'login', 'feed'].includes(route.name) || (signedIn && route.name === 'settings');
+  const guestOk = ['students', 'profile', 'post', 'login', 'feed', 'learn', 'lesson'].includes(route.name) || (signedIn && route.name === 'settings');
   useEffect(() => {
     if (authKnown && !member && !guestOk) navigate('/students');
   }, [authKnown, member, guestOk]);
@@ -192,6 +195,12 @@ function Shell({ route }: { route: Route }) {
         return <Notifications />;
       case 'saved':
         return <Saved />;
+      case 'learn':
+        return <Learn />;
+      case 'lesson':
+        return <LessonScreen key={route.id} id={route.id} />;
+      case 'lesson-edit':
+        return <LessonEditor key={route.id ?? 'new'} id={route.id} />;
       default:
         return (
           <div className="cx-empty">
@@ -244,12 +253,19 @@ function Shell({ route }: { route: Route }) {
               <div className="cx-menu">
                 <button type="button" className="cx-me" aria-label="Your account" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
                   {me ? <Avatar p={me} size={38} /> : <Icon name="user" />}
+                  {member && <span className="cx-menu-phone cx-me-dot"><Dot n={counts.requests} /></span>}
                 </button>
                 {menu && (
                   <div className="cx-menu-list" role="menu" onClick={() => setMenu(false)}>
                     {me && (
                       <A path={`/u/${me.handle}`} role="menuitem">
                         Your profile
+                      </A>
+                    )}
+                    {member && (
+                      <A path="/connections" role="menuitem" className="cx-menu-phone">
+                        Connections
+                        {counts.requests > 0 && <b className="cx-menu-count">{counts.requests}</b>}
                       </A>
                     )}
                     {me && (
@@ -304,9 +320,9 @@ function Shell({ route }: { route: Route }) {
 
       {member && !welcome && (
       <nav className="cx-tabbar" aria-label="Connect">
-        {TABS.map((t, i) => (
+        {TABS.filter((t) => !t.desktopOnly).map((t, i) => (
           <React.Fragment key={t.path}>
-            {/* Post sits in the middle, between Students and Connections */}
+            {/* Post sits in the middle, between Learn and Members */}
             {i === 2 && (me?.is_student || me?.is_sensei) && (
               <button type="button" className="cx-tab-post" onClick={openComposer}>
                 <span className="cx-tab-ico">

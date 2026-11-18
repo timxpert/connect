@@ -3,7 +3,7 @@
    be clicked through before Supabase is connected. Every sample profile is
    flagged `sample: true` and the UI labels it. Nothing here is real. */
 
-import type { Comment, ConnectApi, ConnectionStatus, Conversation, Message, Notice, Post, Profile } from './types';
+import type { Comment, ConnectApi, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
 
 const now = Date.now();
 const ago = (h: number) => new Date(now - h * 3600_000).toISOString();
@@ -100,6 +100,45 @@ function full(p: RawPost): Post {
     saved: current ? saves.has(`${current}:${p.id}`) : false,
   };
 }
+/* Sample lessons for the preview */
+type RawLesson = Omit<Lesson, 'done' | 'open' | 'has_video'> & { video_url: string; notes: string; files: { name: string; url: string }[] };
+const sampleTitles = [
+  ['Getting around Alight Motion', 'Keyframes and easing', 'Your first logo reveal'],
+  ['Masks and blending', 'Text animation', 'Camera moves'],
+  ['From brief to storyboard', 'Timing to music', 'Client-style project'],
+  ['Building your portfolio piece', 'Presenting your work'],
+];
+let lessons: RawLesson[] = sampleTitles.flatMap((titles, ph) =>
+  titles.map((t, i) => ({
+    id: `l${ph + 1}${i + 1}`,
+    phase: ph + 1,
+    position: i + 1,
+    title: t,
+    summary: 'Sample lesson for the preview.',
+    duration: `${8 + ((ph * 3 + i) % 5) * 3} min`,
+    published: !(ph === 3 && i === 1),
+    video_url: '',
+    notes: 'Sample notes for the preview.\nWhat you’ll practise in this lesson goes here.',
+    files: i === 0 ? [{ name: 'Sample project file', url: 'https://example.com' }] : [],
+  })),
+);
+const progress = new Set<string>(['s1:l11', 's1:l12']);
+
+function outline(): Lesson[] {
+  const me = current ? who(current) : null;
+  const team = Boolean(me && (me.is_sensei || me.is_moderator));
+  const learner = Boolean(me && (me.is_student || team));
+  const list = lessons.filter((l) => l.published || team).sort((a, b) => a.phase - b.phase || a.position - b.position);
+  return list.map((l, i) => {
+    const done = Boolean(current && progress.has(`${current}:${l.id}`));
+    const prevDone = i === 0 || Boolean(current && progress.has(`${current}:${list[i - 1].id}`));
+    const { video_url, notes, files, ...rest } = l;
+    void notes;
+    void files;
+    return { ...rest, has_video: Boolean(video_url), done, open: team || (learner && prevDone) };
+  });
+}
+
 const needMe = () => {
   if (!current) throw new Error('Sign in first.');
   return current;
@@ -388,5 +427,48 @@ export function createDemoApi(): ConnectApi {
       else blocks.delete(k);
     },
     isBlocked: (id) => wait(Boolean(current && blocks.has(`${current}:${id}`))),
+
+    listLessons: () => wait(outline()),
+    async getLesson(id) {
+      const me = current ? who(current) : null;
+      if (!me || !(me.is_student || me.is_sensei || me.is_moderator)) throw new Error('members_only');
+      const o = outline().find((l) => l.id === id);
+      const raw = lessons.find((l) => l.id === id);
+      if (!o || !raw) throw new Error('not_found');
+      if (!o.open) throw new Error('locked');
+      return wait({ ...o, video_url: raw.video_url, notes: raw.notes, files: raw.files });
+    },
+    async setLessonDone(id, done) {
+      const me = needMe();
+      if (!outline().find((l) => l.id === id)?.open) throw new Error('locked');
+      if (done) progress.add(`${me}:${id}`);
+      else progress.delete(`${me}:${id}`);
+    },
+    async saveLesson(input: LessonInput) {
+      const me = who(needMe());
+      if (!me.is_sensei && !me.is_moderator) throw new Error('team_only');
+      let id = input.id;
+      if (id) {
+        const l = lessons.find((x) => x.id === id);
+        if (l) Object.assign(l, { ...input, id });
+      } else {
+        id = nid();
+        const pos = Math.max(0, ...lessons.filter((l) => l.phase === input.phase).map((l) => l.position)) + 1;
+        lessons.push({ ...input, id, position: pos });
+      }
+      return this.getLesson(id);
+    },
+    async deleteLesson(id) {
+      lessons = lessons.filter((l) => l.id !== id);
+    },
+    async moveLesson(id, dir) {
+      const l = lessons.find((x) => x.id === id);
+      if (!l) return;
+      const same = lessons.filter((x) => x.phase === l.phase).sort((a, b) => a.position - b.position);
+      const i = same.indexOf(l);
+      const j = i + dir;
+      if (j < 0 || j >= same.length) return;
+      [same[i].position, same[j].position] = [same[j].position, same[i].position];
+    },
   };
 }

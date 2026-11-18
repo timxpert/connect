@@ -17,6 +17,8 @@ const CACHED = new Set<keyof ConnectApi>([
   'getPost',
   'listSaved',
   'getConversation',
+  'listLessons',
+  'getLesson',
 ]);
 // Reads that must always be fresh (polling, auth)
 const LIVE = new Set<keyof ConnectApi>([
@@ -42,8 +44,8 @@ const TTL = 45_000;
    then quietly swap in the fresh copy. Public things (posts, members,
    profiles, your own profile) are kept on this device between visits;
    private things (chats) only while the app is open. */
-const KEEP = new Set<string>(['listPosts', 'listStudents', 'getProfile', 'counts', 'getPost', 'me']);
-const LAST_TOO = new Set<string>(['listRequests', 'listConversations', 'listMessages', 'listConnections', 'listNotices', 'listSaved', 'getConversation', 'connectionStatus', 'isBlocked']);
+const KEEP = new Set<string>(['listLessons', 'listPosts', 'listStudents', 'getProfile', 'counts', 'getPost', 'me']);
+const LAST_TOO = new Set<string>(['getLesson', 'listRequests', 'listConversations', 'listMessages', 'listConnections', 'listNotices', 'listSaved', 'getConversation', 'connectionStatus', 'isBlocked']);
 const SAVE_KEY = 'cx-last-v1';
 const last = new Map<string, unknown>();
 let saveTimer = 0;

@@ -181,6 +181,10 @@ const PATHS = {
   ),
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
+  learn: <path d="M2.5 9 12 4.5 21.5 9 12 13.5zM6.5 11v4.5c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3V11M21.5 9v5" />,
+  lock: <path d="M7.5 11V8a4.5 4.5 0 0 1 9 0v3M5.5 11h13v9.5h-13z" />,
+  up: <path d="m6 15 6-6 6 6" />,
+  down: <path d="m6 9 6 6 6-6" />,
 };
 export type IconName = keyof typeof PATHS;
 

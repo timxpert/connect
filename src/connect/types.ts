@@ -115,6 +115,36 @@ export type ProfileInput = Partial<
   Pick<Profile, 'handle' | 'name' | 'bio' | 'avatar_url' | 'cover_url' | 'country' | 'skills' | 'phase' | 'phase_public' | 'instagram' | 'youtube' | 'website' | 'links'>
 >;
 
+/** A Black Belt lesson. The video, notes and files only come with getLesson(). */
+export type Lesson = {
+  id: string;
+  phase: number;
+  position: number;
+  title: string;
+  summary: string;
+  duration: string;
+  published: boolean;
+  has_video: boolean;
+  done: boolean;
+  /** Open to watch: the lesson before it is done (the team sees everything) */
+  open: boolean;
+  video_url?: string;
+  notes?: string;
+  files?: { name: string; url: string }[];
+};
+
+export type LessonInput = {
+  id?: string;
+  phase: number;
+  title: string;
+  summary: string;
+  duration: string;
+  video_url: string;
+  notes: string;
+  files: { name: string; url: string }[];
+  published: boolean;
+};
+
 export type StudentFilter = { q?: string; skill?: string; phase?: number | null };
 
 export interface ConnectApi {
@@ -184,6 +214,16 @@ export interface ConnectApi {
   markRead(conversationId: string): Promise<void>;
   /** Marks all incoming messages as delivered to this device */
   markDelivered(): Promise<void>;
+
+  /** Learn: the course outline (no videos), one lesson, progress */
+  listLessons(): Promise<Lesson[]>;
+  /** Throws 'members_only', 'locked' or 'not_found' */
+  getLesson(id: string): Promise<Lesson>;
+  setLessonDone(id: string, done: boolean): Promise<void>;
+  /** Team only */
+  saveLesson(input: LessonInput): Promise<Lesson>;
+  deleteLesson(id: string): Promise<void>;
+  moveLesson(id: string, dir: -1 | 1): Promise<void>;
 
   report(target: 'post' | 'comment' | 'profile' | 'message', id: string, reason: string): Promise<void>;
   setBlock(userId: string, on: boolean): Promise<void>;

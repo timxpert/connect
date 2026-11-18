@@ -19,6 +19,9 @@ export type Route =
   | { name: 'connections' }
   | { name: 'notifications' }
   | { name: 'saved' }
+  | { name: 'learn' }
+  | { name: 'lesson'; id: string }
+  | { name: 'lesson-edit'; id?: string }
   | { name: 'notfound' };
 
 const hashMode = () => typeof window !== 'undefined' && Boolean((window as unknown as { __CONNECT_HASH__?: boolean }).__CONNECT_HASH__);
@@ -46,6 +49,12 @@ export function parse(path: string): Route {
   if (a === 'connections') return { name: 'connections' };
   if (a === 'notifications') return { name: 'notifications' };
   if (a === 'saved') return { name: 'saved' };
+  if (a === 'learn') {
+    if (!b) return { name: 'learn' };
+    if (b === 'new') return { name: 'lesson-edit' };
+    if (parts[2] === 'edit') return { name: 'lesson-edit', id: b };
+    return { name: 'lesson', id: b };
+  }
   return { name: 'notfound' };
 }
 
