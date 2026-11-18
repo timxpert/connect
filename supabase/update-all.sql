@@ -237,3 +237,37 @@ grant execute on function public.touch_seen() to authenticated;
 update public.profiles set bio = left(bio, 150) where char_length(bio) > 150;
 alter table public.profiles drop constraint if exists profiles_bio_check;
 alter table public.profiles add constraint profiles_bio_check check (char_length(bio) <= 150);
+
+-- 11. The grand sensei. Whoever signs up with an email in this list gets the
+-- grand sensei role automatically, and an existing profile with that email is
+-- upgraded now. Add more emails to the list if needed.
+create table if not exists public.sensei_emails (email text primary key);
+alter table public.sensei_emails enable row level security;  -- no policies: hidden from the app
+insert into public.sensei_emails (email) values ('workwithtimxpert@gmail.com') on conflict do nothing;
+
+create or replace function public.profiles_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  uemail text;
+begin
+  if tg_op = 'INSERT' then
+    select lower(email) into uemail from auth.users where id = new.id;
+    new.is_student   := exists (select 1 from public.enrolments where lower(email) = uemail);
+    new.is_moderator := false;
+    new.is_sensei    := exists (select 1 from public.sensei_emails where lower(email) = uemail);
+  elsif auth.uid() is not null
+        and coalesce(auth.role(), '') <> 'service_role'
+        and coalesce(current_setting('connect.trusted', true), '') <> 'on' then
+    new.is_student   := old.is_student;
+    new.is_moderator := old.is_moderator;
+    new.is_sensei    := old.is_sensei;
+  end if;
+  if not new.is_student or new.is_sensei then
+    new.phase := null;
+  end if;
+  return new;
+end $$;
+
+update public.profiles p set is_sensei = true
+from auth.users u
+where u.id = p.id and lower(u.email) in (select lower(email) from public.sensei_emails);

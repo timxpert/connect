@@ -222,6 +222,10 @@ language sql stable security definer set search_path = public as $$
                  where (blocker_id = x and blocked_id = y) or (blocker_id = y and blocked_id = x))
 $$;
 
+-- Emails that get the grand sensei role on sign-up (see update-all.sql section 11).
+create table if not exists public.sensei_emails (email text primary key);
+alter table public.sensei_emails enable row level security;
+
 -- New profiles: student status comes from the enrolment list, never from the client.
 create or replace function public.profiles_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
@@ -232,7 +236,7 @@ begin
     select lower(email) into uemail from auth.users where id = new.id;
     new.is_student   := exists (select 1 from public.enrolments where lower(email) = uemail);
     new.is_moderator := false;
-    new.is_sensei    := false;
+    new.is_sensei    := exists (select 1 from public.sensei_emails where lower(email) = uemail);
   elsif auth.uid() is not null
         and coalesce(auth.role(), '') <> 'service_role'
         and coalesce(current_setting('connect.trusted', true), '') <> 'on' then
