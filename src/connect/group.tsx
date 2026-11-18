@@ -348,7 +348,7 @@ export function GroupChat() {
   const remove = async (m: GroupMessage) => {
     setHeld(null);
     const theirs = m.sender_id !== me.id;
-    if (!(await ask({ title: theirs ? `Remove ${m.sender?.name ?? 'this'}’s message?` : 'Delete for everyone?', body: 'It will be removed for everyone in the group.', confirm: theirs ? 'Remove' : 'Delete', danger: true }))) return;
+    if (!(await ask({ title: theirs ? `Delete ${m.sender?.name ?? 'this member'}’s message?` : 'Delete this message?', body: 'Everyone in the group will see “This message was deleted”.', confirm: 'Delete', danger: true }))) return;
     setMsgs((xs) => xs.map((x) => (x.id === m.id ? { ...x, deleted_at: new Date().toISOString(), body: '', media_url: null, reactions: [] } : x)));
     await api.deleteGroupMessage(m.id).catch((e: Error) => toast(e.message));
   };
@@ -394,7 +394,7 @@ export function GroupChat() {
     const reason = await ask({ title: 'Report this message', body: 'A moderator will look at it. They won’t know who reported it.', input: 'What’s wrong?', confirm: 'Send report' });
     if (!reason) return;
     await api.report('message', m.id, reason);
-    toast('Thanks. A moderator will take a look.');
+    toast('Reported. A moderator will look at it.');
   };
 
   /* @mentions: suggestions while typing @name */
@@ -663,7 +663,7 @@ export function GroupChat() {
             )}
             {held.sender_id === me.id || team ? (
               <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>
-                <Icon name="trash" /> {held.sender_id === me.id ? 'Delete for everyone' : 'Remove message'}
+                <Icon name="trash" /> {held.sender_id === me.id ? 'Delete for everyone' : 'Delete message'}
               </button>
             ) : (
               <button type="button" role="menuitem" onClick={() => reportMsg(held)}>

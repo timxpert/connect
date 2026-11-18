@@ -945,7 +945,7 @@ export function Chat({ id }: { id: string }) {
     const reason = await ask({ title: 'Report this message', body: 'A moderator will look at it. They won’t know who reported it.', input: 'What’s wrong?', confirm: 'Send report' });
     if (!reason) return;
     await api.report('message', m.id, reason);
-    toast('Thanks. A moderator will take a look.');
+    toast('Reported. A moderator will look at it.');
   };
 
   /* header menu */
@@ -954,7 +954,7 @@ export function Chat({ id }: { id: string }) {
     const reason = await ask({ title: `Report ${other.name}`, body: 'A moderator will look at it. They won’t know who reported them.', input: 'What’s wrong?', confirm: 'Send report' });
     if (!reason) return;
     await api.report('profile', other.id, reason);
-    toast('Thanks. A moderator will take a look.');
+    toast('Reported. A moderator will look at it.');
   };
   const toggleBlock = async () => {
     setMenu(false);
@@ -1166,13 +1166,16 @@ export function Chat({ id }: { id: string }) {
 /* ================= Inbox ================= */
 function GroupInboxRow() {
   const { api } = useConnect();
-  const [p, setP] = useState<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>(null);
+  // Shown straight away (last known, or just the name) so the group never blinks out while it loads
+  const [p, setP] = useState<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>(
+    () => peek<{ name: string; photo_url?: string | null; text: string; at: string; unread: number }>('groupPreview') ?? { name: 'Dojo group', text: '', at: '', unread: 0 },
+  );
   useEffect(() => {
     const load = () =>
       api
         .groupPreview()
-        .then(setP)
-        .catch(() => setP((x) => x ?? { name: 'Dojo group', text: 'Tap to open', at: '', unread: 0 }));
+        .then((v) => v && setP(v))
+        .catch(() => {});
     load();
     const stop = api.subscribe('group_messages', '', load);
     return stop;
