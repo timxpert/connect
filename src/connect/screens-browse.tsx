@@ -7,6 +7,7 @@ import { navigate } from './router';
 import { play } from './sounds';
 import { timeAgo } from './media';
 import { profileLinks } from './links';
+import { peek } from './cache';
 import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
 
 const MAIN_SITE = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://joinmotiondojo.com';
@@ -23,11 +24,11 @@ const FEEDS: { key: FeedName; label: string; needsAccount?: boolean }[] = [
 export function Feed() {
   const { api, me, signedIn } = useConnect();
   const [tab, setTab] = useState<FeedName>('community');
-  const [posts, setPosts] = useState<Post[] | null>(null);
+  const [posts, setPosts] = useState<Post[] | null>(() => peek<Post[]>('listPosts', { feed: 'community' }) ?? null);
 
   useEffect(() => {
     let live = true;
-    setPosts(null);
+    setPosts(peek<Post[]>('listPosts', { feed: tab }) ?? null);
     api.listPosts({ feed: tab }).then((p) => live && setPosts(p)).catch(() => live && setPosts([]));
     return () => {
       live = false;
@@ -138,6 +139,17 @@ export function Feed() {
 }
 
 /* ================= Students directory ================= */
+function workBy(posts: Post[]) {
+  const by: Record<string, { shots: Post[]; count: number }> = {};
+  for (const x of posts) {
+    const w = (by[x.author_id] ??= { shots: [], count: 0 });
+    w.count += 1;
+    const shows = x.media_url && (x.kind === 'image' || (x.kind === 'video' && isVideoFile(x.media_url)));
+    if (shows && w.shots.length < 3) w.shots.push(x);
+  }
+  return by;
+}
+
 export function Students() {
   const { api, me } = useConnect();
   // Search and filters are for members; visitors just browse the list
@@ -145,23 +157,15 @@ export function Students() {
   const [q, setQ] = useState('');
   const [skill, setSkill] = useState('');
   const [phase, setPhase] = useState<number | null>(null);
-  const [list, setList] = useState<Profile[] | null>(null);
+  const [list, setList] = useState<Profile[] | null>(() => peek<Profile[]>('listStudents', { q: '', skill: '', phase: null }) ?? null);
   // each member's latest pictures and videos, to show on their card like a portfolio
-  const [work, setWork] = useState<Record<string, { shots: Post[]; count: number }>>({});
+  const [work, setWork] = useState<Record<string, { shots: Post[]; count: number }>>(() => workBy(peek<Post[]>('listPosts', { feed: 'everyone', limit: 150 }) ?? []));
   useEffect(() => {
     let live = true;
     api
       .listPosts({ feed: 'everyone', limit: 150 })
       .then((posts) => {
-        if (!live) return;
-        const by: Record<string, { shots: Post[]; count: number }> = {};
-        for (const x of posts) {
-          const w = (by[x.author_id] ??= { shots: [], count: 0 });
-          w.count += 1;
-          const shows = x.media_url && (x.kind === 'image' || (x.kind === 'video' && isVideoFile(x.media_url)));
-          if (shows && w.shots.length < 3) w.shots.push(x);
-        }
-        setWork(by);
+        if (live) setWork(workBy(posts));
       })
       .catch(() => {});
     return () => {
@@ -171,6 +175,8 @@ export function Students() {
 
   useEffect(() => {
     let live = true;
+    const seen = peek<Profile[]>('listStudents', { q, skill, phase });
+    if (seen) setList(seen);
     const t = window.setTimeout(() => {
       api.listStudents({ q, skill, phase }).then((r) => live && setList(r)).catch(() => live && setList([]));
     }, 200);
@@ -301,9 +307,15 @@ function PinIcon() {
 /* ================= Profile ================= */
 export function ProfileScreen({ handle }: { handle: string }) {
   const { api, me, signedIn, toast, ask } = useConnect();
-  const [p, setP] = useState<Profile | null | undefined>(undefined);
-  const [posts, setPosts] = useState<Post[] | null>(null);
-  const [counts, setCounts] = useState({ connections: 0, posts: 0 });
+  const [p, setP] = useState<Profile | null | undefined>(() => peek<Profile | null>('getProfile', handle));
+  const [posts, setPosts] = useState<Post[] | null>(() => {
+    const id = peek<Profile | null>('getProfile', handle)?.id;
+    return (id && peek<Post[]>('listPosts', { authorId: id })) || null;
+  });
+  const [counts, setCounts] = useState(() => {
+    const id = peek<Profile | null>('getProfile', handle)?.id;
+    return (id && peek<{ connections: number; posts: number }>('counts', id)) || { connections: 0, posts: 0 };
+  });
   const [status, setStatus] = useState<ConnectionStatus>('none');
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -311,7 +323,12 @@ export function ProfileScreen({ handle }: { handle: string }) {
 
   useEffect(() => {
     let live = true;
-    setP(undefined);
+    const seen = peek<Profile | null>('getProfile', handle);
+    setP(seen);
+    if (seen) {
+      setPosts(peek<Post[]>('listPosts', { authorId: seen.id }) ?? null);
+      setStatus(peek<ConnectionStatus>('connectionStatus', seen.id) ?? 'none');
+    }
     api.getProfile(handle).then(async (prof) => {
       if (!live) return;
       setP(prof);
@@ -639,7 +656,7 @@ function DefaultCover({ seed }: { seed: string }) {
 /* ================= Single post with comments ================= */
 export function PostScreen({ id }: { id: string }) {
   const { api, me, signedIn, toast, ask } = useConnect();
-  const [post, setPost] = useState<Post | null | undefined>(undefined);
+  const [post, setPost] = useState<Post | null | undefined>(() => peek<Post | null>('getPost', id));
   const [comments, setComments] = useState<Comment[]>([]);
   const [fresh, setFresh] = useState('');
   const [draft, setDraft] = useState('');

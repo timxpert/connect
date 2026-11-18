@@ -5,6 +5,7 @@ import { useConnect } from './context';
 import { navigate } from './router';
 import { timeAgo } from './media';
 import type { Notice, Post, Profile } from './types';
+import { peek } from './cache';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge, PostCard, SampleTag, SenseiBadge } from './ui';
 
 function Gate({ profile = false }: { profile?: boolean }) {
@@ -40,7 +41,11 @@ function Who({ p }: { p: Profile }) {
 /* ================= Connections and requests ================= */
 export function Connections() {
   const { api, me, signedIn, toast, ask } = useConnect();
-  const [data, setData] = useState<{ incoming: Profile[]; sent: Profile[]; people: Profile[] } | null>(null);
+  const [data, setData] = useState<{ incoming: Profile[]; sent: Profile[]; people: Profile[] } | null>(() => {
+    const people = peek<Profile[]>('listConnections');
+    const r = peek<{ incoming: Profile[]; sent: Profile[] }>('listRequests');
+    return people && r ? { ...r, people } : null;
+  });
   const [q, setQ] = useState('');
   const [menu, setMenu] = useState('');
 
@@ -207,7 +212,7 @@ export function Connections() {
 /* ================= Notifications ================= */
 export function Notifications() {
   const { api, me, signedIn } = useConnect();
-  const [list, setList] = useState<Notice[] | null>(null);
+  const [list, setList] = useState<Notice[] | null>(() => peek<Notice[]>('listNotices') ?? null);
 
   useEffect(() => {
     if (!me) return;
@@ -263,7 +268,7 @@ export function Notifications() {
 /* ================= Saved projects ================= */
 export function Saved() {
   const { api, me, signedIn } = useConnect();
-  const [posts, setPosts] = useState<Post[] | null>(null);
+  const [posts, setPosts] = useState<Post[] | null>(() => peek<Post[]>('listSaved') ?? null);
   useEffect(() => {
     if (me) api.listSaved().then(setPosts).catch(() => setPosts([]));
   }, [api, me]);

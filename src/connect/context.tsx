@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ConnectApi, Profile } from './types';
+import { peek } from './cache';
 
 type Ctx = {
   api: ConnectApi;
@@ -22,8 +23,17 @@ const ConnectCtx = createContext<Ctx | null>(null);
 export const isMember = (p: Profile | null | undefined) => Boolean(p && (p.is_student || p.is_sensei || p.is_moderator));
 
 export function ConnectProvider({ api, children }: { api: ConnectApi; children: React.ReactNode }) {
-  const [me, setMe] = useState<Profile | null | undefined>(undefined);
-  const [signedIn, setSignedIn] = useState(false);
+  // Open with the profile from last time (if any) while the real one loads
+  const [me, setMe] = useState<Profile | null | undefined>(() => {
+    const m = peek<Profile | null>('me');
+    if (m !== undefined) return m;
+    try {
+      return localStorage.getItem('cx-guest') === '1' ? null : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+  const [signedIn, setSignedIn] = useState(() => Boolean(peek('me')));
   const [note, setNote] = useState('');
   const [dialog, setDialog] = useState<Ask | null>(null);
   const [text, setText] = useState('');
@@ -34,6 +44,12 @@ export function ConnectProvider({ api, children }: { api: ConnectApi; children: 
     // set together so screens never see "signed in" with a stale profile
     setSignedIn(Boolean(s));
     setMe(m);
+    try {
+      if (s) localStorage.removeItem('cx-guest');
+      else localStorage.setItem('cx-guest', '1');
+    } catch {
+      /* ignore */
+    }
   }, [api]);
 
   useEffect(() => {

@@ -8,6 +8,7 @@ import { alertsUndecided, askForAlerts } from './alerts';
 import { presenceLabel, useOnline } from './presence';
 import { useDragToClose } from './drag';
 import type { Attachment, Conversation, Message, Profile } from './types';
+import { peek } from './cache';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 
 /* ------------------------------------------------------------------
@@ -563,8 +564,8 @@ export function Bubble({
 /* ---------- The chat ---------- */
 export function Chat({ id }: { id: string }) {
   const { api, me, signedIn, toast, ask } = useConnect();
-  const [conv, setConv] = useState<Conversation | null | undefined>(undefined);
-  const [msgs, setMsgs] = useState<Message[]>([]);
+  const [conv, setConv] = useState<Conversation | null | undefined>(() => peek<Conversation | null>('getConversation', id));
+  const [msgs, setMsgs] = useState<Message[]>(() => peek<Message[]>('listMessages', id) ?? []);
   const [local, setLocal] = useState<Message[]>([]); // still sending
   const [draft, setDraft] = useState('');
   const [blocked, setBlocked] = useState(false);
@@ -1051,8 +1052,8 @@ const KIND_ICON = { voice: 'mic', image: 'image', video: 'video', file: 'file' }
 
 export function Inbox() {
   const { api, me, signedIn, toast } = useConnect();
-  const [list, setList] = useState<Conversation[] | null>(null);
-  const [people, setPeople] = useState<Profile[]>([]);
+  const [list, setList] = useState<Conversation[] | null>(() => peek<Conversation[]>('listConversations') ?? null);
+  const [people, setPeople] = useState<Profile[]>(() => peek<Profile[]>('listConnections') ?? []);
   const [q, setQ] = useState('');
   const [opening, setOpening] = useState('');
   const [askAlerts, setAskAlerts] = useState(false);
