@@ -673,8 +673,20 @@ export function Chat({ id }: { id: string }) {
   }, [api, id, me, load]);
 
   const all = [...msgs, ...local];
+  // Open at the newest message straight away (no visible scroll);
+  // later messages glide into view. Only the message list moves, never the page.
+  const opened = useRef(false);
   useEffect(() => {
-    end.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    const el = end.current;
+    const list = el?.parentElement;
+    if (!el || !list) return;
+    if (!opened.current) {
+      if (all.length === 0) return;
+      opened.current = true;
+      list.scrollTop = list.scrollHeight;
+      return;
+    }
+    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   }, [all.length]);
 
   // Stop the microphone if the person leaves mid-recording
