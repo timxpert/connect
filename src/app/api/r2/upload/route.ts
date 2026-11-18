@@ -12,7 +12,7 @@ import { adminClient, caller } from '@/lib/server-auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const LIMIT = { video: 100 * 1024 * 1024, chat: 50 * 1024 * 1024 };
+const LIMIT = { video: 100 * 1024 * 1024, chat: 50 * 1024 * 1024, group: 50 * 1024 * 1024 };
 
 const ext = (name: string, type: string) => {
   const fromName = (name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   if (!uid) return Response.json({ error: 'Sign in first.' }, { status: 401 });
 
   const body = (await req.json().catch(() => ({}))) as { purpose?: string; conversationId?: string; name?: string; type?: string; size?: number };
-  const purpose = body.purpose === 'chat' ? 'chat' : body.purpose === 'video' ? 'video' : null;
+  const purpose = body.purpose === 'chat' ? 'chat' : body.purpose === 'video' ? 'video' : body.purpose === 'group' ? 'group' : null;
   const size = Number(body.size) || 0;
   const type = String(body.type || 'application/octet-stream');
   if (!purpose) return Response.json({ error: 'Unknown upload.' }, { status: 400 });
@@ -45,6 +45,12 @@ export async function POST(req: Request) {
     if (!type.startsWith('video/')) return Response.json({ error: 'That isn’t a video.' }, { status: 400 });
     bucket = cfg.publicBucket;
     key = `videos/${uid}/${Date.now()}-${rand}.${ext(String(body.name || ''), type)}`;
+  } else if (purpose === 'group') {
+    const { data: meRow } = await admin.from('profiles').select('is_student, is_sensei, is_moderator').eq('id', uid).maybeSingle();
+    const me = meRow as { is_student: boolean; is_sensei: boolean; is_moderator: boolean } | null;
+    if (!me || !(me.is_student || me.is_sensei || me.is_moderator)) return Response.json({ error: 'Only members can send files to the group.' }, { status: 403 });
+    bucket = cfg.privateBucket;
+    key = `group/${uid}-${Date.now()}-${rand}.${ext(String(body.name || ''), type)}`;
   } else {
     const conv = String(body.conversationId || '');
     const { data: cRow } = await admin.from('conversations').select('user_a, user_b').eq('id', conv).maybeSingle();

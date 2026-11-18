@@ -4,7 +4,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { prepareImage } from './resize';
-import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, Lesson, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupMessage, Lesson, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -114,7 +114,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     if (!token) throw new Error('Sign in first.');
     return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   };
-  async function r2Upload(purpose: 'video' | 'chat', file: File, onProgress?: (share: number) => void, conversationId?: string) {
+  async function r2Upload(purpose: 'video' | 'chat' | 'group', file: File, onProgress?: (share: number) => void, conversationId?: string) {
     if (r2Off) return null;
     const res = await fetch('/api/r2/upload', {
       method: 'POST',
@@ -425,8 +425,11 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const me = await uid();
       if (!me) return 0;
       // Row rules limit this to my own conversations
-      const { count } = await sb.from('messages').select('id', { count: 'exact', head: true }).neq('sender_id', me).is('read_at', null).is('deleted_at', null);
-      return count ?? 0;
+      const [{ count }, group] = await Promise.all([
+        sb.from('messages').select('id', { count: 'exact', head: true }).neq('sender_id', me).is('read_at', null).is('deleted_at', null),
+        sb.rpc('group_unread'),
+      ]);
+      return (count ?? 0) + (group.error ? 0 : Number(group.data ?? 0));
     },
     async markNoticesRead() {
       const me = await needUid();
@@ -779,6 +782,105 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const { data, error } = await sb.rpc('reset_member_id', { uid: userId });
       fail(error);
       return String(data ?? '');
+    },
+
+    async groupInfo() {
+      const { data, error } = await sb.rpc('group_info');
+      if (error) return null;
+      const r = ((data ?? []) as { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null }[])[0];
+      return r ?? null;
+    },
+    async listGroupMessages() {
+      const me = await uid();
+      const { data, error } = await sb
+        .from('group_messages')
+        .select('*, sender:profiles!group_messages_sender_id_fkey(*)')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error && /group_messages/.test(error.message)) throw new Error('The group needs its database update. Run supabase/group.sql in Supabase.');
+      fail(error);
+      const rows = ((data ?? []) as GroupMessage[]).reverse();
+      const ids = rows.map((r) => r.id);
+      const { data: rx } = ids.length ? await sb.from('group_reactions').select('message_id, user_id, emoji').in('message_id', ids) : { data: [] };
+      const by = new Map<string, { emoji: string; count: number; mine: boolean }[]>();
+      for (const r of (rx ?? []) as { message_id: string; user_id: string; emoji: string }[]) {
+        const list = by.get(r.message_id) ?? [];
+        const e = list.find((x) => x.emoji === r.emoji) ?? (list.push({ emoji: r.emoji, count: 0, mine: false }), list[list.length - 1]);
+        e.count += 1;
+        if (r.user_id === me) e.mine = true;
+        by.set(r.message_id, list);
+      }
+      const link = await sign(rows.map((r) => r.media_path).filter((p): p is string => Boolean(p)));
+      return rows.map((r) => ({ ...r, conversation_id: 'group', media_url: r.media_path ? link(r.media_path) : null, reactions: by.get(r.id) ?? [] }));
+    },
+    async groupPreview() {
+      const { data, error } = await sb
+        .from('group_messages')
+        .select('body, kind, deleted_at, created_at, sender:profiles!group_messages_sender_id_fkey(name)')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (error) return null;
+      const r = ((data ?? []) as unknown as { body: string; kind: string; deleted_at: string | null; created_at: string; sender: { name: string } | null }[])[0];
+      const { data: n } = await sb.rpc('group_unread');
+      if (!r) return { text: 'No messages yet', at: '', unread: 0 };
+      return { text: `${r.sender?.name ?? 'Someone'}: ${preview(r)}`, at: r.created_at, unread: Number(n ?? 0) };
+    },
+    async sendGroupMessage(body, replyTo) {
+      const me = await needUid();
+      const { data, error } = await sb.from('group_messages').insert({ sender_id: me, body, kind: 'text', reply_to: replyTo ?? null }).select('*, sender:profiles!group_messages_sender_id_fkey(*)').single();
+      if (error && /row-level|policy/i.test(error.message)) throw new Error('You can’t send messages in the group right now.');
+      fail(error);
+      return { ...(data as GroupMessage), conversation_id: 'group', reactions: [] };
+    },
+    async sendGroupAttachment(a, caption, replyTo, onProgress) {
+      const me = await needUid();
+      const file = a.kind === 'image' ? await prepareImage(a.file, 'posts') : a.file;
+      const ext = (file.name.split('.').pop() || (a.kind === 'voice' ? 'webm' : 'bin')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+      const asFile = file instanceof File ? file : new File([file], `upload.${ext}`, { type: a.file.type });
+      const r = await r2Upload('group', asFile, onProgress);
+      let path: string;
+      if (r) path = `r2:${r.key}`;
+      else {
+        path = `group/${me}-${Date.now()}.${ext}`;
+        await xhrUpload('chat', path, file, onProgress);
+      }
+      const { data, error } = await sb
+        .from('group_messages')
+        .insert({ sender_id: me, body: caption, kind: a.kind === 'file' ? 'image' : a.kind, media_path: path, file_size: file.size, duration: a.duration ?? null, thumb: a.thumb ?? null, reply_to: replyTo ?? null })
+        .select('*, sender:profiles!group_messages_sender_id_fkey(*)')
+        .single();
+      if (error && /row-level|policy/i.test(error.message)) throw new Error('You can’t send messages in the group right now.');
+      fail(error);
+      const link = await sign([path]);
+      return { ...(data as GroupMessage), conversation_id: 'group', media_url: link(path), reactions: [] };
+    },
+    async deleteGroupMessage(id) {
+      const { error } = await sb.rpc('delete_group_message', { mid: id });
+      if (error?.message.includes('not_your_message')) throw new Error('You can only delete your own messages.');
+      fail(error);
+    },
+    async reactGroup(id, emoji) {
+      const me = await needUid();
+      const { error } = emoji
+        ? await sb.from('group_reactions').upsert({ message_id: id, user_id: me, emoji })
+        : await sb.from('group_reactions').delete().eq('message_id', id).eq('user_id', me);
+      fail(error);
+    },
+    async markGroupRead() {
+      const me = await uid();
+      if (!me) return;
+      await sb.from('group_reads').upsert({ user_id: me, last_read_at: new Date().toISOString() });
+    },
+    async setGroupSettings(s) {
+      const { error } = await sb.from('group_settings').update(s).eq('id', 1);
+      fail(error);
+    },
+    async muteInGroup(userId, hours) {
+      const me = await needUid();
+      const { error } = hours > 0
+        ? await sb.from('group_mutes').upsert({ user_id: userId, until: new Date(Date.now() + hours * 3600_000).toISOString(), by: me })
+        : await sb.from('group_mutes').delete().eq('user_id', userId);
+      fail(error);
     },
 
     async report(target, id, reason) {

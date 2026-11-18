@@ -16,6 +16,7 @@ import { A, Avatar, Icon, Loading } from './ui';
 import { Feed, PostScreen, ProfileScreen, Students } from './screens-browse';
 import { Login, Settings, Welcome } from './screens-me';
 import { Chat, Inbox } from './chat';
+import { GroupChat } from './group';
 import { PhasePrompt } from './phase-prompt';
 import { Connections, Notifications, Saved } from './screens-social';
 import { AssignmentScreen, Devices, Learn, LessonEditor, LessonScreen, Reviews } from './screens-learn';
@@ -60,7 +61,7 @@ const TABS = [
   { path: '/students', label: 'Members', icon: 'people' as const, match: ['students', 'profile'] },
   // On phones Connections lives in the account menu, to keep the bottom bar to five
   { path: '/connections', label: 'Connections', icon: 'link2' as const, match: ['connections'], desktopOnly: true },
-  { path: '/messages', label: 'Messages', icon: 'chat' as const, match: ['messages', 'chat'] },
+  { path: '/messages', label: 'Messages', icon: 'chat' as const, match: ['messages', 'chat', 'group'] },
 ];
 
 /** Unread notifications and waiting connection requests, refreshed every 30 seconds */
@@ -95,6 +96,11 @@ function useCounts(onMessage: (m: IncomingMessage) => void) {
       pending = window.setTimeout(on, 250);
       if (event === 'INSERT' && row.sender_id && row.sender_id !== me.id) onMessageRef.current(row as unknown as IncomingMessage);
     });
+    // The Dojo group only updates the Messages count (no sound for every message)
+    const stopGroup = api.subscribe('group_messages', '', () => {
+      window.clearTimeout(pending);
+      pending = window.setTimeout(on, 250);
+    });
     return () => {
       live = false;
       window.clearInterval(t);
@@ -102,6 +108,7 @@ function useCounts(onMessage: (m: IncomingMessage) => void) {
       window.removeEventListener('cx:counts', on);
       stopNotices();
       stopMessages();
+      stopGroup();
     };
   }, [api, me?.id]);
   return c;
@@ -187,6 +194,8 @@ function Shell({ route }: { route: Route }) {
         return <PostScreen key={route.id} id={route.id} />;
       case 'messages':
         return <Inbox />;
+      case 'group':
+        return <GroupChat />;
       case 'chat':
         return <Chat key={route.id} id={route.id} />;
       case 'login':
@@ -224,7 +233,7 @@ function Shell({ route }: { route: Route }) {
   }, [route, authKnown, welcome, member]);
 
   return (
-    <div className={route.name === 'chat' && member ? 'cx is-chat' : 'cx'}>
+    <div className={(route.name === 'chat' || route.name === 'group') && member ? 'cx is-chat' : 'cx'}>
       {api.mode === 'demo' && (
         <p className="cx-preview-bar">Preview with sample members. Nothing here is real until the database is connected.</p>
       )}

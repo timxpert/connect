@@ -3,7 +3,7 @@
    be clicked through before Supabase is connected. Every sample profile is
    flagged `sample: true` and the UI labels it. Nothing here is real. */
 
-import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
+import type { Assignment, Comment, ConnectApi, GroupMessage, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
 
 const now = Date.now();
 const ago = (h: number) => new Date(now - h * 3600_000).toISOString();
@@ -125,6 +125,16 @@ let lessons: RawLesson[] = sampleTitles.flatMap((titles, ph) =>
 );
 const progress = new Set<string>(['s1:l11', 's1:l12']);
 let assignments: Assignment[] = [];
+type RawGroup = Omit<GroupMessage, 'sender' | 'reactions'>;
+let group: RawGroup[] = [
+  { id: 'g1m', conversation_id: 'group', sender_id: 'g1', body: 'Sample message: welcome to the Dojo group. Say hi and share what you’re working on.', kind: 'text', created_at: ago(30) },
+  { id: 'g2m', conversation_id: 'group', sender_id: 's2', body: 'Sample message: anyone tried the new easing presets?', kind: 'text', created_at: ago(5) },
+  { id: 'g3m', conversation_id: 'group', sender_id: 's4', body: 'Sample message: yes, the bounce one is great for logo reveals.', kind: 'text', reply_to: 'g2m', created_at: ago(4) },
+];
+const groupRx = new Map<string, string>([['g1m:s2', '🔥'], ['g1m:s4', '🔥'], ['g3m:s2', '👍']]);
+const groupSet = { announce_only: false, pinned_id: 'g1m' as string | null };
+const groupMutes = new Map<string, number>();
+let groupReadAt = ago(6);
 const briefs: Record<number, string> = { 1: 'Sample brief: animate a 5-second logo reveal using what you learned in phase 1.' };
 
 function outline(): Lesson[] {
@@ -434,6 +444,63 @@ export function createDemoApi(): ConnectApi {
     isBlocked: (id) => wait(Boolean(current && blocks.has(`${current}:${id}`))),
 
     listLessons: () => wait(outline()),
+    async groupInfo() {
+      const me = current ? who(current) : null;
+      if (!me || !(me.is_student || me.is_sensei || me.is_moderator)) return null;
+      const until = groupMutes.get(me.id);
+      return wait({ members: people.filter((p) => p.is_student || p.is_sensei).length, ...groupSet, muted_until: until && until > Date.now() ? new Date(until).toISOString() : null });
+    },
+    listGroupMessages: () =>
+      wait(
+        group.map((m) => {
+          const rx = [...groupRx].filter(([k]) => k.startsWith(m.id + ':'));
+          const list: { emoji: string; count: number; mine: boolean }[] = [];
+          for (const [k, e] of rx) {
+            const x = list.find((y) => y.emoji === e) ?? (list.push({ emoji: e, count: 0, mine: false }), list[list.length - 1]);
+            x.count += 1;
+            if (k.endsWith(':' + current)) x.mine = true;
+          }
+          return { ...m, sender: who(m.sender_id), reactions: list };
+        }),
+      ),
+    async groupPreview() {
+      const m = group[group.length - 1];
+      const unread = group.filter((x) => x.sender_id !== current && x.created_at > groupReadAt).length;
+      return wait(m ? { text: `${who(m.sender_id).name}: ${m.body || 'Photo'}`, at: m.created_at, unread } : null);
+    },
+    async sendGroupMessage(body, replyTo) {
+      const me = needMe();
+      if (groupSet.announce_only && !who(me).is_sensei) throw new Error('You can’t send messages in the group right now.');
+      if ((groupMutes.get(me) ?? 0) > Date.now()) throw new Error('You can’t send messages in the group right now.');
+      const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body, kind: 'text', reply_to: replyTo ?? null, created_at: new Date().toISOString() };
+      group.push(m);
+      return wait({ ...m, sender: who(me), reactions: [] });
+    },
+    async sendGroupAttachment(a, caption, replyTo, onProgress) {
+      const me = needMe();
+      onProgress?.(1);
+      const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body: caption, kind: a.kind, media_url: URL.createObjectURL(a.file), file_size: a.file.size, duration: a.duration, thumb: a.thumb, reply_to: replyTo ?? null, created_at: new Date().toISOString() };
+      group.push(m);
+      return wait({ ...m, sender: who(me), reactions: [] });
+    },
+    async deleteGroupMessage(id) {
+      group = group.map((m) => (m.id === id ? { ...m, deleted_at: new Date().toISOString(), body: '', media_url: null } : m));
+    },
+    async reactGroup(id, emoji) {
+      const k = `${id}:${needMe()}`;
+      if (emoji) groupRx.set(k, emoji);
+      else groupRx.delete(k);
+    },
+    async markGroupRead() {
+      groupReadAt = new Date().toISOString();
+    },
+    async setGroupSettings(s) {
+      Object.assign(groupSet, s);
+    },
+    async muteInGroup(userId, hours) {
+      if (hours > 0) groupMutes.set(userId, Date.now() + hours * 3600_000);
+      else groupMutes.delete(userId);
+    },
     myAssignments: () => wait(assignments.filter((a) => a.user_id === current)),
     async submitAssignment(phase, kind, mediaUrl, caption) {
       const me = needMe();

@@ -43,6 +43,10 @@ const LIVE = new Set<keyof ConnectApi>([
   'teamDevices',
   'claimDevice',
   'checkDevice',
+  'groupInfo',
+  'listGroupMessages',
+  'groupPreview',
+  'markGroupRead',
 ]);
 
 const TTL = 45_000;
@@ -52,7 +56,7 @@ const TTL = 45_000;
    profiles, your own profile) are kept on this device between visits;
    private things (chats) only while the app is open. */
 const KEEP = new Set<string>(['listLessons', 'listPosts', 'listStudents', 'getProfile', 'counts', 'getPost', 'me']);
-const LAST_TOO = new Set<string>(['getLesson', 'listRequests', 'listConversations', 'listMessages', 'listConnections', 'listNotices', 'listSaved', 'getConversation', 'connectionStatus', 'isBlocked']);
+const LAST_TOO = new Set<string>(['listGroupMessages', 'groupInfo', 'getLesson', 'listRequests', 'listConversations', 'listMessages', 'listConnections', 'listNotices', 'listSaved', 'getConversation', 'connectionStatus', 'isBlocked']);
 const SAVE_KEY = 'cx-last-v1';
 const last = new Map<string, unknown>();
 let saveTimer = 0;

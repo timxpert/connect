@@ -10,6 +10,7 @@ import { useDragToClose } from './drag';
 import type { Attachment, Conversation, Message, Profile } from './types';
 import { peek } from './cache';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
+import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 
 /* ------------------------------------------------------------------
    One conversation, WhatsApp-style:
@@ -23,16 +24,16 @@ import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 ------------------------------------------------------------------- */
 
 const MAX_FILE = 50 * 1024 * 1024; // Supabase free plan's per-file limit
-const MAX_VOICE_SECONDS = 5 * 60;
+export const MAX_VOICE_SECONDS = 5 * 60;
 
-const clock = (s: number) => {
+export const clock = (s: number) => {
   const t = Math.max(0, Math.round(s));
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 };
 const size = (b?: number | null) =>
   !b ? '' : b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(0.1, Math.round((b / 1024) * 10) / 10)} kB`;
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-const dayLabel = (iso: string) => {
+export const dayLabel = (iso: string) => {
   const d = new Date(iso);
   const today = new Date();
   const y = new Date();
@@ -42,7 +43,7 @@ const dayLabel = (iso: string) => {
   return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
 };
 
-function kindOf(file: File): Attachment['kind'] {
+export function kindOf(file: File): Attachment['kind'] {
   if (file.type.startsWith('image/') && file.type !== 'image/svg+xml') return 'image';
   if (file.type.startsWith('video/')) return 'video';
   if (file.type.startsWith('audio/')) return 'voice';
@@ -137,14 +138,14 @@ function Voice({ src, duration }: { src: string | null | undefined; duration?: n
 
 /* ---------- Media: tap to download, view inside Connect, save to the phone ---------- */
 const DL_KEY = 'cx-downloaded';
-function loadDownloaded(): Set<string> {
+export function loadDownloaded(): Set<string> {
   try {
     return new Set(JSON.parse(window.localStorage.getItem(DL_KEY) || '[]') as string[]);
   } catch {
     return new Set();
   }
 }
-function rememberDownloaded(ids: Set<string>) {
+export function rememberDownloaded(ids: Set<string>) {
   try {
     window.localStorage.setItem(DL_KEY, JSON.stringify([...ids].slice(-500)));
   } catch {
@@ -261,7 +262,7 @@ export async function saveToPhone(m: Message, toast: (t: string) => void) {
 }
 
 /** Full-screen photo viewer, inside Connect (no web address shown) */
-function Viewer({ m, onClose, onSave }: { m: Message; onClose: () => void; onSave: () => void }) {
+export function Viewer({ m, onClose, onSave }: { m: Message; onClose: () => void; onSave: () => void }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
@@ -293,9 +294,9 @@ function Viewer({ m, onClose, onSave }: { m: Message; onClose: () => void; onSav
    what you picked, drop any you don't want, add more, write a caption,
    then send. Nothing uploads until you tap send.
 ------------------------------------------------------------------- */
-type Picked = { key: string; file: File; kind: Attachment['kind']; url: string };
+export type Picked = { key: string; file: File; kind: Attachment['kind']; url: string };
 
-function SendPreview({
+export function SendPreview({
   items,
   to,
   caption,
@@ -317,7 +318,8 @@ function SendPreview({
   const [at, setAt] = useState(0);
   const i = Math.min(at, items.length - 1);
   const cur = items[i];
-  const tooBig = items.some((x) => x.file.size > MAX_FILE);
+  // videos are made smaller before sending, so only other files have a hard limit
+  const tooBig = items.some((x) => x.kind !== 'video' && x.file.size > MAX_FILE);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
@@ -460,9 +462,23 @@ export function Bubble({
   onRetry,
   onDownload,
   onOpen,
+  who,
+  quote,
+  reactions,
+  onReact,
+  noTicks = false,
+  domId,
 }: {
   m: Message;
   mine: boolean;
+  /** Group chats: who sent it (shown above other people's messages) */
+  who?: { name: string } | null;
+  /** The message this one replies to */
+  quote?: { name: string; text: string; onClick?: () => void } | null;
+  reactions?: { emoji: string; count: number; mine: boolean }[];
+  onReact?: (emoji: string) => void;
+  noTicks?: boolean;
+  domId?: string;
   /** Downloaded (or sent by me): show the media itself */
   ready: boolean;
   onHold: (m: Message) => void;
@@ -497,6 +513,7 @@ export function Bubble({
   const kind = m.kind ?? 'text';
   return (
     <li
+      id={domId}
       className={[
         'cx-msg',
         mine ? 'is-mine' : '',
@@ -510,6 +527,13 @@ export function Bubble({
       {...hold}
       onClick={m.failed && onRetry ? () => onRetry(m) : undefined}
     >
+      {who && <b className="cx-msg-who">{who.name}</b>}
+      {quote && (
+        <button type="button" className="cx-msg-quote" onClick={quote.onClick}>
+          <b>{quote.name}</b>
+          <span>{quote.text}</span>
+        </button>
+      )}
       {kind === 'voice' && <Voice src={m.media_url} duration={m.duration} />}
       {(kind === 'image' || kind === 'video') &&
         (ready && m.media_url ? (
@@ -552,11 +576,23 @@ export function Bubble({
           <span style={{ transform: `scaleX(${Math.max(0.05, m.progress)})` }} />
         </span>
       )}
+      {m.pending && kind === 'video' && (m.progress ?? 0) < 0.5 && <small className="cx-msg-prep">Making the video smaller…</small>}
       {m.body && <p>{m.body}</p>}
       <span className="cx-msg-meta">
         <time dateTime={m.created_at}>{hhmm(m.created_at)}</time>
-        {mine && <Status m={m} />}
+        {mine && !noTicks && <Status m={m} />}
+        {mine && noTicks && (m.pending || m.failed) && <Status m={m} />}
       </span>
+      {reactions && reactions.length > 0 && (
+        <span className="cx-msg-rx">
+          {reactions.map((r) => (
+            <button key={r.emoji} type="button" className={r.mine ? 'is-mine' : ''} onClick={(e) => (e.stopPropagation(), onReact?.(r.emoji))} aria-label={`${r.emoji} ${r.count}`}>
+              {r.emoji}
+              {r.count > 1 && <small>{r.count}</small>}
+            </button>
+          ))}
+        </span>
+      )}
     </li>
   );
 }
@@ -658,7 +694,8 @@ export function Chat({ id }: { id: string }) {
 
   /* sending a file, photo, video or voice note: shows at once, uploads behind */
   const sendFile = async (a: Attachment, caption = '') => {
-    if (a.file.size > MAX_FILE) return toast('Files can be up to 50 MB.');
+    if (a.kind !== 'video' && a.file.size > MAX_FILE) return toast('Files can be up to 50 MB.');
+    if (a.kind === 'video' && (await videoSeconds(a.file)) > MAX_VIDEO_SECONDS) return toast('Videos can be up to 3 minutes. Share a Google Drive link for longer ones.');
     const tmp: Message = {
       id: `tmp-${Date.now()}`,
       conversation_id: id,
@@ -676,13 +713,21 @@ export function Chat({ id }: { id: string }) {
     setLocal((l) => [...l, tmp]);
     play('send');
     const thumb = await makeThumb(a.file, a.kind);
-    upload(tmp, thumb ? { ...a, thumb } : a, caption);
+    let file = a.file;
+    if (a.kind === 'video') {
+      file = await compressVideo(a.file, (p) => setLocal((l) => l.map((x) => (x.id === tmp.id ? { ...x, progress: p * 0.5 } : x))));
+      if (file.size > MAX_FILE) {
+        setLocal((l) => l.map((x) => (x.id === tmp.id ? { ...x, failed: true, pending: false } : x)));
+        return toast('This video is still over 50 MB. Share a Google Drive link instead.');
+      }
+    }
+    upload(tmp, { ...a, file, ...(thumb ? { thumb } : {}) }, caption, a.kind === 'video' ? 0.5 : 0);
   };
 
-  const upload = async (tmp: Message, a: Attachment, caption: string) => {
+  const upload = async (tmp: Message, a: Attachment, caption: string, from = 0) => {
     retries.current.set(tmp.id, { a, caption });
     try {
-      const m = await api.sendAttachment(id, a, caption, (p) => setLocal((l) => l.map((x) => (x.id === tmp.id ? { ...x, progress: p } : x))));
+      const m = await api.sendAttachment(id, a, caption, (p) => setLocal((l) => l.map((x) => (x.id === tmp.id ? { ...x, progress: from + p * (1 - from) } : x))));
       // You sent it, so it's already on this device: tapping opens it, no download
       if (a.kind === 'file') keepFile(m.id, a.file);
       setMsgs((xs) => [...xs, m]);
@@ -1036,6 +1081,41 @@ export function Chat({ id }: { id: string }) {
 }
 
 /* ================= Inbox ================= */
+function GroupInboxRow() {
+  const { api } = useConnect();
+  const [p, setP] = useState<{ text: string; at: string; unread: number } | null>(null);
+  useEffect(() => {
+    const load = () => api.groupPreview().then(setP).catch(() => {});
+    load();
+    const stop = api.subscribe('group_messages', '', load);
+    return stop;
+  }, [api]);
+  if (!p) return null;
+  return (
+    <ul className="cx-inbox cx-inbox-group">
+      <li>
+        <A path="/messages/group" className={p.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
+          <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true">
+            <Icon name="people" size={26} />
+          </span>
+          <span className="cx-inbox-text">
+            <span className="cx-inbox-top">
+              <span className="cx-person-name">Dojo group</span>
+              {p.at && <span className="cx-inbox-time">{shortTime(p.at)}</span>}
+            </span>
+            <span className="cx-inbox-bottom">
+              <span className="cx-inbox-last">
+                <span className="cx-inbox-snippet">{p.text}</span>
+              </span>
+              {p.unread > 0 && <span className="cx-inbox-count">{p.unread > 99 ? '99+' : p.unread}</span>}
+            </span>
+          </span>
+        </A>
+      </li>
+    </ul>
+  );
+}
+
 function OnlineDot({ id }: { id: string }) {
   return useOnline(id) ? <span className="cx-online-dot" aria-label="Online" /> : null;
 }
@@ -1154,6 +1234,8 @@ export function Inbox() {
           ))}
         </ul>
       )}
+
+      {(me.is_student || me.is_sensei || me.is_moderator) && !term && <GroupInboxRow />}
 
       {list!.length === 0 ? (
         <div className="cx-inbox-empty">

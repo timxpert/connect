@@ -111,6 +111,15 @@ export type Message = {
   failed?: boolean;
 };
 
+/** A message in the Dojo group */
+export type GroupMessage = Message & {
+  reply_to?: string | null;
+  sender?: Profile;
+  reactions?: { emoji: string; count: number; mine: boolean }[];
+};
+
+export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null };
+
 export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number; thumb?: string };
 
 export type ProfileInput = Partial<
@@ -179,7 +188,7 @@ export interface ConnectApi {
   /** Live updates from the database; returns a function that stops them */
   /** Who's online right now: calls back with their ids whenever it changes */
   presence(cb: (online: Set<string>) => void): () => void;
-  subscribe(table: 'messages' | 'comments' | 'notifications', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
+  subscribe(table: 'messages' | 'comments' | 'notifications' | 'group_messages' | 'group_reactions' | 'group_settings', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
   signIn(email: string): Promise<void>;
   /** Students: email + the student ID they got when they enrolled */
   studentSignIn(email: string, studentId: string): Promise<void>;
@@ -263,6 +272,21 @@ export interface ConnectApi {
   checkDevice(token: string): Promise<boolean>;
   teamDevices(): Promise<DeviceRow[]>;
   resetMemberId(userId: string): Promise<string>;
+
+  /** The Dojo group: every student and the team */
+  groupInfo(): Promise<GroupInfo | null>;
+  listGroupMessages(): Promise<GroupMessage[]>;
+  groupPreview(): Promise<{ text: string; at: string; unread: number } | null>;
+  sendGroupMessage(body: string, replyTo?: string | null): Promise<GroupMessage>;
+  sendGroupAttachment(a: Attachment, caption: string, replyTo?: string | null, onProgress?: (share: number) => void): Promise<GroupMessage>;
+  deleteGroupMessage(id: string): Promise<void>;
+  /** null removes your reaction */
+  reactGroup(id: string, emoji: string | null): Promise<void>;
+  markGroupRead(): Promise<void>;
+  /** Team only */
+  setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null }): Promise<void>;
+  /** Team only. hours = 0 unmutes */
+  muteInGroup(userId: string, hours: number): Promise<void>;
 
   report(target: 'post' | 'comment' | 'profile' | 'message', id: string, reason: string): Promise<void>;
   setBlock(userId: string, on: boolean): Promise<void>;

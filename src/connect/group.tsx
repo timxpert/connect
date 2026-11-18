@@ -1,0 +1,566 @@
+'use client';
+/* The Dojo group: one chat for every student and the team.
+   Text, photos, videos (made smaller before sending), voice notes, replies
+   and reactions. The team can pin a message, remove any message, mute a
+   student for a while and switch the group to announcements only. */
+
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useConnect } from './context';
+import { peek } from './cache';
+import { useDragToClose } from './drag';
+import { play } from './sounds';
+import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
+import { Bubble, clock, dayLabel, kindOf, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
+import type { Attachment, GroupInfo, GroupMessage } from './types';
+import { A, Empty, Icon, Loading } from './ui';
+
+const MAX_FILE = 50 * 1024 * 1024;
+const EMOJI = ['👍', '❤️', '😂', '🔥', '👏', '🙏'];
+
+const snippet = (m: GroupMessage) =>
+  m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.body;
+
+function whoName(m: GroupMessage) {
+  const n = m.sender?.name ?? 'Member';
+  if (m.sender?.is_sensei) return /sensei/i.test(n) ? n : `${n} · Grand Sensei`;
+  return m.sender?.is_moderator ? `${n} · Team` : n;
+}
+
+export function GroupChat() {
+  const { api, me, signedIn, toast, ask } = useConnect();
+  const [info, setInfo] = useState<GroupInfo | null | undefined>(() => peek<GroupInfo | null>('groupInfo'));
+  const [msgs, setMsgs] = useState<GroupMessage[]>(() => peek<GroupMessage[]>('listGroupMessages') ?? []);
+  const [local, setLocal] = useState<GroupMessage[]>([]);
+  const [draft, setDraft] = useState('');
+  const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
+  const [held, setHeld] = useState<GroupMessage | null>(null);
+  const [menu, setMenu] = useState(false);
+  const [rec, setRec] = useState<{ start: number; secs: number } | null>(null);
+  const [picked, setPicked] = useState<Picked[]>([]);
+  const [caption, setCaption] = useState('');
+  const [downloaded, setDownloaded] = useState<Set<string>>(() => new Set());
+  const [viewing, setViewing] = useState<GroupMessage | null>(null);
+  const [error, setError] = useState('');
+  const end = useRef<HTMLLIElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const recorder = useRef<{ mr: MediaRecorder; chunks: Blob[]; stream: MediaStream; cancel: boolean } | null>(null);
+  const heldSheet = useDragToClose<HTMLDivElement>(() => setHeld(null), Boolean(held));
+  useEffect(() => setDownloaded(loadDownloaded()), []);
+
+  const team = Boolean(me?.is_sensei || me?.is_moderator);
+
+  const load = useCallback(async () => {
+    const [list, i] = await Promise.all([api.listGroupMessages(), api.groupInfo()]);
+    setMsgs(list);
+    setInfo(i);
+    api
+      .markGroupRead()
+      .then(() => window.dispatchEvent(new Event('cx:counts')))
+      .catch(() => {});
+  }, [api]);
+
+  useEffect(() => {
+    if (!me) return;
+    load().catch((e: Error) => setError(e.message));
+    const stops = [
+      api.subscribe('group_messages', '', () => load().catch(() => {})),
+      api.subscribe('group_reactions', '', () => load().catch(() => {})),
+      api.subscribe('group_settings', '', () => load().catch(() => {})),
+    ];
+    const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 30000);
+    return () => {
+      stops.forEach((s) => s());
+      window.clearInterval(t);
+    };
+  }, [api, me, load]);
+
+  const all = [...msgs, ...local];
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [all.length]);
+
+  useEffect(
+    () => () => {
+      const r = recorder.current;
+      if (r) {
+        r.cancel = true;
+        if (r.mr.state !== 'inactive') r.mr.stop();
+        r.stream.getTracks().forEach((t) => t.stop());
+      }
+    },
+    [],
+  );
+
+  if (!signedIn) return <Empty title="Sign in to see the group" />;
+  if (me === undefined || info === undefined) return error ? <Empty title="The group can’t load">{<p>{error}</p>}</Empty> : <Loading />;
+  if (!me || info === null) return <Empty title="The Dojo group is for Black Belt members" />;
+
+  const muted = info.muted_until && new Date(info.muted_until).getTime() > Date.now();
+  const canSend = !muted && (team || !info.announce_only);
+  const byId = new Map(all.map((m) => [m.id, m]));
+  const pinned = info.pinned_id ? byId.get(info.pinned_id) : undefined;
+
+  const jump = (mid: string) => {
+    const el = document.getElementById(`gm-${mid}`);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('is-flash');
+    window.setTimeout(() => el.classList.remove('is-flash'), 1200);
+  };
+
+  /* sending */
+  const sendText = async () => {
+    const body = draft.trim();
+    if (!body) return;
+    const reply = replyTo?.id ?? null;
+    setDraft('');
+    setReplyTo(null);
+    play('send');
+    const tmp: GroupMessage = { id: `tmp-${Date.now()}`, conversation_id: 'group', sender_id: me.id, body, created_at: new Date().toISOString(), kind: 'text', reply_to: reply, pending: true };
+    setLocal((l) => [...l, tmp]);
+    try {
+      const m = await api.sendGroupMessage(body, reply);
+      setMsgs((xs) => [...xs, m]);
+    } catch (e) {
+      setDraft(body);
+      toast((e as Error).message);
+    } finally {
+      setLocal((l) => l.filter((x) => x.id !== tmp.id));
+    }
+    box.current?.focus();
+  };
+
+  const setProgress = (id: string, p: number) => setLocal((l) => l.map((x) => (x.id === id ? { ...x, progress: p } : x)));
+  const failLocal = (id: string) => setLocal((l) => l.map((x) => (x.id === id ? { ...x, failed: true, pending: false } : x)));
+
+  const sendFile = async (a: Attachment, text = '') => {
+    if (a.kind !== 'video' && a.file.size > MAX_FILE) return toast('Files can be up to 50 MB.');
+    if (a.kind === 'video' && (await videoSeconds(a.file)) > MAX_VIDEO_SECONDS) return toast('Videos can be up to 3 minutes. Share a Google Drive link for longer ones.');
+    const reply = replyTo?.id ?? null;
+    setReplyTo(null);
+    const tmp: GroupMessage = {
+      id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      conversation_id: 'group',
+      sender_id: me.id,
+      body: text,
+      created_at: new Date().toISOString(),
+      kind: a.kind,
+      media_url: URL.createObjectURL(a.file),
+      file_size: a.file.size,
+      duration: a.duration,
+      reply_to: reply,
+      pending: true,
+      progress: 0,
+    };
+    setLocal((l) => [...l, tmp]);
+    play('send');
+    const thumb = await makeThumb(a.file, a.kind);
+    let file = a.file;
+    if (a.kind === 'video') {
+      file = await compressVideo(a.file, (p) => setProgress(tmp.id, p * 0.5));
+      if (file.size > MAX_FILE) {
+        failLocal(tmp.id);
+        return toast('This video is still over 50 MB. Share a Google Drive link instead.');
+      }
+    }
+    const from = a.kind === 'video' ? 0.5 : 0;
+    try {
+      const m = await api.sendGroupAttachment({ ...a, file, ...(thumb ? { thumb } : {}) }, text, reply, (p) => setProgress(tmp.id, from + p * (1 - from)));
+      setMsgs((xs) => [...xs, m]);
+      setLocal((l) => l.filter((x) => x.id !== tmp.id));
+    } catch (e) {
+      failLocal(tmp.id);
+      toast((e as Error).message);
+    }
+  };
+
+  const pickFiles = (files: FileList | null) => {
+    if (!files?.length) return;
+    if (!picked.length) {
+      setCaption(draft.trim());
+      setDraft('');
+    }
+    const add = Array.from(files)
+      .filter((f) => ['image', 'video'].includes(kindOf(f)))
+      .map((f, n) => ({ key: `${Date.now()}-${n}-${f.name}`, file: f, kind: kindOf(f), url: URL.createObjectURL(f) }));
+    setPicked((p) => [...p, ...add].slice(0, 10));
+  };
+  const closePicked = () => {
+    picked.forEach((x) => URL.revokeObjectURL(x.url));
+    setPicked([]);
+    setDraft((d) => d || caption);
+    setCaption('');
+  };
+  const sendPicked = () => {
+    const list = picked;
+    const text = caption.trim();
+    setPicked([]);
+    setCaption('');
+    list.forEach((x, n) => {
+      URL.revokeObjectURL(x.url);
+      sendFile({ file: x.file, kind: x.kind }, n === 0 ? text : '');
+    });
+  };
+
+  /* voice notes */
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') return toast('Voice notes don’t work in this browser.');
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    } catch {
+      return toast('Allow microphone access to record a voice note.');
+    }
+    const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'].find((t) => MediaRecorder.isTypeSupported?.(t));
+    const mr = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 16000 });
+    const r = { mr, chunks: [] as Blob[], stream, cancel: false };
+    recorder.current = r;
+    const start = Date.now();
+    mr.ondataavailable = (e) => e.data.size && r.chunks.push(e.data);
+    mr.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      recorder.current = null;
+      setRec(null);
+      const secs = (Date.now() - start) / 1000;
+      if (r.cancel || secs < 0.8) return;
+      const mime = mr.mimeType || type || 'audio/webm';
+      const ext = mime.includes('mp4') ? 'm4a' : mime.includes('ogg') ? 'ogg' : 'webm';
+      sendFile({ file: new File(r.chunks, `voice-${Date.now()}.${ext}`, { type: mime.split(';')[0] }), kind: 'voice', duration: Math.round(secs * 10) / 10 });
+    };
+    mr.start(250);
+    setRec({ start, secs: 0 });
+    const tick = window.setInterval(() => {
+      if (recorder.current !== r) return window.clearInterval(tick);
+      const secs = (Date.now() - start) / 1000;
+      setRec({ start, secs });
+      if (secs >= MAX_VOICE_SECONDS) mr.stop();
+    }, 250);
+  };
+  const stopRecording = (send: boolean) => {
+    const r = recorder.current;
+    if (!r) return;
+    r.cancel = !send;
+    if (r.mr.state !== 'inactive') r.mr.stop();
+  };
+
+  const download = (m: GroupMessage) =>
+    setDownloaded((d) => {
+      const next = new Set(d).add(m.id);
+      rememberDownloaded(next);
+      return next;
+    });
+
+  /* holding a message */
+  const react = async (m: GroupMessage, emoji: string) => {
+    setHeld(null);
+    const mine = m.reactions?.find((r) => r.mine);
+    const next = mine?.emoji === emoji ? null : emoji;
+    // show it at once
+    setMsgs((xs) =>
+      xs.map((x) => {
+        if (x.id !== m.id) return x;
+        let rx = (x.reactions ?? []).map((r) => (r.mine ? { ...r, count: r.count - 1, mine: false } : r)).filter((r) => r.count > 0);
+        if (next) {
+          const e = rx.find((r) => r.emoji === next);
+          rx = e ? rx.map((r) => (r.emoji === next ? { ...r, count: r.count + 1, mine: true } : r)) : [...rx, { emoji: next, count: 1, mine: true }];
+        }
+        return { ...x, reactions: rx };
+      }),
+    );
+    if (next) play('like');
+    await api.reactGroup(m.id, next).catch((e: Error) => toast(e.message));
+  };
+  const remove = async (m: GroupMessage) => {
+    setHeld(null);
+    const theirs = m.sender_id !== me.id;
+    if (!(await ask({ title: theirs ? `Remove ${m.sender?.name ?? 'this'}’s message?` : 'Delete for everyone?', body: 'It will be removed for everyone in the group.', confirm: theirs ? 'Remove' : 'Delete', danger: true }))) return;
+    setMsgs((xs) => xs.map((x) => (x.id === m.id ? { ...x, deleted_at: new Date().toISOString(), body: '', media_url: null, reactions: [] } : x)));
+    await api.deleteGroupMessage(m.id).catch((e: Error) => toast(e.message));
+  };
+  const copy = async (m: GroupMessage) => {
+    setHeld(null);
+    try {
+      await navigator.clipboard.writeText(m.body);
+      toast('Copied');
+    } catch {
+      /* ignore */
+    }
+  };
+  const pin = async (m: GroupMessage | null) => {
+    setHeld(null);
+    setInfo({ ...info, pinned_id: m?.id ?? null });
+    await api.setGroupSettings({ pinned_id: m?.id ?? null }).catch((e: Error) => toast(e.message));
+  };
+  const mute = async (m: GroupMessage) => {
+    setHeld(null);
+    const name = m.sender?.name ?? 'this member';
+    if (!(await ask({ title: `Mute ${name} for 24 hours?`, body: 'They can still read the group but can’t send messages until then.', confirm: 'Mute' }))) return;
+    await api
+      .muteInGroup(m.sender_id, 24)
+      .then(() => toast(`${name} is muted for 24 hours`))
+      .catch((e: Error) => toast(e.message));
+  };
+  const reportMsg = async (m: GroupMessage) => {
+    setHeld(null);
+    const reason = await ask({ title: 'Report this message', body: 'A moderator will look at it. They won’t know who reported it.', input: 'What’s wrong?', confirm: 'Send report' });
+    if (!reason) return;
+    await api.report('message', m.id, reason);
+    toast('Thanks. A moderator will take a look.');
+  };
+  const toggleAnnounce = async () => {
+    setMenu(false);
+    const on = !info.announce_only;
+    setInfo({ ...info, announce_only: on });
+    await api
+      .setGroupSettings({ announce_only: on })
+      .then(() => toast(on ? 'Only the team can post now' : 'Everyone can post again'))
+      .catch((e: Error) => toast(e.message));
+  };
+
+  const typing = draft.trim().length > 0;
+  let lastDay = '';
+  let lastSender = '';
+
+  return (
+    <div className="cx-col cx-chat cx-group">
+      <header className="cx-chat-head">
+        <A path="/messages" className="cx-icon-btn cx-icon-flat" aria-label="All messages">
+          <Icon name="back" />
+        </A>
+        <span className="cx-person">
+          <span className="cx-group-ico" aria-hidden="true">
+            <Icon name="people" size={22} />
+          </span>
+          <span className="cx-person-text">
+            <span className="cx-person-name">Dojo group</span>
+            <span className="cx-person-meta">
+              {info.members} members{info.announce_only ? ' · only the team can post' : ''}
+            </span>
+          </span>
+        </span>
+        {team && (
+          <div className="cx-menu cx-chat-more">
+            <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Group options" aria-expanded={menu} onClick={() => setMenu((x) => !x)}>
+              <Icon name="more" />
+            </button>
+            {menu && (
+              <>
+                <div className="cx-menu-scrim" onClick={() => setMenu(false)} aria-hidden="true" />
+                <div className="cx-menu-list" role="menu">
+                  <button type="button" role="menuitemcheckbox" aria-checked={info.announce_only} onClick={toggleAnnounce}>
+                    {info.announce_only ? 'Let everyone post' : 'Only the team can post'}
+                  </button>
+                  {pinned && (
+                    <button type="button" role="menuitem" onClick={() => (setMenu(false), pin(null))}>
+                      Unpin message
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </header>
+
+      {pinned && !pinned.deleted_at && (
+        <button type="button" className="cx-pinned" onClick={() => jump(pinned.id)}>
+          <Icon name="bookmark" size={16} />
+          <span>
+            <b>{pinned.sender?.name ?? 'Pinned'}</b> {snippet(pinned)}
+          </span>
+        </button>
+      )}
+
+      <ol className="cx-msgs">
+        {all.length === 0 && <li className="cx-day">No messages yet. Say hello.</li>}
+        {all.map((m) => {
+          const day = dayLabel(m.created_at);
+          const showDay = day !== lastDay;
+          if (showDay) lastSender = '';
+          lastDay = day;
+          const mine = m.sender_id === me.id;
+          const showWho = !mine && m.sender_id !== lastSender;
+          lastSender = m.sender_id;
+          const parent = m.reply_to ? byId.get(m.reply_to) : undefined;
+          return (
+            <React.Fragment key={m.id}>
+              {showDay && <li className="cx-day">{day}</li>}
+              <Bubble
+                  domId={`gm-${m.id}`}
+                  m={m}
+                  mine={mine}
+                  ready={mine || downloaded.has(m.id)}
+                  who={showWho ? { name: whoName(m) } : null}
+                  quote={parent ? { name: parent.sender_id === me.id ? 'You' : parent.sender?.name ?? 'Member', text: snippet(parent).slice(0, 120), onClick: () => jump(parent.id) } : null}
+                  reactions={m.reactions}
+                  onReact={(e) => react(m, e)}
+                  noTicks
+                  onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && !x.deleted_at && setHeld(x as GroupMessage)}
+                  onDownload={(x) => download(x as GroupMessage)}
+                  onOpen={(x) => setViewing(x as GroupMessage)}
+                />
+            </React.Fragment>
+          );
+        })}
+        <li ref={end} className="cx-msgs-end" aria-hidden="true" />
+      </ol>
+
+      {!canSend ? (
+        <div className="cx-chat-blocked">
+          <p>{muted ? `You’re muted in the group until ${new Date(info.muted_until!).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}.` : 'Only the team can post right now.'}</p>
+        </div>
+      ) : rec ? (
+        <div className="cx-chat-compose cx-rec" role="group" aria-label="Recording a voice note">
+          <button type="button" className="cx-icon-btn cx-icon-flat" onClick={() => stopRecording(false)} aria-label="Cancel recording">
+            <Icon name="trash" />
+          </button>
+          <span className="cx-rec-dot" aria-hidden="true" />
+          <span className="cx-rec-time">{clock(rec.secs)}</span>
+          <span className="cx-rec-hint">Recording…</span>
+          <button type="button" className="cx-send" onClick={() => stopRecording(true)} aria-label="Send voice note">
+            <Icon name="send" size={20} />
+          </button>
+        </div>
+      ) : (
+        <div className="cx-group-foot">
+          {replyTo && (
+            <div className="cx-replying">
+              <span>
+                <b>Replying to {replyTo.sender_id === me.id ? 'yourself' : replyTo.sender?.name}</b>
+                <small>{snippet(replyTo).slice(0, 120)}</small>
+              </span>
+              <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Cancel reply" onClick={() => setReplyTo(null)}>
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+          )}
+          <form
+            className="cx-compose cx-chat-compose"
+            onSubmit={(e) => {
+              e.preventDefault();
+              sendText();
+            }}
+          >
+            <button type="button" className="cx-icon-btn cx-icon-flat cx-attach" onClick={() => fileInput.current?.click()} aria-label="Send a photo or video">
+              <Icon name="image" />
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              className="sr-only"
+              accept="image/*,video/*"
+              onChange={(e) => {
+                pickFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            <label className="sr-only" htmlFor="group-box">
+              Message
+            </label>
+            <textarea ref={box} id="group-box" rows={1} maxLength={4000} placeholder="Message the group" value={draft} onChange={(e) => setDraft(e.target.value)} enterKeyHint="enter" />
+            {typing ? (
+              <button type="submit" className="cx-send" aria-label="Send">
+                <Icon name="send" size={20} />
+              </button>
+            ) : (
+              <button type="button" className="cx-send" onClick={startRecording} aria-label="Record a voice note">
+                <Icon name="mic" size={20} />
+              </button>
+            )}
+          </form>
+        </div>
+      )}
+
+      {held && (
+        <div className="cx-sheet-wrap" onClick={() => setHeld(null)}>
+          <div className="cx-sheet cx-drag" role="menu" ref={heldSheet} onClick={(e) => e.stopPropagation()}>
+            <span className="cx-grab" aria-hidden="true" />
+            <div className="cx-rx-pick" role="group" aria-label="React">
+              {EMOJI.map((e) => (
+                <button key={e} type="button" className={held.reactions?.some((r) => r.mine && r.emoji === e) ? 'is-on' : ''} onClick={() => react(held, e)} aria-label={`React ${e}`}>
+                  {e}
+                </button>
+              ))}
+            </div>
+            {canSend && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setReplyTo(held);
+                  setHeld(null);
+                  window.setTimeout(() => box.current?.focus(), 50);
+                }}
+              >
+                <Icon name="back" /> Reply
+              </button>
+            )}
+            {held.body && (
+              <button type="button" role="menuitem" onClick={() => copy(held)}>
+                <Icon name="copy" /> Copy text
+              </button>
+            )}
+            {held.kind && held.kind !== 'text' && held.media_url && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const m = held;
+                  setHeld(null);
+                  saveToPhone(m, toast);
+                }}
+              >
+                <Icon name="download" /> Save to phone
+              </button>
+            )}
+            {team && (
+              <button type="button" role="menuitem" onClick={() => pin(info.pinned_id === held.id ? null : held)}>
+                <Icon name="bookmark" /> {info.pinned_id === held.id ? 'Unpin' : 'Pin to the top'}
+              </button>
+            )}
+            {team && held.sender_id !== me.id && !held.sender?.is_sensei && (
+              <button type="button" role="menuitem" onClick={() => mute(held)}>
+                <Icon name="close" /> Mute {held.sender?.name} for 24 hours
+              </button>
+            )}
+            {held.sender_id === me.id || team ? (
+              <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>
+                <Icon name="trash" /> {held.sender_id === me.id ? 'Delete for everyone' : 'Remove message'}
+              </button>
+            ) : (
+              <button type="button" role="menuitem" onClick={() => reportMsg(held)}>
+                <Icon name="more" /> Report message
+              </button>
+            )}
+            <button type="button" role="menuitem" onClick={() => setHeld(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {picked.length > 0 && (
+        <SendPreview
+          items={picked}
+          to="the Dojo group"
+          caption={caption}
+          onCaption={setCaption}
+          onRemove={(key) =>
+            setPicked((p) => {
+              const gone = p.find((x) => x.key === key);
+              if (gone) URL.revokeObjectURL(gone.url);
+              return p.filter((x) => x.key !== key);
+            })
+          }
+          onAdd={() => fileInput.current?.click()}
+          onClose={closePicked}
+          onSend={sendPicked}
+        />
+      )}
+
+      {viewing && <Viewer m={viewing} onClose={() => setViewing(null)} onSave={() => saveToPhone(viewing, toast)} />}
+    </div>
+  );
+}

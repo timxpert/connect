@@ -25,6 +25,7 @@ export type Route =
   | { name: 'assignment'; phase: number }
   | { name: 'reviews' }
   | { name: 'devices' }
+  | { name: 'group' }
   | { name: 'notfound' };
 
 const hashMode = () => typeof window !== 'undefined' && Boolean((window as unknown as { __CONNECT_HASH__?: boolean }).__CONNECT_HASH__);
@@ -44,6 +45,7 @@ export function parse(path: string): Route {
   if (a === 'students' && !b) return { name: 'students' };
   if (a === 'u' && b) return { name: 'profile', handle: b };
   if (a === 'p' && b) return { name: 'post', id: b };
+  if (a === 'messages' && b === 'group') return { name: 'group' };
   if (a === 'messages') return b ? { name: 'chat', id: b } : { name: 'messages' };
   if (a === 'login') return { name: 'login' };
   if (a === 'team' && !b) return { name: 'login', team: true };
