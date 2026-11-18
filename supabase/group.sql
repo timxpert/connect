@@ -126,7 +126,8 @@ $$;
 grant execute on function public.group_unread() to authenticated;
 
 -- Header details: members, announcements switch, pinned message, my mute
-create or replace function public.group_info()
+drop function if exists public.group_info();
+create function public.group_info()
 returns table (members int, announce_only boolean, pinned_id uuid, muted_until timestamptz)
 language sql stable security definer set search_path = public as $$
   select (select count(*)::int from public.profiles where is_student or is_sensei or is_moderator),
