@@ -723,8 +723,24 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
     },
     async saveLesson(input) {
+      /* Where a lesson goes in its phase: straight after the last lesson of its
+         section, or at the end of the phase. Lessons below it move down one. */
+      const slot = async (selfId?: string) => {
+        const { data, error } = await sb.from('lessons').select('id, position, section').eq('phase', input.phase).order('position');
+        const rows = ((error ? [] : data ?? []) as { id: string; position: number; section: string | null }[]).filter((r) => r.id !== selfId);
+        const sec = input.section.trim();
+        const inSec = sec ? rows.filter((r) => (r.section ?? '').trim() === sec) : [];
+        if (!inSec.length) return (rows.at(-1)?.position ?? 0) + 1;
+        const pos = inSec[inSec.length - 1].position + 1;
+        for (const r of rows.filter((x) => x.position >= pos).reverse()) await sb.from('lessons').update({ position: r.position + 1 }).eq('id', r.id);
+        return pos;
+      };
       const row: Record<string, unknown> = { phase: input.phase, title: input.title.trim(), summary: input.summary.trim(), duration: input.duration.trim(), video_url: input.video_url.trim(), size_mb: input.size_mb, notes: input.notes, files: input.files, published: input.published, portrait: input.portrait, images: input.images, section: input.section.trim().slice(0, 80), updated_at: new Date().toISOString() };
       if (input.id) {
+        // moved to another phase or section: put it with the others
+        const { data: was } = await sb.from('lessons').select('phase, section').eq('id', input.id).maybeSingle();
+        const old = was as { phase: number; section?: string | null } | null;
+        if (old && (old.phase !== input.phase || (old.section ?? '').trim() !== input.section.trim())) row.position = await slot(input.id);
         let { error } = await sb.from('lessons').update(row).eq('id', input.id);
         if (error && /portrait|images|section/.test(error.message)) {
           // database without these settings yet (phases.sql)
@@ -736,8 +752,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         fail(error);
         return api.getLesson(input.id);
       }
-      const { data: last } = await sb.from('lessons').select('position').eq('phase', input.phase).order('position', { ascending: false }).limit(1).maybeSingle();
-      const position = ((last as { position: number } | null)?.position ?? 0) + 1;
+      const position = await slot();
       let { data, error } = await sb.from('lessons').insert({ ...row, position }).select('id').single();
       if (error && /portrait|images|section/.test(error.message)) {
         delete row.portrait;

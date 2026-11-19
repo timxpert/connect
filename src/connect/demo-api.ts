@@ -623,13 +623,27 @@ export function createDemoApi(): ConnectApi {
       const me = who(needMe());
       if (!me.is_sensei && !me.is_moderator) throw new Error('team_only');
       let id = input.id;
+      // after the last lesson of its section, or at the end of the phase
+      const slot = (selfId?: string) => {
+        const rows = lessons.filter((l) => l.phase === input.phase && l.id !== selfId).sort((a, b) => a.position - b.position);
+        const sec = input.section.trim();
+        const inSec = sec ? rows.filter((l) => (l.section ?? '').trim() === sec) : [];
+        if (!inSec.length) return (rows.at(-1)?.position ?? 0) + 1;
+        const pos = inSec[inSec.length - 1].position + 1;
+        rows.filter((l) => l.position >= pos).forEach((l) => (l.position += 1));
+        return pos;
+      };
       if (id) {
         const l = lessons.find((x) => x.id === id);
-        if (l) Object.assign(l, { ...input, id });
+        if (l) {
+          const moved = l.phase !== input.phase || (l.section ?? '').trim() !== input.section.trim();
+          Object.assign(l, { ...input, id });
+          if (moved) l.position = slot(id);
+        }
       } else {
         id = nid();
-        const pos = Math.max(0, ...lessons.filter((l) => l.phase === input.phase).map((l) => l.position)) + 1;
-        lessons.push({ ...input, id, position: pos });
+        const position = slot();
+        lessons.push({ ...input, id, position });
       }
       return this.getLesson(id);
     },
