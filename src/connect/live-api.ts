@@ -741,8 +741,25 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
       const rows = (data ?? []) as unknown as Message[];
       const paths = rows.map((m) => m.media_path).filter((p): p is string => Boolean(p));
-      const link = paths.length ? await sign(paths) : () => null;
-      return rows.map((m) => (m.media_path ? { ...m, media_url: link(m.media_path) } : m));
+      // file links and reactions at the same time
+      const ids = rows.map((m) => m.id);
+      const [link, me, rx] = await Promise.all([
+        paths.length ? sign(paths) : Promise.resolve(() => null),
+        uid(),
+        ids.length
+          ? sb.from('message_reactions').select('message_id, user_id, emoji').in('message_id', ids.slice(-300)).then((r) => (r.error ? [] : (r.data ?? [])))
+          : Promise.resolve([]),
+      ]);
+      const by = new Map<string, { emoji: string; count: number; mine: boolean; who: string[] }[]>();
+      for (const r of rx as { message_id: string; user_id: string; emoji: string }[]) {
+        const list = by.get(r.message_id) ?? [];
+        const e = list.find((x) => x.emoji === r.emoji) ?? (list.push({ emoji: r.emoji, count: 0, mine: false, who: [] }), list[list.length - 1]);
+        e.count += 1;
+        e.who.push(r.user_id);
+        if (r.user_id === me) e.mine = true;
+        by.set(r.message_id, list);
+      }
+      return rows.map((m) => ({ ...m, ...(m.media_path ? { media_url: link(m.media_path) } : {}), reactions: by.get(m.id) ?? [] }));
     },
     enablePush: () => enablePushNow(),
     async testPush() {
@@ -809,6 +826,14 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       ping('dm', (data as unknown as Message).id, `/messages/${conversationId}`);
       const link = await sign([path]);
       return { ...(data as unknown as Message), media_url: link(path) };
+    },
+    async reactMessage(id, emoji) {
+      const me = await needUid();
+      const { error } = emoji
+        ? await sb.from('message_reactions').upsert({ message_id: id, user_id: me, emoji })
+        : await sb.from('message_reactions').delete().eq('message_id', id).eq('user_id', me);
+      if (error && /message_reactions/.test(error.message)) throw new Error('Reactions in chats need a database update: run dm-reactions.sql in Supabase.');
+      fail(error);
     },
     async editMessage(id, body) {
       const { error } = await sb.rpc('edit_message', { mid: id, new_body: body });

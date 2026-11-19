@@ -481,6 +481,18 @@ export function createDemoApi(): ConnectApi {
       setTimeout(() => (m.delivered_at = new Date().toISOString()), 1500);
       return m;
     },
+    async reactMessage(mid, emoji) {
+      const me = needMe();
+      messages = messages.map((m) => {
+        if (m.id !== mid) return m;
+        let rx = ((m as Message).reactions ?? []).map((r) => (r.mine ? { ...r, count: r.count - 1, mine: false, who: (r.who ?? []).filter((w) => w !== me) } : r)).filter((r) => r.count > 0);
+        if (emoji) {
+          const e = rx.find((r) => r.emoji === emoji);
+          rx = e ? rx.map((r) => (r.emoji === emoji ? { ...r, count: r.count + 1, mine: true, who: [...(r.who ?? []), me] } : r)) : [...rx, { emoji, count: 1, mine: true, who: [me] }];
+        }
+        return { ...m, reactions: rx };
+      });
+    },
     async editMessage(mid, body) {
       const me = needMe();
       messages = messages.map((m) => (m.id === mid && m.sender_id === me ? { ...m, body, edited_at: new Date().toISOString() } : m));

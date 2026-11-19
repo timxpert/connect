@@ -118,6 +118,8 @@ export type Message = {
   forwarded?: boolean | null;
   /** Changed after sending */
   edited_at?: string | null;
+  /** Private chats: reactions (one per person) */
+  reactions?: { emoji: string; count: number; mine: boolean; who?: string[] }[];
   /** A private reply to a group message: JSON {name, text} */
   quote?: string | null;
   /** Client only: still uploading / sending */
@@ -246,7 +248,7 @@ export interface ConnectApi {
   /** Live "typing…" signals in a room ('u:<id>', 'g:main', 'g:<group id>') */
   typingListen(room: string, cb: (t: TypingSignal) => void): () => void;
   typingSend(room: string, t: TypingSignal): void;
-  subscribe(table: 'messages' | 'comments' | 'notifications' | 'group_messages' | 'group_reactions' | 'group_settings' | 'groups', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
+  subscribe(table: 'messages' | 'comments' | 'notifications' | 'group_messages' | 'group_reactions' | 'group_settings' | 'groups' | 'message_reactions', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
   signIn(email: string): Promise<void>;
   /** Students: email + the student ID they got when they enrolled */
   studentSignIn(email: string, studentId: string): Promise<void>;
@@ -305,6 +307,8 @@ export interface ConnectApi {
   deleteMessage(id: string): Promise<void>;
   /** Your own text, within the delete-for-everyone time */
   editMessage(id: string, body: string): Promise<void>;
+  /** React to a private message; null removes yours */
+  reactMessage(id: string, emoji: string | null): Promise<void>;
   /** Marks everything the other person sent in this chat as seen */
   markRead(conversationId: string): Promise<void>;
   /** Marks all incoming messages as delivered to this device */

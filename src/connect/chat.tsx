@@ -40,6 +40,8 @@ const size = (b?: number | null) =>
   !b ? '' : b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(0.1, Math.round((b / 1024) * 10) / 10)} kB`;
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 /** Delete for everyone: up to 24 hours after sending while it's unseen, and 1 hour after it's seen */
+const DM_EMOJI = ['👍', '❤️', '😂', '🔥', '👏', '🙏'];
+
 export const canUnsend = (sentAt: string, seenAt?: string | null) =>
   seenAt ? Date.now() <= new Date(seenAt).getTime() + 3600_000 : Date.now() <= new Date(sentAt).getTime() + 24 * 3600_000;
 export const TOO_LATE = 'You can delete a message for everyone within 24 hours, or within 1 hour once it’s been seen.';
@@ -905,9 +907,12 @@ export function Chat({ id }: { id: string }) {
     // Live: messages and tick changes arrive the moment they happen.
     // A slow check every 20 seconds covers a dropped connection.
     const stop = api.subscribe('messages', `conversation_id=eq.${id}`, () => load().catch(() => {}));
+    // reactions on this chat's messages
+    const stopRx = api.subscribe('message_reactions', '', () => load().catch(() => {}));
     const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 20000);
     return () => {
       stop();
+      stopRx();
       window.clearInterval(t);
     };
   }, [api, id, me, load]);
@@ -1194,6 +1199,25 @@ export function Chat({ id }: { id: string }) {
       /* ignore */
     }
   };
+  // React to a message (tap the same emoji again to take it off)
+  const react = async (m: Message, emoji: string) => {
+    setHeld(null);
+    const mine = m.reactions?.find((r) => r.mine);
+    const next = mine?.emoji === emoji ? null : emoji;
+    setMsgs((xs) =>
+      xs.map((x) => {
+        if (x.id !== m.id) return x;
+        let rx = (x.reactions ?? []).map((r) => (r.mine ? { ...r, count: r.count - 1, mine: false } : r)).filter((r) => r.count > 0);
+        if (next) {
+          const e = rx.find((r) => r.emoji === next);
+          rx = e ? rx.map((r) => (r.emoji === next ? { ...r, count: r.count + 1, mine: true } : r)) : [...rx, { emoji: next, count: 1, mine: true }];
+        }
+        return { ...x, reactions: rx };
+      }),
+    );
+    if (next) play('like');
+    await api.reactMessage(m.id, next).catch((e: Error) => toast(e.message));
+  };
   const remove = async (m: Message) => {
     setHeld(null);
     if (!(await ask({ title: 'Delete for everyone?', body: `This message will be removed for you and ${other.name}.`, confirm: 'Delete', danger: true }))) return;
@@ -1318,6 +1342,8 @@ export function Chat({ id }: { id: string }) {
                 mine={m.sender_id === me.id}
                 ready={m.sender_id === me.id || downloaded.has(m.id)}
                 onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && setHeld(x)}
+                reactions={m.reactions}
+                onReact={(e) => react(m, e)}
                 onRetry={retry}
                 onDownload={download}
                 onOpen={(x) => (x.kind === 'file' ? openFile(x, toast) : setViewing(x))}
@@ -1428,6 +1454,15 @@ export function Chat({ id }: { id: string }) {
         <div className="cx-sheet-wrap" onClick={() => setHeld(null)}>
           <div className="cx-sheet cx-drag" role="menu" ref={heldSheet} onClick={(e) => e.stopPropagation()}>
             <span className="cx-grab" aria-hidden="true" />
+            {!held.deleted_at && (
+              <div className="cx-rx-pick" role="group" aria-label="React">
+                {DM_EMOJI.map((e) => (
+                  <button key={e} type="button" className={held.reactions?.some((r) => r.mine && r.emoji === e) ? 'is-on' : ''} onClick={() => react(held, e)} aria-label={`React ${e}`}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+            )}
             {!held.pending && !held.deleted_at && (held.body || held.media_url) && (
               <button type="button" role="menuitem" onClick={() => (setForwarding(held), setHeld(null))}>
                 <Icon name="forward" /> Forward
