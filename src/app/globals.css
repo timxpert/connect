@@ -6998,3 +6998,11 @@ html[data-cx-theme='dark'] .cx-toast {
   font-weight: 600;
   white-space: nowrap;
 }
+.cx-player-cover .cx-player-label {
+  position: absolute;
+}
+.cx-player-cover .cx-player-poster {
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+}
