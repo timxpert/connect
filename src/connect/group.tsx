@@ -450,7 +450,7 @@ export function GroupChat() {
         <A path="/messages/group/info" className="cx-person" aria-label="Group info">
           <GroupPhoto url={info.photo_url} size={40} />
           <span className="cx-person-text">
-            <span className="cx-person-name">{info.name || 'Dojo group'}</span>
+            <span className="cx-person-name">{info.name || storedName()}</span>
             <span className="cx-person-meta cx-group-names">{memberNames(people, me.id) || `${info.members} members`}</span>
           </span>
         </A>
@@ -779,6 +779,15 @@ function SeenBy({ m, readers, onClose }: { m: GroupMessage; readers: GroupReader
 
 const clock2 = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+/** The group's name as last seen on this phone (so the old default never flashes) */
+function storedName(): string {
+  try {
+    return (JSON.parse(localStorage.getItem('cx-group-look') || 'null') as { name?: string } | null)?.name || '';
+  } catch {
+    return '';
+  }
+}
+
 export function GroupPhoto({ url, size }: { url?: string | null; size: number }) {
   return (
     <span className="cx-group-ico" style={{ width: size, height: size }} aria-hidden="true">
@@ -950,7 +959,7 @@ export function GroupInfoScreen() {
 
       <div className="cx-gi-head">
         <GroupPhoto url={info.photo_url} size={96} />
-        <h1>{info.name || 'Dojo group'}</h1>
+        <h1>{info.name || storedName()}</h1>
         <p>{info.members} members</p>
         {team && (
           <div className="cx-gi-actions">

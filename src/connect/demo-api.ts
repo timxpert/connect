@@ -92,10 +92,11 @@ const linkOf = (x: string, y: string) => (links.has(`${x}:${y}`) ? `${x}:${y}` :
 const notify = (user: string, kind: Notice['kind'], actor: string, post: string | null = null) =>
   notices.unshift({ id: nid(), user, kind, actor, post, read: false, at: new Date().toISOString() });
 let blocks = new Set<string>();
-let convs: { id: string; a: string; b: string; last: string }[] = [{ id: 'm1', a: 's1', b: 's2', last: ago(5) }];
+let convs: { id: string; a: string; b: string; last: string }[] = [{ id: 'm1', a: 's1', b: 's2', last: ago(5) }, { id: 'm2', a: 'g1', b: 's3', last: ago(3) }];
 let messages: Message[] = [
   { id: 'x1', conversation_id: 'm1', sender_id: 's2', body: 'Sample message: how did you get that text bounce?', created_at: ago(6) },
   { id: 'x2', conversation_id: 'm1', sender_id: 's1', body: 'Sample message: graph editor, overshoot on the second keyframe.', created_at: ago(5) },
+  { id: 'xj', conversation_id: 'm2', sender_id: 's3', body: 'joined the community', kind: 'join' as Message['kind'], created_at: ago(3) },
 ];
 
 let current: string | null = null;
@@ -380,7 +381,7 @@ export function createDemoApi(): ConnectApi {
         .map<Conversation>((c) => {
           const last = messages.filter((m) => m.conversation_id === c.id).slice(-1)[0];
           const unread = messages.filter((m) => m.conversation_id === c.id && m.sender_id !== me && !m.read_at && !m.deleted_at).length;
-          const body = !last ? '' : last.deleted_at ? 'Message deleted' : last.kind === 'voice' ? 'Voice message' : last.kind === 'file' ? last.file_name || 'File' : last.kind === 'image' ? last.body || 'Photo' : last.kind === 'video' ? last.body || 'Video' : last.body;
+          const body = !last ? '' : (last.kind as string) === 'join' ? (last.sender_id === me ? 'You joined the community' : 'Joined the community') : last.deleted_at ? 'Message deleted' : last.kind === 'voice' ? 'Voice message' : last.kind === 'file' ? last.file_name || 'File' : last.kind === 'image' ? last.body || 'Photo' : last.kind === 'video' ? last.body || 'Video' : last.body;
           return {
             id: c.id,
             other: who(c.a === me ? c.b : c.a),

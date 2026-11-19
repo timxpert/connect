@@ -1190,6 +1190,31 @@ export function Chat({ id }: { id: string }) {
             <React.Fragment key={m.id}>
               {showDay && <li className="cx-day">{day}</li>}
               {m.id === unreadFrom && <li className="cx-unread">Unread messages</li>}
+              {(m.kind as string) === 'join' ? (
+                // the first line of a student's chat with the Grand Sensei
+                <li className="cx-welcome">
+                  {m.sender_id === me.id ? (
+                    <>
+                      <b>You joined the community</b>
+                      <span>You can message {other.name} here any time.</span>
+                    </>
+                  ) : (
+                    <>
+                      <Avatar p={other} size={56} />
+                      <b>{other.name} joined the community</b>
+                      <span>
+                        {new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                        {other.country ? ` · ${other.country}` : ''}
+                      </span>
+                      {all.length === 1 && !draft && (
+                        <button type="button" className="cx-welcome-btn" onClick={() => setDraft(`Welcome to Motion Dojo, ${other.name.split(' ')[0]}. Start with the orientation video in Learn, then pick your phase.`)}>
+                          Send a welcome
+                        </button>
+                      )}
+                    </>
+                  )}
+                </li>
+              ) : (
               <Bubble
                 m={m}
                 mine={m.sender_id === me.id}
@@ -1200,6 +1225,7 @@ export function Chat({ id }: { id: string }) {
                 onOpen={(x) => (x.kind === 'file' ? openFile(x, toast) : setViewing(x))}
                 quote={readQuote(m.quote) ? { name: `${readQuote(m.quote)!.name} in the group`, text: readQuote(m.quote)!.text } : null}
               />
+              )}
             </React.Fragment>
           );
         })}
@@ -1350,14 +1376,30 @@ export function Chat({ id }: { id: string }) {
 function GroupInboxRow() {
   const { api } = useConnect();
   // Shown straight away (last known, or just the name) so the group never blinks out while it loads
-  const [p, setP] = useState<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>(
-    () => peek<{ name: string; photo_url?: string | null; text: string; at: string; unread: number }>('groupPreview') ?? { name: 'Dojo group', text: '', at: '', unread: 0 },
-  );
+  // the group's name and picture from last time, so the old default name never flashes
+  const [p, setP] = useState<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>(() => {
+    const seen = peek<{ name: string; photo_url?: string | null; text: string; at: string; unread: number }>('groupPreview');
+    if (seen) return seen;
+    try {
+      const look = JSON.parse(localStorage.getItem('cx-group-look') || 'null') as { name: string; photo_url: string | null } | null;
+      return { name: look?.name ?? '', photo_url: look?.photo_url ?? null, text: '', at: '', unread: 0 };
+    } catch {
+      return { name: '', text: '', at: '', unread: 0 };
+    }
+  });
   useEffect(() => {
     const load = () =>
       api
         .groupPreview()
-        .then((v) => v && setP(v))
+        .then((v) => {
+          if (!v) return;
+          setP(v);
+          try {
+            localStorage.setItem('cx-group-look', JSON.stringify({ name: v.name, photo_url: v.photo_url ?? null }));
+          } catch {
+            /* storage blocked */
+          }
+        })
         .catch(() => {});
     load();
     const stop = api.subscribe('group_messages', '', load);
@@ -1369,11 +1411,11 @@ function GroupInboxRow() {
       <li>
         <A path="/messages/group" className={p.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
           <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true">
-            <img src={p.photo_url || '/assets/favicon-128.png'} alt="" width={56} height={56} />
+            {p.photo_url || p.name ? <img src={p.photo_url || '/assets/favicon-128.png'} alt="" width={56} height={56} /> : null}
           </span>
           <span className="cx-inbox-text">
             <span className="cx-inbox-top">
-              <span className="cx-person-name">{p.name}</span>
+              <span className="cx-person-name">{p.name || <span className="cx-skel-line" aria-label="Loading" />}</span>
               {p.at && <span className="cx-inbox-time">{shortTime(p.at)}</span>}
             </span>
             <span className="cx-inbox-bottom">
@@ -1529,7 +1571,8 @@ export function Inbox() {
         <ul className="cx-inbox">
           {chats.map((c) => {
             const unread = c.unread ?? 0;
-            const kind = c.last_kind && c.last_kind !== 'text' && !c.last_deleted ? c.last_kind : null;
+            const joined = (c.last_kind as string) === 'join';
+            const kind = c.last_kind && c.last_kind !== 'text' && !joined && !c.last_deleted ? (c.last_kind as keyof typeof KIND_ICON) : null;
             return (
               <li key={c.id}>
                 <A path={`/messages/${c.id}`} className={unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
@@ -1542,18 +1585,19 @@ export function Inbox() {
                       <span className="cx-person-name">
                         {c.other.name}
                         {c.other.is_sensei ? null : c.other.is_student && <BeltBadge p={c.other} small />}
+                        {joined && unread > 0 && <span className="cx-new-tag">New</span>}
                       </span>
                       <span className="cx-inbox-time">{shortTime(c.last_message_at)}</span>
                     </span>
                     <span className="cx-inbox-bottom">
                       <span className="cx-inbox-last">
-                        {c.last_mine && !c.last_deleted && (
+                        {c.last_mine && !c.last_deleted && !joined && (
                           <span className={c.last_read ? 'cx-tick is-seen' : 'cx-tick'} aria-label={c.last_read ? 'Seen' : c.last_delivered ? 'Delivered' : 'Sent'}>
                             <Icon name={c.last_read || c.last_delivered ? 'ticks' : 'tick'} size={16} />
                           </span>
                         )}
                         {kind && <Icon name={KIND_ICON[kind]} size={16} />}
-                        <span className="cx-inbox-snippet">{c.last_body || 'Say hello'}</span>
+                        <span className={joined && unread > 0 ? 'cx-inbox-snippet is-joined' : 'cx-inbox-snippet'}>{c.last_body || 'Say hello'}</span>
                       </span>
                       {unread > 0 && <span className="cx-inbox-count">{unread > 99 ? '99+' : unread}</span>}
                     </span>
