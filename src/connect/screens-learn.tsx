@@ -363,13 +363,24 @@ function useVideoRatio(url: string) {
   }, [url]);
   return ratio;
 }
+/** YouTube can't tell us a video's shape, so the editor saves it on the link: …#ar=4:3 */
+const SHAPES: [string, number, number][] = [
+  ['Tall (phone)', 9, 16],
+  ['Wide', 16, 9],
+  ['Slides (4:3)', 4, 3],
+  ['Square', 1, 1],
+];
+function shapeOf(url: string) {
+  const m = /#ar=(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)/.exec(url);
+  return m ? Number(m[1]) / Number(m[2]) : null;
+}
 const driveThumb = (id: string) => `https://drive.google.com/thumbnail?id=${id}&sz=w720`;
 
 function Player({ url, title, mark, size, autoload = false, portrait = false, onRatio }: { url: string; title: string; mark: string; size?: number | null; autoload?: boolean; portrait?: boolean; onRatio?: (r: number) => void }) {
   const e = embedSrc(url);
   // the video's own shape when we can read it; otherwise the lesson's setting
   const found = useVideoRatio(url);
-  const ratio = found ?? (portrait ? 9 / 16 : 16 / 9);
+  const ratio = shapeOf(url) ?? found ?? (portrait ? 9 / 16 : 16 / 9);
   useEffect(() => {
     if (found) onRatio?.(found);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -745,12 +756,21 @@ export function LessonEditor({ id }: { id?: string }) {
           <fieldset className="cx-fieldset">
             <legend>Video shape</legend>
             <div className="cx-chips" role="radiogroup" aria-label="Video shape">
-              <button type="button" role="radio" aria-checked={f.portrait} className={f.portrait ? 'cx-chip is-on' : 'cx-chip'} onClick={() => set('portrait', true)}>
-                Tall (phone)
-              </button>
-              <button type="button" role="radio" aria-checked={!f.portrait} className={!f.portrait ? 'cx-chip is-on' : 'cx-chip'} onClick={() => set('portrait', false)}>
-                Wide
-              </button>
+              {SHAPES.map(([label, w, h]) => {
+                const on = Math.abs((shapeOf(f.video_url) ?? (f.portrait ? 9 / 16 : 16 / 9)) - w / h) < 0.01;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    className={on ? 'cx-chip is-on' : 'cx-chip'}
+                    onClick={() => setF((cur) => (cur ? { ...cur, portrait: w < h, video_url: `${cur.video_url.replace(/#.*$/, '').trim()}#ar=${w}:${h}` } : cur))}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </fieldset>
         )}
