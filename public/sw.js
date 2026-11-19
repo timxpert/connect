@@ -1,5 +1,5 @@
 /* Motion Dojo Connect service worker.
-   1. Shows message notifications and opens the right chat when one is tapped.
+   1. Shows message notifications (also from the server: see 3) and opens the right chat when one is tapped.
    2. Keeps photos (profile pictures, posts, chat photos) on the phone after
       they load once, so they show instantly next time and don't use data again.
       Only pictures are kept; pages and data always come fresh. */
@@ -65,5 +65,36 @@ self.addEventListener('notificationclick', (e) => {
       }
       return self.clients.openWindow(url);
     }),
+  );
+});
+
+/* 3. Phone notifications from the server when Connect is closed (Web Push).
+   Messages from the same chat stack in one notification, like WhatsApp. */
+self.addEventListener('push', (e) => {
+  let d = {};
+  try {
+    d = e.data ? e.data.json() : {};
+  } catch {
+    d = { title: 'Motion Dojo Connect', body: e.data ? e.data.text() : '' };
+  }
+  e.waitUntil(
+    (async () => {
+      const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      // Connect is open on screen: the app shows its own alert
+      if (wins.some((c) => c.visibilityState === 'visible' && c.focused)) return;
+      const tag = d.tag || 'connect';
+      const earlier = await self.registration.getNotifications({ tag });
+      const lines = [...((earlier[0] && earlier[0].data && earlier[0].data.lines) || []), d.body || ''].slice(-6);
+      const body = lines.length > 1 ? lines.join('\n') : lines[0];
+      const title = lines.length > 1 ? `${d.title} (${lines.length} messages)` : d.title || 'Motion Dojo Connect';
+      await self.registration.showNotification(title, {
+        body,
+        tag,
+        renotify: true,
+        icon: d.icon || '/assets/favicon-128.png',
+        badge: '/assets/favicon-128.png',
+        data: { url: d.url || '/', lines },
+      });
+    })(),
   );
 });

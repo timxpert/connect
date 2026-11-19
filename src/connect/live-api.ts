@@ -4,6 +4,8 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { prepareImage } from './resize';
+import { markPushOn, pushSubscription } from './alerts';
+import { to } from './router';
 import type { Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
@@ -83,6 +85,24 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       x.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
       x.send(file);
     });
+  }
+
+  /** Tells the server to send phone notifications for a message just sent (never blocks the send) */
+  function ping(kind: 'dm' | 'group', id: string, path: string) {
+    void (async () => {
+      try {
+        const token = (await sb.auth.getSession()).data.session?.access_token;
+        if (!token) return;
+        await fetch('/api/push/send', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind, id, url: new URL(to(path), window.location.href).href }),
+          keepalive: true,
+        });
+      } catch {
+        /* the message is sent; only the phone alert is missed */
+      }
+    })();
   }
 
   /** Uploads into a Supabase Storage bucket */
@@ -641,6 +661,14 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const link = paths.length ? await sign(paths) : () => null;
       return rows.map((m) => (m.media_path ? { ...m, media_url: link(m.media_path) } : m));
     },
+    async enablePush() {
+      const me = await uid();
+      const sub = me ? await pushSubscription() : null;
+      if (!me || !sub) return false;
+      const { error } = await sb.from('push_subscriptions').upsert({ ...sub, user_id: me });
+      markPushOn(!error);
+      return !error;
+    },
     async sendMessage(conversationId, body, quote, forwarded) {
       const me = await needUid();
       let { data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body, ...(quote ? { quote } : {}), ...(forwarded ? { forwarded: true } : {}) }).select().single();
@@ -653,7 +681,9 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         ({ data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body }).select().single());
       }
       fail(error);
-      return data as unknown as Message;
+      const sent = data as unknown as Message;
+      ping('dm', sent.id, `/messages/${conversationId}`);
+      return sent;
     },
     async sendAttachment(conversationId, a, caption, onProgress, forwarded) {
       const me = await needUid();
@@ -692,6 +722,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       }
       if (error && /column|kind|media_path|schema cache/i.test(error.message)) throw new Error(NEEDS_UPDATE);
       fail(error);
+      ping('dm', (data as unknown as Message).id, `/messages/${conversationId}`);
       const link = await sign([path]);
       return { ...(data as unknown as Message), media_url: link(path) };
     },
@@ -996,6 +1027,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       if (error && forwarded && /forwarded/.test(error.message)) ({ data, error } = await sb.from('group_messages').insert({ sender_id: me, body, kind: 'text', reply_to: replyTo ?? null }).select(sel).single());
       if (error && /row-level|policy/i.test(error.message)) throw new Error('You can’t send messages in the group right now.');
       fail(error);
+      ping('group', (data as GroupMessage).id, '/messages/group');
       return { ...(data as GroupMessage), conversation_id: 'group', reactions: [] };
     },
     async sendGroupAttachment(a, caption, replyTo, onProgress, forwarded) {
@@ -1020,6 +1052,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       if (error && /row-level|policy/i.test(error.message)) throw new Error('You can’t send messages in the group right now.');
       if (error && /file_name|kind_check/.test(error.message)) throw new Error('Documents need a database update: run supabase/group-files.sql in Supabase.');
       fail(error);
+      ping('group', (data as GroupMessage).id, '/messages/group');
       const link = await sign([path]);
       return { ...(data as GroupMessage), conversation_id: 'group', media_url: link(path), reactions: [] };
     },

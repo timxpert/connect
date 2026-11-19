@@ -1455,7 +1455,8 @@ export function Inbox() {
   useEffect(() => {
     let dismissed = false;
     try {
-      dismissed = localStorage.getItem('cx-alerts-asked') === '1';
+      // "Not now" hides it for 3 days, then it asks again
+      dismissed = Date.now() - Number(localStorage.getItem('cx-alerts-later') || 0) < 3 * 864e5;
     } catch {
       /* ignore */
     }
@@ -1464,11 +1465,14 @@ export function Inbox() {
   const answerAlerts = async (yes: boolean) => {
     setAskAlerts(false);
     try {
-      localStorage.setItem('cx-alerts-asked', '1');
+      if (!yes) localStorage.setItem('cx-alerts-later', String(Date.now()));
     } catch {
       /* ignore */
     }
-    if (yes && (await askForAlerts())) toast('Message alerts are on');
+    if (yes && (await askForAlerts())) {
+      toast('Message alerts are on');
+      api.enablePush().catch(() => {});
+    }
   };
 
   useEffect(() => {
@@ -1518,7 +1522,7 @@ export function Inbox() {
 
       {askAlerts && (
         <div className="cx-alerts-ask">
-          <p>Get an alert on this device when someone messages you.</p>
+          <p>Get notified of new messages, even when Connect is closed.</p>
           <button type="button" className="btn btn-light btn-sm" onClick={() => answerAlerts(false)}>
             Not now
           </button>

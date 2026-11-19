@@ -580,6 +580,9 @@ export function createDemoApi(): ConnectApi {
       onProgress?.(1);
       return URL.createObjectURL(file);
     },
+    async enablePush() {
+      return false;
+    },
     async setTeamRole(userId, role) {
       const p = who(userId);
       p.team_role = role;

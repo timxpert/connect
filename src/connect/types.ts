@@ -335,6 +335,8 @@ export interface ConnectApi {
   listProjects(phase: number): Promise<Post[]>;
   /** Grand Sensei: put a student on the team with a role (null takes them off) */
   setTeamRole(userId: string, role: string | null): Promise<void>;
+  /** Phone notifications when Connect is closed; false if not possible */
+  enablePush(): Promise<boolean>;
   /** Everyone on the team who is also a student: id → role */
   teamRoles(): Promise<Record<string, string>>;
   /** Phase check: a student says which phase they're in; the team confirms */

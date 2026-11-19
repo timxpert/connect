@@ -5,7 +5,7 @@ import { ConnectProvider, isMember, useConnect } from './context';
 import { Composer, openComposer } from './compose';
 import { onVisitorChange, visitorChosen } from './visitor';
 import { play, setSoundOn, soundOn } from './sounds';
-import { notify, registerAlerts } from './alerts';
+import { alertsAllowed, notify, registerAlerts } from './alerts';
 import { startPresence } from './presence';
 import { guardDevice } from './device';
 import { CHAT_COLORS, useAppearance } from './appearance';
@@ -208,6 +208,10 @@ function Shell({ route }: { route: Route }) {
   useEffect(() => {
     registerAlerts();
   }, []);
+  // Alerts already allowed: make sure this phone gets messages when Connect is closed
+  useEffect(() => {
+    if (me?.id && alertsAllowed()) api.enablePush().catch(() => {});
+  }, [api, me?.id]);
   // Online status: only members with a profile show up as online
   useEffect(() => (me ? startPresence(api) : undefined), [api, me?.id]);
 
