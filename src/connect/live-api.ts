@@ -161,27 +161,59 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
 
   // Signed links for private chat files, reused until shortly before they expire
   // (re-signing on every poll would reload voice notes and photos)
+  // Signed links for private photos/files, kept on this device while they're valid
+  // so reopening a chat doesn't wait to sign them again
+  const SIGNED_KEY = 'cx-signed-v1';
   const signed = new Map<string, { url: string; until: number }>();
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SIGNED_KEY) : null;
+    if (raw) for (const [k, v] of JSON.parse(raw) as [string, { url: string; until: number }][]) if (v.until > Date.now()) signed.set(k, v);
+  } catch {
+    /* nothing kept */
+  }
+  let saveSigned = 0;
+  const keepSigned = () => {
+    window.clearTimeout(saveSigned);
+    saveSigned = window.setTimeout(() => {
+      try {
+        const now = Date.now();
+        const list = [...signed].filter(([, v]) => v.until > now).slice(-800);
+        localStorage.setItem(SIGNED_KEY, JSON.stringify(list));
+      } catch {
+        /* storage full or blocked */
+      }
+    }, 500);
+  };
   async function sign(paths: string[]) {
     const now = Date.now();
     const need = [...new Set(paths)].filter((p) => (signed.get(p)?.until ?? 0) <= now);
     const fromR2 = need.filter((p) => p.startsWith('r2:'));
     const fromSupabase = need.filter((p) => !p.startsWith('r2:'));
-    if (fromSupabase.length) {
-      const { data } = await sb.storage.from('chat').createSignedUrls(fromSupabase, 6 * 3600);
-      for (const d of (data ?? []) as unknown as { path: string | null; signedUrl: string }[]) {
-        if (d.path && d.signedUrl) signed.set(d.path, { url: d.signedUrl, until: now + 5 * 3600 * 1000 });
-      }
-    }
-    if (fromR2.length) {
-      const res = await fetch('/api/r2/read', {
-        method: 'POST',
-        headers: await authHeader(),
-        body: JSON.stringify({ keys: fromR2.map((p) => p.slice(3)) }),
-      }).catch(() => null);
-      const body = (res && res.ok ? await res.json().catch(() => null) : null) as { urls?: Record<string, string> } | null;
-      for (const [k, u] of Object.entries(body?.urls ?? {})) signed.set(`r2:${k}`, { url: u, until: now + 5 * 3600 * 1000 });
-    }
+    // both at once
+    await Promise.all([
+      fromSupabase.length
+        ? sb.storage
+            .from('chat')
+            .createSignedUrls(fromSupabase, 6 * 3600)
+            .then(({ data }) => {
+              for (const d of (data ?? []) as unknown as { path: string | null; signedUrl: string }[]) {
+                if (d.path && d.signedUrl) signed.set(d.path, { url: d.signedUrl, until: now + 5 * 3600 * 1000 });
+              }
+            })
+        : null,
+      fromR2.length
+        ? (async () => {
+            const res = await fetch('/api/r2/read', {
+              method: 'POST',
+              headers: await authHeader(),
+              body: JSON.stringify({ keys: fromR2.map((p) => p.slice(3)) }),
+            }).catch(() => null);
+            const body = (res && res.ok ? await res.json().catch(() => null) : null) as { urls?: Record<string, string> } | null;
+            for (const [k, u] of Object.entries(body?.urls ?? {})) signed.set(`r2:${k}`, { url: u, until: now + 5 * 3600 * 1000 });
+          })()
+        : null,
+    ]);
+    if (need.length) keepSigned();
     return (p: string) => signed.get(p)?.url ?? null;
   }
 
@@ -988,7 +1020,11 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
       const rows = ((data ?? []) as GroupMessage[]).reverse();
       const ids = rows.map((r) => r.id);
-      const { data: rx } = ids.length ? await sb.from('group_reactions').select('message_id, user_id, emoji').in('message_id', ids) : { data: [] };
+      // reactions and file links at the same time
+      const [{ data: rx }, link] = await Promise.all([
+        ids.length ? sb.from('group_reactions').select('message_id, user_id, emoji').in('message_id', ids) : Promise.resolve({ data: [] as unknown[] }),
+        sign(rows.map((r) => r.media_path).filter((p): p is string => Boolean(p))),
+      ]);
       const by = new Map<string, { emoji: string; count: number; mine: boolean }[]>();
       for (const r of (rx ?? []) as { message_id: string; user_id: string; emoji: string }[]) {
         const list = by.get(r.message_id) ?? [];
@@ -997,27 +1033,27 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         if (r.user_id === me) e.mine = true;
         by.set(r.message_id, list);
       }
-      const link = await sign(rows.map((r) => r.media_path).filter((p): p is string => Boolean(p)));
       return rows.map((r) => ({ ...r, conversation_id: gid ? `g:${gid}` : 'group', media_url: r.media_path ? link(r.media_path) : null, reactions: by.get(r.id) ?? [] }));
     },
     async groupPreview() {
-      // the group's own name and picture (group_info works even where the settings row can't be read directly)
-      const look = async () => {
-        const [{ data: info }, { data: g }] = await Promise.all([sb.rpc('group_info'), sb.from('group_settings').select('name, photo_url').eq('id', 1).maybeSingle()]);
-        const i = ((info ?? []) as { name?: string | null }[])[0];
-        const row = g as { name?: string | null; photo_url?: string | null } | null;
-        return { name: row?.name || i?.name || 'Dojo group', photo_url: row?.photo_url ?? null };
-      };
-      const q = () => sb.from('group_messages').select('body, kind, deleted_at, created_at, sender:profiles!group_messages_sender_id_fkey(name)').order('created_at', { ascending: false }).limit(1);
-      let { data, error } = await q().is('group_id', null);
-      if (error && /group_id/.test(error.message)) ({ data, error } = await q());
-      if (error) {
+      // everything at once: last message, unread count, name and picture
+      const q = () => sb.from('group_messages').select('body, kind, file_name, deleted_at, created_at, sender:profiles!group_messages_sender_id_fkey(name)').order('created_at', { ascending: false }).limit(1);
+      const [last1, { data: n }, { data: info }, { data: g }] = await Promise.all([
+        q().is('group_id', null).then(async (r) => (r.error && /group_id/.test(r.error.message) ? await q() : r)),
+        sb.rpc('group_unread'),
+        sb.rpc('group_info'),
+        sb.from('group_settings').select('name, photo_url').eq('id', 1).maybeSingle(),
+      ]);
+      const i = ((info ?? []) as { name?: string | null }[])[0];
+      const row = g as { name?: string | null; photo_url?: string | null } | null;
+      const name = row?.name || i?.name || 'Dojo group';
+      const photo_url = row?.photo_url ?? null;
+      if (last1.error) {
         // still show the group in Messages; opening it shows what's wrong
-        console.warn('[connect] group preview', error.message);
-        return { ...(await look()), text: 'Tap to open', at: '', unread: 0 };
+        console.warn('[connect] group preview', last1.error.message);
+        return { name, photo_url, text: 'Tap to open', at: '', unread: 0 };
       }
-      const r = ((data ?? []) as unknown as { body: string; kind: string; deleted_at: string | null; created_at: string; sender: { name: string } | null }[])[0];
-      const [{ data: n }, { name, photo_url }] = await Promise.all([sb.rpc('group_unread'), look()]);
+      const r = ((last1.data ?? []) as unknown as { body: string; kind: string; file_name?: string | null; deleted_at: string | null; created_at: string; sender: { name: string } | null }[])[0];
       if (!r) return { name, photo_url, text: 'No messages yet', at: '', unread: 0 };
       const text = r.kind === 'join' ? `${r.sender?.name ?? 'Someone'} joined the group` : `${r.sender?.name ?? 'Someone'}: ${preview(r)}`;
       return { name, photo_url, text, at: r.created_at, unread: Number(n ?? 0) };

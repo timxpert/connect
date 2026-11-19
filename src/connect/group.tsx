@@ -106,6 +106,8 @@ function GroupChatInner() {
   const { api, me, signedIn, toast, ask, team, base, gid, last } = useGroup();
   const [info, setInfo] = useState<GroupInfo | null | undefined>(() => last<GroupInfo | null>('groupInfo'));
   const [msgs, setMsgs] = useState<GroupMessage[]>(() => last<GroupMessage[]>('listGroupMessages') ?? []);
+  // name and messages appear together: wait for the messages unless we have them from last time
+  const [ready, setReady] = useState(() => last<GroupMessage[]>('listGroupMessages') !== undefined);
   const [local, setLocal] = useState<GroupMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
@@ -156,6 +158,7 @@ function GroupChatInner() {
     }
     setMsgs(list);
     setInfo(i);
+    setReady(true);
     api.groupReaders().then(setReaders).catch(() => {});
     api
       .markGroupRead()
@@ -234,7 +237,7 @@ function GroupChatInner() {
   );
 
   if (!signedIn) return <Empty title="Sign in to see the group" />;
-  if (me === undefined || info === undefined) return error ? <Empty title="The group can’t load">{<p>{error}</p>}</Empty> : <Loading />;
+  if (me === undefined || info === undefined || (!ready && !error && info !== null)) return error ? <Empty title="The group can’t load">{<p>{error}</p>}</Empty> : <Loading />;
   if (!me || info === null) return <NotInGroup onBack={() => load().catch(() => {})} />;
 
   const muted = info.muted_until && new Date(info.muted_until).getTime() > Date.now();

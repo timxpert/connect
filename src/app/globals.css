@@ -8272,3 +8272,11 @@ html[data-cx-theme='dark'] .cx-role-tag {
     bottom: 24px;
   }
 }
+.cx-inbox-text .cx-skel-line {
+  display: block;
+}
+.cx-skel-short {
+  width: 200px;
+  height: 12px;
+  margin-top: 8px;
+}

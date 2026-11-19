@@ -60,16 +60,20 @@ const LIVE = new Set<keyof ConnectApi>([
   'groupRemoved',
   'myGroups',
   'getInvite',
+  'groupMembers',
+  'teamRoles',
 ]);
 
 const TTL = 45_000;
 
 /* What was shown last time, so a screen can open with it straight away and
-   then quietly swap in the fresh copy. Public things (posts, members,
+   then quietly swap in the fresh copy. Everything shown is kept on this
+   device between visits (cleared on sign out or when someone else signs in),
+   so reopening Connect shows the last screen at once. Public things (posts, members,
    profiles, your own profile) are kept on this device between visits;
    private things (chats) only while the app is open. */
 const KEEP = new Set<string>(['myGroups', 'listLessons', 'listPosts', 'listStudents', 'getProfile', 'counts', 'getPost', 'me', 'groupPreview', 'groupInfo']);
-const LAST_TOO = new Set<string>(['myGroups', 'groupPreview', 'listGroupMessages', 'groupInfo', 'getLesson', 'listRequests', 'listConversations', 'listMessages', 'listConnections', 'listNotices', 'listSaved', 'getConversation', 'connectionStatus', 'isBlocked']);
+const LAST_TOO = new Set<string>(['listChallenges', 'challengeStats', 'listProjects', 'myAssignments', 'groupMembers', 'myGroups', 'groupPreview', 'listGroupMessages', 'groupInfo', 'getLesson', 'listRequests', 'listConversations', 'listMessages', 'listConnections', 'listNotices', 'listSaved', 'getConversation', 'connectionStatus', 'isBlocked']);
 const SAVE_KEY = 'cx-last-v1';
 const last = new Map<string, unknown>();
 let saveTimer = 0;
@@ -86,7 +90,7 @@ function save() {
   window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
     try {
-      const keep = [...last].filter(([key]) => KEEP.has(key.slice(0, key.indexOf(':'))));
+      const keep = [...last].filter(([key]) => { const n = key.slice(0, key.indexOf(':')); return KEEP.has(n) || LAST_TOO.has(n); });
       let json = JSON.stringify(keep);
       // stay well inside the browser's storage limit
       while (json.length > 900_000 && keep.length) {
@@ -113,7 +117,7 @@ function remember(name: string, args: unknown[], value: unknown) {
     }
     last.set('owner', id);
   }
-  if (KEEP.has(name)) save();
+  if (KEEP.has(name) || LAST_TOO.has(name)) save();
 }
 
 /** The last result of this read, if there is one. Use it as a screen's starting state. */

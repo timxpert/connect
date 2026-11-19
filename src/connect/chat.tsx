@@ -1378,16 +1378,10 @@ function GroupInboxRow() {
   const { api } = useConnect();
   // Shown straight away (last known, or just the name) so the group never blinks out while it loads
   // the group's name and picture from last time, so the old default name never flashes
-  const [p, setP] = useState<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>(() => {
-    const seen = peek<{ name: string; photo_url?: string | null; text: string; at: string; unread: number }>('groupPreview');
-    if (seen) return seen;
-    try {
-      const look = JSON.parse(localStorage.getItem('cx-group-look') || 'null') as { name: string; photo_url: string | null } | null;
-      return { name: look?.name ?? '', photo_url: look?.photo_url ?? null, text: '', at: '', unread: 0 };
-    } catch {
-      return { name: '', text: '', at: '', unread: 0 };
-    }
-  });
+  // Name and last message appear together: from last time straight away, or both when they arrive
+  const [p, setP] = useState<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>(
+    () => peek<{ name: string; photo_url?: string | null; text: string; at: string; unread: number }>('groupPreview') ?? null,
+  );
   useEffect(() => {
     const load = () =>
       api
@@ -1406,17 +1400,30 @@ function GroupInboxRow() {
     const stop = api.subscribe('group_messages', '', load);
     return stop;
   }, [api]);
-  if (!p) return null;
+  if (!p)
+    return (
+      <ul className="cx-inbox cx-inbox-group" aria-busy="true">
+        <li>
+          <span className="cx-inbox-row">
+            <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true" />
+            <span className="cx-inbox-text">
+              <span className="cx-skel-line" aria-label="Loading" />
+              <span className="cx-skel-line cx-skel-short" />
+            </span>
+          </span>
+        </li>
+      </ul>
+    );
   return (
     <ul className="cx-inbox cx-inbox-group">
       <li>
         <A path="/messages/group" className={p.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
           <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true">
-            {p.photo_url || p.name ? <img src={p.photo_url || '/assets/favicon-128.png'} alt="" width={56} height={56} /> : null}
+            <img src={p.photo_url || '/assets/favicon-128.png'} alt="" width={56} height={56} />
           </span>
           <span className="cx-inbox-text">
             <span className="cx-inbox-top">
-              <span className="cx-person-name">{p.name || <span className="cx-skel-line" aria-label="Loading" />}</span>
+              <span className="cx-person-name">{p.name}</span>
               {p.at && <span className="cx-inbox-time">{shortTime(p.at)}</span>}
             </span>
             <span className="cx-inbox-bottom">
