@@ -6859,10 +6859,24 @@ html[data-cx-theme='dark'] .cx-toast {
 
 /* Portrait lessons (phone videos): tall player that fits the screen.
    On computers the video sits on the left and the lesson on the right. */
+.cx-player {
+  aspect-ratio: var(--ar, 16 / 9);
+}
 .cx-player.is-portrait {
-  aspect-ratio: 9 / 16;
-  width: min(100%, calc(64dvh * 9 / 16));
+  width: min(100%, calc(64dvh * var(--ar, 0.5625)));
   margin-inline: auto;
+}
+/* the video's first frame behind the play button */
+.cx-player-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.55;
+}
+.cx-player-cover > :not(.cx-player-poster) {
+  position: relative;
 }
 .cx-player-cover.is-portrait {
   display: grid;
@@ -6885,7 +6899,7 @@ html[data-cx-theme='dark'] .cx-toast {
   .cx-lesson.is-portrait .cx-player.is-portrait {
     position: sticky;
     top: 84px;
-    width: calc(min(78dvh, 720px) * 9 / 16);
+    width: calc(min(78dvh, 720px) * var(--ar, 0.5625));
     margin: 0;
   }
 }

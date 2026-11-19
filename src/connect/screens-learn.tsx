@@ -338,15 +338,48 @@ function Watermark({ text }: { text: string }) {
   );
 }
 
-function Player({ url, title, mark, size, autoload = false, portrait = false }: { url: string; title: string; mark: string; size?: number | null; autoload?: boolean; portrait?: boolean }) {
+/** The video's shape (width / height), read from its Drive thumbnail.
+    YouTube Shorts are tall; other YouTube links are wide. Null until known. */
+function useVideoRatio(url: string) {
+  const [ratio, setRatio] = useState<number | null>(null);
+  useEffect(() => {
+    setRatio(null);
+    const d = driveId(url);
+    if (!d) {
+      if (/youtube\.com\/shorts\//.test(url)) setRatio(9 / 16);
+      else if (youtubeId(url)) setRatio(16 / 9);
+      return;
+    }
+    const img = new Image();
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => img.naturalWidth && img.naturalHeight && setRatio(img.naturalWidth / img.naturalHeight);
+    img.src = driveThumb(d);
+    return () => {
+      img.onload = null;
+    };
+  }, [url]);
+  return ratio;
+}
+const driveThumb = (id: string) => `https://drive.google.com/thumbnail?id=${id}&sz=w720`;
+
+function Player({ url, title, mark, size, autoload = false, portrait = false, onRatio }: { url: string; title: string; mark: string; size?: number | null; autoload?: boolean; portrait?: boolean; onRatio?: (r: number) => void }) {
   const e = embedSrc(url);
-  const shape = portrait ? ' is-portrait' : '';
+  // the video's own shape when we can read it; otherwise the lesson's setting
+  const found = useVideoRatio(url);
+  const ratio = found ?? (portrait ? 9 / 16 : 16 / 9);
+  useEffect(() => {
+    if (found) onRatio?.(found);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [found]);
+  const shape = ratio < 1 ? ' is-portrait' : '';
+  const style = { '--ar': String(ratio) } as React.CSSProperties;
+  const d = driveId(url);
   // Nothing loads until the student taps play, so opening a lesson to read
   // the notes costs almost no data
   const [on, setOn] = useState(autoload);
   if (!e) {
     return (
-      <div className={`cx-player is-empty${shape}`}>
+      <div className={`cx-player is-empty${shape}`} style={style}>
         <Icon name="video" size={30} />
         <span>No video yet</span>
       </div>
@@ -354,7 +387,8 @@ function Player({ url, title, mark, size, autoload = false, portrait = false }: 
   }
   if (!on) {
     return (
-      <button type="button" className={`cx-player cx-player-cover${shape}`} onClick={() => setOn(true)}>
+      <button type="button" className={`cx-player cx-player-cover${shape}`} style={style} onClick={() => setOn(true)}>
+        {d && <img className="cx-player-poster" src={driveThumb(d)} alt="" referrerPolicy="no-referrer" onError={(ev) => (ev.currentTarget.style.display = 'none')} />}
         <span className="cx-player-play" aria-hidden="true">
           <Icon name="play" size={28} filled />
         </span>
@@ -364,7 +398,7 @@ function Player({ url, title, mark, size, autoload = false, portrait = false }: 
     );
   }
   return (
-    <div className={`cx-player${shape}`} onContextMenu={(ev) => ev.preventDefault()}>
+    <div className={`cx-player${shape}`} style={style} onContextMenu={(ev) => ev.preventDefault()}>
       {/* Drive and YouTube players need to know which site they are on, or they stay black */}
       <iframe src={e.src} title={title} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
       {/* Drive's player has a pop-out button in the top right that opens the file itself: cover it */}
@@ -381,6 +415,7 @@ export function LessonScreen({ id }: { id: string }) {
   const [lesson, setLesson] = useState<Lesson | null>(() => peek<Lesson>('getLesson', id) ?? null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [ratio, setRatio] = useState<number | null>(null);
 
   useEffect(() => {
     if (me === undefined) return;
@@ -457,10 +492,10 @@ export function LessonScreen({ id }: { id: string }) {
   const mark = me ? `${me.name} · @${me.handle}` : '';
 
   return (
-    <div className={`cx-col cx-lesson${lesson.portrait !== false ? ' is-portrait' : ''}`}>
+    <div className={`cx-col cx-lesson${(ratio ?? (lesson.portrait !== false ? 0.5625 : 1.78)) < 1 ? ' is-portrait' : ''}`}>
       {back}
       <div className="cx-ln-split">
-      <Player url={lesson.video_url ?? ''} title={lesson.title} mark={mark} size={lesson.size_mb} portrait={lesson.portrait !== false} />
+      <Player url={lesson.video_url ?? ''} title={lesson.title} mark={mark} size={lesson.size_mb} portrait={lesson.portrait !== false} onRatio={setRatio} />
       <div className="cx-ln-body">
 
       <div className="cx-ln-head">
@@ -702,20 +737,9 @@ export function LessonEditor({ id }: { id?: string }) {
         </label>
         {video && playable && (
           <div className="cx-ln-preview">
-            <Player url={video} title="Preview" mark={`${me?.name ?? ''} · preview`} size={f.size_mb} portrait={f.portrait} />
+            <Player url={video} title="Preview" mark={`${me?.name ?? ''} · preview`} size={f.size_mb} portrait={f.portrait} onRatio={(r) => setF((cur) => (cur ? { ...cur, portrait: r < 1 } : cur))} />
           </div>
         )}
-        <fieldset className="cx-fieldset">
-          <legend>Video shape</legend>
-          <div className="cx-chips" role="radiogroup" aria-label="Video shape">
-            <button type="button" role="radio" aria-checked={f.portrait} className={f.portrait ? 'cx-chip is-on' : 'cx-chip'} onClick={() => set('portrait', true)}>
-              Portrait (phone)
-            </button>
-            <button type="button" role="radio" aria-checked={!f.portrait} className={!f.portrait ? 'cx-chip is-on' : 'cx-chip'} onClick={() => set('portrait', false)}>
-              Landscape
-            </button>
-          </div>
-        </fieldset>
         <PicturesField images={f.images} onChange={(fn) => setF((cur) => (cur ? { ...cur, images: fn(cur.images) } : cur))} />
         <label className="field">
           <span>Video size (MB)</span>
