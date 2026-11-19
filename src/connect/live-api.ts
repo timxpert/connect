@@ -7,7 +7,7 @@ import { prepareImage } from './resize';
 import { markPushOn, pushSubscription } from './alerts';
 import { plainText } from './format';
 import { to } from './router';
-import type { Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -86,6 +86,31 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       x.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
       x.send(file);
     });
+  }
+
+  /* "typing…": live signals only (Realtime broadcast), nothing saved */
+  type TypingRoom = { ch: ReturnType<typeof sb.channel>; ready: Promise<void>; cbs: Set<(t: TypingSignal) => void>; idle: number };
+  const typingRooms = new Map<string, TypingRoom>();
+  function typingRoom(room: string): TypingRoom {
+    const have = typingRooms.get(room);
+    if (have) return have;
+    const ch = sb.channel(`cx-typing-${room}`, { config: { broadcast: { self: false } } });
+    const t: TypingRoom = { ch, ready: Promise.resolve(), cbs: new Set(), idle: 0 };
+    ch.on('broadcast', { event: 'typing' }, (m: { payload: TypingSignal }) => t.cbs.forEach((f) => f(m.payload)));
+    t.ready = new Promise((res) => ch.subscribe((status: string) => status === 'SUBSCRIBED' && res()));
+    typingRooms.set(room, t);
+    return t;
+  }
+  function dropTypingRoom(room: string) {
+    const t = typingRooms.get(room);
+    if (!t || t.cbs.size) return;
+    window.setTimeout(() => {
+      const again = typingRooms.get(room);
+      if (again === t && !t.cbs.size) {
+        typingRooms.delete(room);
+        sb.removeChannel(t.ch);
+      }
+    }, 60000);
   }
 
   /** Tells the server to send phone notifications for a message just sent (never blocks the send) */
@@ -289,6 +314,21 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       return () => {
         sb.removeChannel(channel);
       };
+    },
+    typingListen(room, cb) {
+      const t = typingRoom(room);
+      t.cbs.add(cb);
+      return () => {
+        t.cbs.delete(cb);
+        dropTypingRoom(room);
+      };
+    },
+    typingSend(room, t) {
+      const r = typingRoom(room);
+      r.ready.then(() => r.ch.send({ type: 'broadcast', event: 'typing', payload: t })).catch(() => {});
+      // a room opened only to send closes itself after a while
+      window.clearTimeout(r.idle);
+      r.idle = window.setTimeout(() => dropTypingRoom(room), 60000);
     },
     onAuthChange(cb) {
       const { data } = sb.auth.onAuthStateChange(() => cb());

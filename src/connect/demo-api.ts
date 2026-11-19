@@ -219,6 +219,18 @@ export function createDemoApi(): ConnectApi {
       throw new Error('Student ID sign-in works once Supabase is connected. In this preview, use the sample accounts below.');
     },
     subscribe: () => () => {},
+    typingListen(room, cb) {
+      // sample: someone types for a few seconds after you open the group or a chat
+      const sample = room === 'g:main' ? { chat: 'group', id: 's2', name: who('s2').name } : null;
+      if (!sample) return () => {};
+      const a = window.setTimeout(() => cb({ ...sample, on: true }), 1200);
+      const b = window.setTimeout(() => cb({ ...sample, on: false }), 6000);
+      return () => {
+        window.clearTimeout(a);
+        window.clearTimeout(b);
+      };
+    },
+    typingSend() {},
     presence: (cb) => {
       // Preview: Tunde is online, everyone else was seen a while ago
       const t = window.setTimeout(() => cb(new Set(['s2', ...(current ? [current] : [])])), 200);

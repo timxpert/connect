@@ -21,6 +21,7 @@ import { Chat, Inbox } from './chat';
 import { GroupChat, GroupInfoScreen, JoinGroupScreen } from './group';
 import { PhasePrompt } from './phase-prompt';
 import { InstallPrompt } from './install';
+import { useTypingRoom } from './typing';
 import { ChallengeScreen } from './challenge';
 import { Connections, Notifications, Saved } from './screens-social';
 import { AssignmentScreen, Devices, Learn, LessonEditor, LessonScreen, Reviews } from './screens-learn';
@@ -209,6 +210,8 @@ function Shell({ route }: { route: Route }) {
   useEffect(() => {
     registerAlerts();
   }, []);
+  // "typing…" in my private chats
+  useTypingRoom(api, me?.id ? `u:${me.id}` : null, me?.id);
   // Alerts already allowed: make sure this phone gets messages when Connect is closed
   useEffect(() => {
     if (me?.id && alertsAllowed()) api.enablePush().catch(() => {});

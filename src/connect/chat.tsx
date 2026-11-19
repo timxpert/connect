@@ -14,6 +14,7 @@ import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
 import { CameraScreen } from './camera';
 import { FormatBar, Rich, smartChange } from './format';
+import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import { NewGroupSheet } from './group';
 
 /* ------------------------------------------------------------------
@@ -899,6 +900,9 @@ export function Chat({ id }: { id: string }) {
   );
 
   const otherOnline = useOnline(conv?.other.id);
+  // "typing…": my typing goes to their private room; theirs arrives in mine (listened to app-wide)
+  useTypingSender(api, conv ? `u:${conv.other.id}` : null, id, me, draft);
+  const typers = useTyping(id);
   const [picked, setPicked] = useState<Picked[]>([]);
   // the hold menu can be dragged down to close
   const heldSheet = useDragToClose<HTMLDivElement>(() => setHeld(null), Boolean(held));
@@ -1165,7 +1169,11 @@ export function Chat({ id }: { id: string }) {
               {other.name}
               {other.is_student && <BeltBadge p={other} small />}
             </span>
-            <span className={otherOnline ? 'cx-person-meta is-online' : 'cx-person-meta'}>{presenceLabel(otherOnline, other.id, other.last_seen_at)}</span>
+            {typers.length ? (
+              <span className="cx-person-meta is-typing">typing…</span>
+            ) : (
+              <span className={otherOnline ? 'cx-person-meta is-online' : 'cx-person-meta'}>{presenceLabel(otherOnline, other.id, other.last_seen_at)}</span>
+            )}
           </span>
         </A>
         <div className="cx-menu cx-chat-more">
@@ -1239,6 +1247,7 @@ export function Chat({ id }: { id: string }) {
             </React.Fragment>
           );
         })}
+        {typers.length > 0 && <TypingBubble />}
         <li ref={end} className="cx-msgs-end" aria-hidden="true" />
       </ol>
 
@@ -1385,8 +1394,10 @@ export function Chat({ id }: { id: string }) {
 
 /* ================= Inbox ================= */
 function GroupInboxRow({ p: pinp }: { p: PinProps }) {
-  const { api } = useConnect();
+  const { api, me } = useConnect();
   const hold = useHold(pinp.onHold);
+  useTypingRoom(api, 'g:main', me?.id);
+  const typers = useTyping('group');
   // Shown straight away (last known, or just the name) so the group never blinks out while it loads
   // the group's name and picture from last time, so the old default name never flashes
   // Name and last message appear together: from last time straight away, or both when they arrive
@@ -1436,7 +1447,7 @@ function GroupInboxRow({ p: pinp }: { p: PinProps }) {
             </span>
             <span className="cx-inbox-bottom">
               <span className="cx-inbox-last">
-                <span className="cx-inbox-snippet">{p.text}</span>
+                <span className={typers.length ? 'cx-inbox-snippet is-typing' : 'cx-inbox-snippet'}>{typers.length ? typingLine(typers) : p.text}</span>
               </span>
               <PinMark on={pinp.pinned} />
               {p.unread > 0 && <span className="cx-inbox-count">{p.unread > 99 ? '99+' : p.unread}</span>}
@@ -1444,6 +1455,28 @@ function GroupInboxRow({ p: pinp }: { p: PinProps }) {
           </span>
         </A>
       </li>
+  );
+}
+
+/** Three bouncing dots under the last message while someone types */
+export function TypingBubble({ name }: { name?: string }) {
+  const li = useRef<HTMLLIElement>(null);
+  // follow it into view if you're already at the bottom
+  useEffect(() => {
+    const list = li.current?.parentElement;
+    if (list && list.scrollHeight - list.scrollTop - list.clientHeight < 160) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+  }, []);
+  return (
+    <li ref={li} className="cx-typing-row" aria-label={name ? `${name} is typing` : 'Typing'}>
+      <span className="cx-typing-bubble">
+        {name && <b>{name}</b>}
+        <span className="cx-typing-dots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+      </span>
+    </li>
   );
 }
 
@@ -1521,7 +1554,10 @@ function OwnGroupRows({ pin }: { pin: (chat: string) => PinProps }) {
 }
 
 function OwnGroupRow({ g, p }: { g: GroupRow; p: PinProps }) {
+  const { api, me } = useConnect();
   const hold = useHold(p.onHold);
+  useTypingRoom(api, `g:${g.id}`, me?.id);
+  const typers = useTyping(`g:${g.id}`);
   return (
   <li style={{ order: p.order }}>
     <A path={`/messages/g/${g.id}`} className={g.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'} {...hold}>
@@ -1535,7 +1571,7 @@ function OwnGroupRow({ g, p }: { g: GroupRow; p: PinProps }) {
         </span>
         <span className="cx-inbox-bottom">
           <span className="cx-inbox-last">
-            <span className="cx-inbox-snippet">{g.text}</span>
+            <span className={typers.length ? 'cx-inbox-snippet is-typing' : 'cx-inbox-snippet'}>{typers.length ? typingLine(typers) : g.text}</span>
           </span>
           <PinMark on={p.pinned} />
           {g.unread > 0 && <span className="cx-inbox-count">{g.unread > 99 ? '99+' : g.unread}</span>}
@@ -1548,6 +1584,7 @@ function OwnGroupRow({ g, p }: { g: GroupRow; p: PinProps }) {
 
 function ChatRow({ c, p }: { c: Conversation; p: PinProps }) {
   const hold = useHold(p.onHold);
+  const typing = useTyping(c.id).length > 0;
   const unread = c.unread ?? 0;
   const joined = (c.last_kind as string) === 'join';
   const kind = c.last_kind && c.last_kind !== 'text' && !joined && !c.last_deleted ? (c.last_kind as keyof typeof KIND_ICON) : null;
@@ -1575,7 +1612,11 @@ function ChatRow({ c, p }: { c: Conversation; p: PinProps }) {
                 </span>
               )}
               {kind && <Icon name={KIND_ICON[kind]} size={16} />}
+              {typing ? (
+              <span className="cx-inbox-snippet is-typing">typing…</span>
+            ) : (
               <span className={joined && unread > 0 ? 'cx-inbox-snippet is-joined' : 'cx-inbox-snippet'}>{c.last_body || 'Say hello'}</span>
+            )}
             </span>
             <PinMark on={p.pinned} />
             {unread > 0 && <span className="cx-inbox-count">{unread > 99 ? '99+' : unread}</span>}

@@ -157,6 +157,7 @@ export type BriefItem = { kind: 'image' | 'file' | 'link' | 'video'; url: string
 
 export type PhaseRequest = { id: string; name: string; handle: string; avatar_url: string | null; phase_request: number; phase_request_at: string };
 
+export type TypingSignal = { chat: string; id: string; name: string; on: boolean };
 export type GroupRow = { id: string; name: string; photo_url: string | null; text: string; at: string; unread: number };
 export type GroupInvite = { gid: string; name: string; photo_url: string | null; message: string; expires_at: string; members: number; sender: string | null; expired: boolean; joined: boolean };
 
@@ -239,6 +240,9 @@ export interface ConnectApi {
   /** Live updates from the database; returns a function that stops them */
   /** Who's online right now: calls back with their ids whenever it changes */
   presence(cb: (online: Set<string>) => void): () => void;
+  /** Live "typing…" signals in a room ('u:<id>', 'g:main', 'g:<group id>') */
+  typingListen(room: string, cb: (t: TypingSignal) => void): () => void;
+  typingSend(room: string, t: TypingSignal): void;
   subscribe(table: 'messages' | 'comments' | 'notifications' | 'group_messages' | 'group_reactions' | 'group_settings' | 'groups', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
   signIn(email: string): Promise<void>;
   /** Students: email + the student ID they got when they enrolled */

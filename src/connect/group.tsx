@@ -12,9 +12,10 @@ import { navigate, to } from './router';
 import { useOnline } from './presence';
 import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
-import { AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
+import { TypingBubble, AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
 import { ForwardSheet } from './forward';
 import { FormatBar, plainText, smartChange } from './format';
+import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
 
@@ -111,6 +112,12 @@ function GroupChatInner() {
   const [ready, setReady] = useState(() => last<GroupMessage[]>('listGroupMessages') !== undefined);
   const [local, setLocal] = useState<GroupMessage[]>([]);
   const [draft, setDraft] = useState('');
+  // "Tunde is typing…"
+  const room = gid ? `g:${gid}` : 'g:main';
+  const chatKey = gid ? `g:${gid}` : 'group';
+  useTypingRoom(api, room, me?.id);
+  useTypingSender(api, room, chatKey, me, draft);
+  const typers = useTyping(chatKey);
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [held, setHeld] = useState<GroupMessage | null>(null);
   const [forwarding, setForwarding] = useState<GroupMessage | null>(null);
@@ -519,7 +526,11 @@ function GroupChatInner() {
           <GroupPhoto url={info.photo_url} size={40} name={gid ? info.name : undefined} />
           <span className="cx-person-text">
             <span className="cx-person-name">{info.name || (gid ? '' : storedName())}</span>
-            <span className="cx-person-meta cx-group-names">{memberNames(people, me.id) || `${info.members} members`}</span>
+            {typers.length ? (
+              <span className="cx-person-meta is-typing">{typingLine(typers)}</span>
+            ) : (
+              <span className="cx-person-meta cx-group-names">{memberNames(people, me.id) || `${info.members} members`}</span>
+            )}
           </span>
         </A>
         {pinned && team && (
@@ -597,6 +608,7 @@ function GroupChatInner() {
             </React.Fragment>
           );
         })}
+        {typers.length > 0 && <TypingBubble name={typers.length === 1 ? typers[0] : typingLine(typers).replace(/ (is|are) typing…$/, '')} />}
         <li ref={end} className="cx-msgs-end" aria-hidden="true" />
       </ol>
 
