@@ -112,7 +112,7 @@ const PATHS = {
   plus: <path d="M12 5v14M5 12h14" />,
   heart: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />,
   comment: <path d="M5 5h14v10H10l-5 4z" />,
-  send: <path d="M4 12 20 4l-6 16-3-7z" />,
+  send: <path d="M20.6 11.1 5 3.6c-.8-.4-1.6.4-1.3 1.2L6.4 12l-2.7 7.2c-.3.8.5 1.6 1.3 1.2l15.6-7.5c.7-.4.7-1.4 0-1.8zM6.4 12h6" fill="currentColor" />,
   back: <path d="M15 5l-7 7 7 7" />,
   more: (
     <>

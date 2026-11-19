@@ -31,6 +31,8 @@ const MAIN_SITE = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://joinmotiondo
 function useApi(): ConnectApi | null {
   const [api, setApi] = useState<ConnectApi | null>(null);
   useEffect(() => {
+    // keeps photos and profile pictures on the phone after the first load (public/sw.js)
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
       import('./live-api').then(({ createLiveApi }) => setApi(withCache(createLiveApi(SUPABASE_URL, SUPABASE_ANON_KEY, window.location.origin + window.location.pathname.replace(/\/login$/, '')))));
     } else {
