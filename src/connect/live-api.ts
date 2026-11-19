@@ -6,6 +6,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { prepareImage } from './resize';
 import { markPushOn, pushSubscription } from './alerts';
 import { plainText } from './format';
+import { specialLine } from './special';
 import { to } from './router';
 import type { TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
@@ -264,7 +265,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
             ? m.body || 'Video'
             : m.kind === 'file'
               ? m.file_name || 'File'
-              : plainText(m.body);
+              : (specialLine(m.kind, m.body) ?? plainText(m.body));
 
   // Faster single-request reads, used once the database has the speed update
   let fastFeed = true;
@@ -827,6 +828,16 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const link = await sign([path]);
       return { ...(data as unknown as Message), media_url: link(path) };
     },
+    async markPlayed(messageId) {
+      const me = await uid();
+      if (!me) return;
+      // ignore "already played" and a database without voice-plays.sql
+      await sb.from('voice_plays').insert({ message_id: messageId, user_id: me }).then(() => {}, () => {});
+    },
+    async listPlays(messageId) {
+      const { data, error } = await sb.from('voice_plays').select('user_id, played_at').eq('message_id', messageId).order('played_at');
+      return error ? [] : ((data ?? []) as { user_id: string; played_at: string }[]);
+    },
     async reactMessage(id, emoji) {
       const me = await needUid();
       const { error } = emoji
@@ -1105,10 +1116,16 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const rows = ((data ?? []) as GroupMessage[]).reverse();
       const ids = rows.map((r) => r.id);
       // reactions and file links at the same time
-      const [{ data: rx }, link] = await Promise.all([
+      const pollIds = rows.filter((r) => (r.kind as string) === 'poll').map((r) => r.id);
+      const [{ data: rx }, link, votes] = await Promise.all([
         ids.length ? sb.from('group_reactions').select('message_id, user_id, emoji').in('message_id', ids) : Promise.resolve({ data: [] as unknown[] }),
         sign(rows.map((r) => r.media_path).filter((p): p is string => Boolean(p))),
+        pollIds.length
+          ? sb.from('poll_votes').select('message_id, user_id, option').in('message_id', pollIds).then((r) => (r.error ? [] : (r.data ?? [])))
+          : Promise.resolve([]),
       ]);
+      const votesBy = new Map<string, { option: number; user_id: string }[]>();
+      for (const v of votes as { message_id: string; user_id: string; option: number }[]) votesBy.set(v.message_id, [...(votesBy.get(v.message_id) ?? []), { option: v.option, user_id: v.user_id }]);
       const by = new Map<string, { emoji: string; count: number; mine: boolean; who: string[] }[]>();
       for (const r of (rx ?? []) as { message_id: string; user_id: string; emoji: string }[]) {
         const list = by.get(r.message_id) ?? [];
@@ -1118,7 +1135,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         if (r.user_id === me) e.mine = true;
         by.set(r.message_id, list);
       }
-      return rows.map((r) => ({ ...r, conversation_id: gid ? `g:${gid}` : 'group', media_url: r.media_path ? link(r.media_path) : null, reactions: by.get(r.id) ?? [] }));
+      return rows.map((r) => ({ ...r, conversation_id: gid ? `g:${gid}` : 'group', media_url: r.media_path ? link(r.media_path) : null, reactions: by.get(r.id) ?? [], votes: votesBy.get(r.id) ?? [] }));
     },
     async groupPreview() {
       // everything at once: last message, unread count, name and picture
@@ -1142,6 +1159,28 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       if (!r) return { name, photo_url, text: 'No messages yet', at: '', unread: 0 };
       const text = r.kind === 'join' ? `${r.sender?.name ?? 'Someone'} joined the group` : r.kind === 'pin' ? `${r.sender?.name ?? 'Someone'} pinned a message` : `${r.sender?.name ?? 'Someone'}: ${preview(r)}`;
       return { name, photo_url, text, at: r.created_at, unread: Number(n ?? 0) };
+    },
+    async sendGroupSpecial(kind, body, gid) {
+      const me = await needUid();
+      const { data, error } = await sb
+        .from('group_messages')
+        .insert({ ...(gid ? { group_id: gid } : {}), sender_id: me, body, kind })
+        .select('*, sender:profiles!group_messages_sender_id_fkey(*)')
+        .single();
+      if (error?.message.includes('team_only')) throw new Error('Only the team can post polls and live classes here.');
+      if (error && /kind_check|poll|live/.test(error.message)) throw new Error('Polls and live classes need a database update: run polls-live.sql in Supabase.');
+      fail(error);
+      ping('group', (data as GroupMessage).id, gid ? `/messages/g/${gid}` : '/messages/group');
+      return { ...(data as GroupMessage), conversation_id: gid ? `g:${gid}` : 'group', reactions: [], votes: [] };
+    },
+    async votePoll(messageId, options) {
+      const me = await needUid();
+      const { error: e1 } = await sb.from('poll_votes').delete().eq('message_id', messageId).eq('user_id', me);
+      if (e1 && /poll_votes/.test(e1.message)) throw new Error('Polls need a database update: run polls-live.sql in Supabase.');
+      fail(e1);
+      if (!options.length) return;
+      const { error } = await sb.from('poll_votes').insert(options.map((option) => ({ message_id: messageId, user_id: me, option })));
+      fail(error);
     },
     async sendGroupMessage(body, replyTo, forwarded, gid) {
       const me = await needUid();

@@ -63,6 +63,7 @@ const LIVE = new Set<keyof ConnectApi>([
   'groupMembers',
   'teamRoles',
   'listPins',
+  'listPlays',
 ]);
 
 const TTL = 45_000;

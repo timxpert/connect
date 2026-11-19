@@ -178,6 +178,7 @@ const PATHS = {
     </>
   ),
   bookmark: <path d="M6.5 4h11v16l-5.5-4-5.5 4z" />,
+  poll: <path d="M6 20V11M12 20V5M18 20v-6" />,
   pen: <path d="M5 19h3.5L18.2 9.3a2 2 0 0 0 0-2.8l-.7-.7a2 2 0 0 0-2.8 0L5 15.5zM13.5 7l3.5 3.5" />,
   smile: (
     <>

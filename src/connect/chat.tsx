@@ -9,7 +9,7 @@ import { presenceLabel, useOnline } from './presence';
 import { useDragToClose } from './drag';
 import type { Attachment, Conversation, GroupRow, Message, Profile } from './types';
 import { peek } from './cache';
-import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
+import { A, Avatar, Empty, Icon, Loading, BeltBadge, type IconName } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
 import { CameraScreen } from './camera';
@@ -85,7 +85,10 @@ export function AttachSheet({
   onClose,
   onPick,
   documents = true,
+  extra,
 }: {
+  /** More choices (the team's Poll and Live class) */
+  extra?: { label: string; icon: IconName; color: string; onClick: () => void }[];
   open: boolean;
   onClose: () => void;
   /** asDocument: send photos as files (full quality). Videos are always sent as videos. */
@@ -158,6 +161,14 @@ export function AttachSheet({
                   Document
                 </button>
               )}
+              {extra?.map((x) => (
+                <button key={x.label} type="button" role="menuitem" onClick={() => (onClose(), x.onClick())}>
+                  <span className="cx-attach-ico" style={{ background: x.color }}>
+                    <Icon name={x.icon} size={24} />
+                  </span>
+                  {x.label}
+                </button>
+              ))}
             </div>
             <p className="cx-attach-hint">Pull up for your gallery</p>
           </div>
@@ -216,8 +227,47 @@ function Status({ m }: { m: Message }) {
   );
 }
 
+/* ---------- Message info (my messages in a private chat) ---------- */
+const when = (iso: string) => {
+  const d = dayLabel(iso);
+  const t = new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return d === 'Today' ? `Today, ${t}` : `${d}, ${t}`;
+};
+function MessageInfo({ m, onClose }: { m: Message; onClose: () => void }) {
+  const { api } = useConnect();
+  const sheet = useDragToClose<HTMLDivElement>(onClose);
+  const [played, setPlayed] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (m.kind === 'voice') api.listPlays(m.id).then((l) => setPlayed(l.find((p) => p.user_id !== m.sender_id)?.played_at ?? null)).catch(() => setPlayed(null));
+  }, [api, m.id, m.kind, m.sender_id]);
+  const rows: [string, string | null | undefined][] = [
+    ['Sent', m.created_at],
+    ['Delivered', m.delivered_at],
+    ['Seen', m.read_at],
+    ...(m.kind === 'voice' ? ([['Played', played]] as [string, string | null | undefined][]) : []),
+  ];
+  return (
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-drag cx-info" role="dialog" aria-label="Message info" ref={sheet} onClick={(e) => e.stopPropagation()}>
+        <span className="cx-grab" aria-hidden="true" />
+        <h2 className="cx-fwd-title">Message info</h2>
+        <p className="cx-seen-msg">{m.kind === 'voice' ? `Voice message${m.duration ? ` · ${clock(m.duration)}` : ''}` : m.body ? m.body.slice(0, 160) : m.kind === 'image' ? 'Photo' : m.kind === 'video' ? 'Video' : m.file_name || 'File'}</p>
+        <ul className="cx-info-rows">
+          {rows.map(([label, at]) => (
+            <li key={label}>
+              <span>{label}</span>
+              <b>{at ? when(at) : at === undefined && label === 'Played' ? '…' : 'Not yet'}</b>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Voice note player ---------- */
-function Voice({ src, duration }: { src: string | null | undefined; duration?: number | null }) {
+function Voice({ src, duration, onFirstPlay }: { src: string | null | undefined; duration?: number | null; onFirstPlay?: () => void }) {
+  const told = useRef(false);
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
@@ -229,6 +279,10 @@ function Voice({ src, duration }: { src: string | null | undefined; duration?: n
       // only one voice note plays at a time
       document.querySelectorAll('audio').forEach((x) => x !== a && x.pause());
       a.play().catch(() => {});
+      if (!told.current) {
+        told.current = true;
+        onFirstPlay?.();
+      }
     } else a.pause();
   };
   return (
@@ -629,6 +683,8 @@ export function Bubble({
   avatar,
   onReactions,
   onReply,
+  content,
+  onPlayed,
 }: {
   m: Message;
   mine: boolean;
@@ -649,6 +705,10 @@ export function Bubble({
   onReactions?: () => void;
   /** Swipe the message left or right to reply to it */
   onReply?: (m: Message) => void;
+  /** Shown instead of the text (polls, live classes) */
+  content?: React.ReactNode;
+  /** Someone else's voice note was played (for message info) */
+  onPlayed?: (m: Message) => void;
   /** Downloaded (or sent by me): show the media itself */
   ready: boolean;
   onHold: (m: Message) => void;
@@ -729,6 +789,7 @@ export function Bubble({
         'cx-msg',
         mine ? 'is-mine' : '',
         kind !== 'text' ? `is-${kind}` : '',
+        content ? 'is-card' : '',
         (kind === 'image' || kind === 'video') && !m.body && !m.forwarded ? 'is-bare' : '',
         m.pending ? 'is-pending' : '',
         m.failed ? 'is-failed' : '',
@@ -761,7 +822,7 @@ export function Bubble({
           <span>{quote.text}</span>
         </button>
       )}
-      {kind === 'voice' && <Voice src={m.media_url} duration={m.duration} />}
+      {kind === 'voice' && <Voice src={m.media_url} duration={m.duration} onFirstPlay={!mine && onPlayed ? () => onPlayed(m) : undefined} />}
       {(kind === 'image' || kind === 'video') &&
         (ready && m.media_url ? (
           kind === 'image' ? (
@@ -817,7 +878,7 @@ export function Bubble({
         </span>
       )}
       {m.pending && kind === 'video' && (m.progress ?? 0) < 0.5 && <small className="cx-msg-prep">Making the video smaller…</small>}
-      {m.body && <Rich text={m.body} mention={withMentions} />}
+      {content ?? (m.body && <Rich text={m.body} mention={withMentions} />)}
       <span className="cx-msg-meta">
         {m.edited_at && <span className="cx-msg-edited">Edited</span>}
         <time dateTime={m.created_at}>{hhmm(m.created_at)}</time>
@@ -857,6 +918,8 @@ export function Chat({ id }: { id: string }) {
   const [held, setHeld] = useState<Message | null>(null);
   // editing one of my messages: the box holds its text until saved
   const [editing, setEditing] = useState<Message | null>(null);
+  // message info: sent, delivered, read, played
+  const [infoOf, setInfoOf] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState<Message | null>(null);
   const [rec, setRec] = useState<{ start: number; secs: number } | null>(null);
   const end = useRef<HTMLLIElement>(null);
@@ -1344,6 +1407,7 @@ export function Chat({ id }: { id: string }) {
                 onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && setHeld(x)}
                 reactions={m.reactions}
                 onReact={(e) => react(m, e)}
+                onPlayed={(x) => api.markPlayed(x.id).catch(() => {})}
                 onRetry={retry}
                 onDownload={download}
                 onOpen={(x) => (x.kind === 'file' ? openFile(x, toast) : setViewing(x))}
@@ -1448,6 +1512,7 @@ export function Chat({ id }: { id: string }) {
       )}
 
       {forwarding && <ForwardSheet m={forwarding} onClose={() => setForwarding(null)} />}
+      {infoOf && <MessageInfo m={msgs.find((x) => x.id === infoOf.id) ?? infoOf} onClose={() => setInfoOf(null)} />}
 
       {held && (
         <div className="cx-sheet-wrap" onClick={() => setHeld(null)}>
@@ -1485,6 +1550,11 @@ export function Chat({ id }: { id: string }) {
                 <Icon name="download" /> Save to phone
               </button>
             )}
+            {held.sender_id === me.id && !held.pending && (
+              <button type="button" role="menuitem" onClick={() => (setInfoOf(held), setHeld(null))}>
+                <Icon name="clock" /> Info
+              </button>
+            )}
             {held.sender_id === me.id && (held.kind ?? 'text') === 'text' && canUnsend(held.created_at, held.read_at) && (
               <button
                 type="button"
@@ -1505,7 +1575,7 @@ export function Chat({ id }: { id: string }) {
                   <Icon name="trash" /> Delete for everyone
                 </button>
               ) : (
-                <p className="cx-sheet-note">{TOO_LATE}</p>
+                null
               )
             ) : (
               <button type="button" role="menuitem" onClick={() => reportMsg(held)}>

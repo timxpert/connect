@@ -12,8 +12,19 @@ type Row = { id: string; sender_id: string; body: string; kind: string; file_nam
 // *bold* _italic_ __underline__ ~strike~ shown without the marks
 const plain = (t: string) => t.replace(/(__|[*_~])(?=\S)([^\n]*?\S)\1/g, '$2');
 
+const json = (b: string) => {
+  try {
+    return JSON.parse(b) as { q?: string; t?: string };
+  } catch {
+    return {};
+  }
+};
 const what = (m: Row) =>
-  m.kind === 'voice'
+  m.kind === 'poll'
+    ? `📊 Poll: ${json(m.body).q ?? ''}`
+    : m.kind === 'live'
+      ? `🎥 Live class: ${json(m.body).t ?? ''}`
+      : m.kind === 'voice'
     ? 'Voice message'
     : m.kind === 'image'
       ? `Photo${m.body ? `: ${m.body}` : ''}`

@@ -8692,3 +8692,302 @@ html.cx-in-chat body {
   overflow: hidden;
   overscroll-behavior: none;
 }
+
+/* Polls and live classes */
+.cx-msg.is-card {
+  min-width: min(280px, 78vw);
+}
+.cx-poll,
+.cx-live {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 4px;
+}
+.cx-poll p,
+.cx-live p {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+.cx-poll-q {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.cx-poll-q svg {
+  flex: none;
+  margin-top: 2px;
+}
+.cx-poll-hint {
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+.cx-poll ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cx-poll li button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+.cx-msg.is-mine .cx-poll li button {
+  background: rgba(255, 255, 255, 0.16);
+}
+.cx-poll-bar {
+  position: absolute;
+  inset: 0;
+  background: rgba(109, 50, 232, 0.14);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+  pointer-events: none;
+}
+.cx-msg.is-mine .cx-poll-bar {
+  background: rgba(255, 255, 255, 0.22);
+}
+.cx-poll-dot,
+.cx-poll-box {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.7;
+}
+.cx-poll-box {
+  border-radius: 6px;
+}
+.cx-poll li button.is-on .cx-poll-dot,
+.cx-poll li button.is-on .cx-poll-box {
+  opacity: 1;
+  background: var(--violet);
+  border-color: var(--violet);
+  color: #fff;
+}
+.cx-msg.is-mine .cx-poll li button.is-on .cx-poll-dot,
+.cx-msg.is-mine .cx-poll li button.is-on .cx-poll-box {
+  background: #fff;
+  border-color: #fff;
+  color: var(--violet);
+}
+.cx-poll-label {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+}
+.cx-poll-n {
+  position: relative;
+  z-index: 1;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.cx-poll-who {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.85;
+  cursor: pointer;
+}
+.cx-poll-who:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.cx-poll-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.cx-poll-group small {
+  font-weight: 500;
+  color: var(--muted);
+}
+.cx-poll-voter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cx-live-tag {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f1ebff;
+  color: var(--violet);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.cx-live-tag.is-live {
+  background: #e03131;
+  color: #fff;
+}
+.cx-live-tag.is-ended {
+  background: #ece9e4;
+  color: var(--muted);
+}
+.cx-live-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.cx-live-when,
+.cx-live-where {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  opacity: 0.85;
+}
+.cx-live-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+.cx-live-btns .btn {
+  box-shadow: none;
+}
+.cx-msg.is-mine .cx-live-btns .btn-light {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.cx-msg.is-mine .cx-live-btns .btn-primary {
+  background: #fff;
+  color: var(--violet);
+}
+.cx-msg.is-mine .cx-live-tag {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.cx-live-note {
+  align-self: center;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+/* making them */
+.cx-make-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 6px;
+}
+.cx-make .cx-invite-label {
+  margin: 8px 8px 2px;
+}
+.cx-make-opt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cx-make-opt .cx-invite-name {
+  flex: 1;
+  min-width: 0;
+}
+.cx-make-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.cx-make-row label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cx-make-row .cx-invite-name {
+  width: 100%;
+  min-width: 0;
+}
+.cx-make-body > * {
+  flex: none;
+}
+.cx-make-check {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin: 10px 8px 0;
+  font-weight: 600;
+}
+.cx-make-check input {
+  flex: none;
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--violet);
+}
+.cx-make-err {
+  color: #c92a2a;
+}
+.cx-make select.cx-invite-name {
+  height: 48px;
+}
+
+/* Message info */
+.cx-info-rows {
+  margin: 0;
+  padding: 0 8px 10px;
+  list-style: none;
+}
+.cx-info-rows li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.cx-info-rows li:last-child {
+  border-bottom: 0;
+}
+.cx-info-rows span {
+  color: var(--muted);
+}
+.cx-info-h {
+  margin: 12px 8px 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.cx-seen-msg small {
+  color: var(--muted);
+}
+.cx-make .cx-make-body input.cx-invite-name,
+.cx-make .cx-make-body select.cx-invite-name {
+  flex: none;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}

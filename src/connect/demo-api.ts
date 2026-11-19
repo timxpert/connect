@@ -160,6 +160,8 @@ let groupReadAt = ago(6);
 type OwnGroup = { id: string; name: string; photo_url: string | null; announce_only: boolean; pinned_id: string | null; history: 'all' | '14d' | '100' | 'none'; people: Map<string, { added: string; read: string | null; muted: number }>; msgs: RawGroup[]; created_at: string };
 const ownGroups: OwnGroup[] = [];
 let pins: string[] = [];
+const plays: { message_id: string; user_id: string; played_at: string }[] = [];
+const pollVotes = new Map<string, { option: number; user_id: string }[]>();
 const invites = new Map<string, { gid: string; message: string; expires: number }>();
 const og = (gid: string) => {
   const g = ownGroups.find((x) => x.id === gid);
@@ -481,6 +483,11 @@ export function createDemoApi(): ConnectApi {
       setTimeout(() => (m.delivered_at = new Date().toISOString()), 1500);
       return m;
     },
+    async markPlayed(mid) {
+      const me = needMe();
+      if (!plays.some((p) => p.message_id === mid && p.user_id === me)) plays.push({ message_id: mid, user_id: me, played_at: new Date().toISOString() });
+    },
+    listPlays: async (mid) => plays.filter((p) => p.message_id === mid).map(({ user_id, played_at }) => ({ user_id, played_at })),
     async reactMessage(mid, emoji) {
       const me = needMe();
       messages = messages.map((m) => {
@@ -553,7 +560,7 @@ export function createDemoApi(): ConnectApi {
             x.who.push(k.slice(k.indexOf(':') + 1));
             if (k.endsWith(':' + current)) x.mine = true;
           }
-          return { ...m, sender: who(m.sender_id), reactions: list };
+          return { ...m, sender: who(m.sender_id), reactions: list, votes: pollVotes.get(m.id) ?? [] };
         }),
       ),
     async groupPreview() {
@@ -582,6 +589,17 @@ export function createDemoApi(): ConnectApi {
       const m: RawGroup = { id: nid(), conversation_id: gid ? `g:${gid}` : 'group', sender_id: me, body: caption, kind: a.kind, file_name: a.kind === 'file' ? a.file.name : null, media_url: URL.createObjectURL(a.file), file_size: a.file.size, duration: a.duration, thumb: a.thumb, reply_to: replyTo ?? null, forwarded: forwarded ?? false, created_at: new Date().toISOString() };
       (gid ? og(gid).msgs : group).push(m);
       return wait({ ...m, sender: who(me), reactions: [] });
+    },
+    async sendGroupSpecial(kind, body, gid) {
+      const me = needMe();
+      const m: RawGroup = { id: nid(), conversation_id: gid ? `g:${gid}` : 'group', sender_id: me, body, kind, created_at: new Date().toISOString() } as unknown as RawGroup;
+      (gid ? og(gid).msgs : group).push(m);
+      return wait({ ...m, sender: who(me), reactions: [], votes: [] });
+    },
+    async votePoll(mid, options) {
+      const me = needMe();
+      const list = (pollVotes.get(mid) ?? []).filter((v) => v.user_id !== me);
+      pollVotes.set(mid, [...list, ...options.map((option) => ({ option, user_id: me }))]);
     },
     async editGroupMessage(id, body) {
       const edit = (m: RawGroup) => (m.id === id ? { ...m, body, edited_at: new Date().toISOString() } : m);

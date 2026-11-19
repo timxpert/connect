@@ -92,7 +92,7 @@ export type Conversation = {
   last_deleted?: boolean;
 };
 
-export type MessageKind = 'text' | 'voice' | 'image' | 'video' | 'file';
+export type MessageKind = 'text' | 'voice' | 'image' | 'video' | 'file' | 'poll' | 'live';
 
 export type Message = {
   id: string;
@@ -130,6 +130,8 @@ export type Message = {
 
 /** A message in the Dojo group */
 export type GroupMessage = Message & {
+  /** Polls: one entry per answer picked */
+  votes?: { option: number; user_id: string }[];
   /** When someone other than the sender first saw it */
   seen_at?: string | null;
   reply_to?: string | null;
@@ -248,7 +250,7 @@ export interface ConnectApi {
   /** Live "typing…" signals in a room ('u:<id>', 'g:main', 'g:<group id>') */
   typingListen(room: string, cb: (t: TypingSignal) => void): () => void;
   typingSend(room: string, t: TypingSignal): void;
-  subscribe(table: 'messages' | 'comments' | 'notifications' | 'group_messages' | 'group_reactions' | 'group_settings' | 'groups' | 'message_reactions', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
+  subscribe(table: 'messages' | 'comments' | 'notifications' | 'group_messages' | 'group_reactions' | 'group_settings' | 'groups' | 'message_reactions' | 'poll_votes', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
   signIn(email: string): Promise<void>;
   /** Students: email + the student ID they got when they enrolled */
   studentSignIn(email: string, studentId: string): Promise<void>;
@@ -307,6 +309,10 @@ export interface ConnectApi {
   deleteMessage(id: string): Promise<void>;
   /** Your own text, within the delete-for-everyone time */
   editMessage(id: string, body: string): Promise<void>;
+  /** Voice notes: I played it (first time only) */
+  markPlayed(messageId: string): Promise<void>;
+  /** Voice notes: who played it and when */
+  listPlays(messageId: string): Promise<{ user_id: string; played_at: string }[]>;
   /** React to a private message; null removes yours */
   reactMessage(id: string, emoji: string | null): Promise<void>;
   /** Marks everything the other person sent in this chat as seen */
@@ -383,6 +389,10 @@ export interface ConnectApi {
   deleteGroupMessage(id: string): Promise<void>;
   /** Your own text, within the delete-for-everyone time */
   editGroupMessage(id: string, body: string): Promise<void>;
+  /** Team: a poll or a live class (body is JSON, see special.ts) */
+  sendGroupSpecial(kind: 'poll' | 'live', body: string, gid?: string | null): Promise<GroupMessage>;
+  /** My answers to a poll (replaces any earlier ones; [] takes my vote back) */
+  votePoll(messageId: string, options: number[]): Promise<void>;
   /** null removes your reaction */
   reactGroup(id: string, emoji: string | null): Promise<void>;
   markGroupRead(gid?: string | null): Promise<void>;

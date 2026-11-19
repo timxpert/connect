@@ -16,6 +16,8 @@ import { TypingBubble, AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel
 import { ForwardSheet } from './forward';
 import { MessageField, plainText, smartChange, useDraft } from './format';
 import { EmojiButton } from './emoji';
+import { specialLine } from './special';
+import { LiveCard, LiveSheet, PollCard, PollSheet } from './polls-live';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
@@ -79,7 +81,7 @@ function useGroup(): Scope {
 }
 
 const snippet = (m: GroupMessage) =>
-  m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.kind === 'file' ? m.body || m.file_name || 'Document' : plainText(m.body);
+  m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.kind === 'file' ? m.body || m.file_name || 'Document' : (specialLine(m.kind, m.body) ?? plainText(m.body));
 
 /** "Ada, Tunde, Kemi, You": the people in the group, for the header */
 function memberNames(people: Profile[], me: string) {
@@ -136,6 +138,8 @@ function GroupChatInner() {
   const [editing, setEditing] = useState<GroupMessage | null>(null);
   // who reacted to a message
   const [rxOf, setRxOf] = useState<GroupMessage | null>(null);
+  // the team making a poll or a live class
+  const [making, setMaking] = useState<'poll' | 'live' | null>(null);
   const [caret, setCaret] = useState(0);
   const placeCaret = useRef<number | null>(null);
   const end = useRef<HTMLLIElement>(null);
@@ -191,6 +195,7 @@ function GroupChatInner() {
     const stops = [
       api.subscribe('group_messages', '', () => load().catch(() => {})),
       api.subscribe('group_reactions', '', () => load().catch(() => {})),
+      api.subscribe('poll_votes', '', () => load().catch(() => {})),
       api.subscribe('group_settings', '', () => load().catch(() => {})),
     ];
     const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 30000);
@@ -460,6 +465,26 @@ function GroupChatInner() {
     if (next) play('like');
     await api.reactGroup(m.id, next).catch((e: Error) => toast(e.message));
   };
+  // Polls: show my answer at once, then save it
+  const vote = async (m: GroupMessage, options: number[]) => {
+    setMsgs((xs) => xs.map((x) => (x.id === m.id ? { ...x, votes: [...(x.votes ?? []).filter((v) => v.user_id !== me.id), ...options.map((option) => ({ option, user_id: me.id }))] } : x)));
+    try {
+      await api.votePoll(m.id, options);
+    } catch (e) {
+      toast((e as Error).message);
+      load().catch(() => {});
+    }
+  };
+  const sendSpecial = (kind: 'poll' | 'live') => async (body: string) => {
+    try {
+      const m = await api.sendGroupSpecial(kind, body, gid);
+      setMsgs((xs) => [...xs, m]);
+      play('send');
+    } catch (e) {
+      toast((e as Error).message);
+      throw e;
+    }
+  };
   const remove = async (m: GroupMessage) => {
     setHeld(null);
     const theirs = m.sender_id !== me.id;
@@ -634,6 +659,13 @@ function GroupChatInner() {
                   who={showWho ? { name: whoName(m) } : null}
                   avatar={mine ? undefined : showWho ? (m.sender ?? false) : false}
                   onReactions={() => setRxOf(m)}
+                  content={
+                    (m.kind as string) === 'poll' ? (
+                      <PollCard m={m} people={people} onVote={(o) => vote(m, o)} />
+                    ) : (m.kind as string) === 'live' ? (
+                      <LiveCard m={m} />
+                    ) : undefined
+                  }
                   onReply={
                     canSend
                       ? (x) => {
@@ -648,6 +680,7 @@ function GroupChatInner() {
                   noTicks
                   seen={mine ? seenBy(m).length : undefined}
                   onSeen={() => setSeenOf(m)}
+                  onPlayed={(x) => api.markPlayed(x.id).catch(() => {})}
                   onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && !x.deleted_at && setHeld(x as GroupMessage)}
                   onDownload={(x) => download(x as GroupMessage)}
                   onOpen={(x) => (x.kind === 'file' ? openFile(x, toast) : setViewing(x as GroupMessage))}
@@ -735,7 +768,19 @@ function GroupChatInner() {
                 e.target.value = '';
               }}
             />
-            <AttachSheet open={attach} onClose={() => setAttach(false)} onPick={pickFiles} />
+            <AttachSheet
+              open={attach}
+              onClose={() => setAttach(false)}
+              onPick={pickFiles}
+              extra={
+                team
+                  ? [
+                      { label: 'Poll', icon: 'poll', color: '#0f9d76', onClick: () => setMaking('poll') },
+                      { label: 'Live class', icon: 'video', color: '#e8590c', onClick: () => setMaking('live') },
+                    ]
+                  : undefined
+              }
+            />
             <label className="sr-only" htmlFor="group-box">
               Message
             </label>
@@ -769,8 +814,10 @@ function GroupChatInner() {
 
       {forwarding && <ForwardSheet m={forwarding} onClose={() => setForwarding(null)} />}
 
-      {seenOf && <SeenBy m={seenOf} readers={seenBy(seenOf)} onClose={() => setSeenOf(null)} />}
+      {seenOf && <SeenBy m={seenOf} readers={seenBy(seenOf)} people={people} onClose={() => setSeenOf(null)} />}
 
+      {making === 'poll' && <PollSheet onClose={() => setMaking(null)} onSend={sendSpecial('poll')} />}
+      {making === 'live' && <LiveSheet onClose={() => setMaking(null)} onSend={sendSpecial('live')} />}
       {rxOf && (() => {
         const m = all.find((x) => x.id === rxOf.id) ?? rxOf;
         const rows = (m.reactions ?? []).flatMap((r) => (r.who ?? []).map((uid) => ({ uid, emoji: r.emoji })));
@@ -834,7 +881,7 @@ function GroupChatInner() {
             )}
             {held.sender_id === me.id && (
               <button type="button" role="menuitem" onClick={() => (setSeenOf(held), setHeld(null))}>
-                <Icon name="ticks" /> Seen by {seenBy(held).length}
+                <Icon name="clock" /> Info
               </button>
             )}
             {held.sender_id !== me.id && (
@@ -899,7 +946,7 @@ function GroupChatInner() {
                 <Icon name="trash" /> {held.sender_id === me.id ? 'Delete for everyone' : 'Delete message'}
               </button>
             ) : held.sender_id === me.id ? (
-              <p className="cx-sheet-note">{TOO_LATE}</p>
+              null
             ) : (
               <button type="button" role="menuitem" onClick={() => reportMsg(held)}>
                 <Icon name="more" /> Report message
@@ -937,15 +984,47 @@ function GroupChatInner() {
 }
 
 /** The group's picture: the photo the team chose, or the Motion Dojo logo */
-function SeenBy({ m, readers, onClose }: { m: GroupMessage; readers: GroupReader[]; onClose: () => void }) {
+function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: GroupReader[]; people: Profile[]; onClose: () => void }) {
+  const { api } = useConnect();
   const sheet = useDragToClose<HTMLDivElement>(onClose);
   const sorted = [...readers].sort((a, b) => (a.read_at < b.read_at ? -1 : 1));
+  // voice notes: who played it and when
+  const [plays, setPlays] = useState<{ user_id: string; played_at: string }[]>([]);
+  useEffect(() => {
+    if (m.kind === 'voice') api.listPlays(m.id).then((l) => setPlays(l.filter((p) => p.user_id !== m.sender_id))).catch(() => {});
+  }, [api, m.id, m.kind, m.sender_id]);
+  const at = (iso: string) => (dayLabel(iso) === 'Today' ? clock2(iso) : `${dayLabel(iso)}, ${clock2(iso)}`);
   return (
     <div className="cx-sheet-wrap" onClick={onClose}>
       <div className="cx-sheet cx-drag cx-seen" role="dialog" aria-label="Seen by" ref={sheet} onClick={(e) => e.stopPropagation()}>
         <span className="cx-grab" aria-hidden="true" />
-        <h2 className="cx-fwd-title">Seen by {readers.length}</h2>
-        {m.body && <p className="cx-seen-msg">{m.body.slice(0, 140)}</p>}
+        <h2 className="cx-fwd-title">Message info</h2>
+        <p className="cx-seen-msg">
+          {m.kind === 'voice' ? `Voice message${m.duration ? ` · ${clock(m.duration)}` : ''}` : m.body ? snippet(m).slice(0, 140) : snippet(m)}
+          <small> · Sent {at(m.created_at)}</small>
+        </p>
+        {m.kind === 'voice' && (
+          <>
+            <h3 className="cx-info-h">Played by {plays.length}</h3>
+            {plays.length ? (
+              <ul className="cx-fwd-list">
+                {plays.map((p) => {
+                  const who = people.find((x) => x.id === p.user_id);
+                  return (
+                    <li key={p.user_id} className="cx-fwd-row">
+                      {who ? <Avatar p={who} size={38} /> : <span className="cx-rx-who-blank" />}
+                      <span className="cx-fwd-name">{who?.name ?? 'Member'}</span>
+                      <small>{at(p.played_at)}</small>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="cx-fwd-note">No one has played it yet.</p>
+            )}
+          </>
+        )}
+        <h3 className="cx-info-h">Seen by {readers.length}</h3>
         {sorted.length ? (
           <ul className="cx-fwd-list" data-scroll>
             {sorted.map((r) => (
