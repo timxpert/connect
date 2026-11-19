@@ -7130,3 +7130,50 @@ html[data-cx-theme='dark'] .cx-toast {
 .cx-yt.is-full .cx-yt-frame {
   inset: 0;
 }
+
+/* YouTube: the player is taller than the box, so YouTube's title bar (top)
+   and link button (bottom) sit outside it and are cut off */
+.cx-player.cx-yt {
+  overflow: hidden;
+  border-radius: 0;
+}
+.cx-yt .cx-yt-frame {
+  top: -64px;
+  bottom: -64px;
+  height: auto;
+}
+.cx-yt .cx-yt-big {
+  z-index: 4;
+  border: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.cx-yt-end {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  background: #000;
+}
+.cx-yt-end img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.5;
+}
+.cx-yt-end .btn {
+  position: relative;
+}
+/* full screen: a box the video's shape, as big as fits, still cut top and bottom */
+.cx-yt:fullscreen .cx-yt-frame,
+.cx-yt.is-full .cx-yt-frame {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: min(100vw, 100dvh * var(--ar, 1.78));
+  height: calc(min(100vw, 100dvh * var(--ar, 1.78)) / var(--ar, 1.78) + 128px);
+  translate: -50% -50%;
+}

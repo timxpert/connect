@@ -135,6 +135,14 @@ export function YouTubePlayer({ id, className, style, watermark, onEnded }: { id
     hideTimer.current = window.setTimeout(() => setBar(false), 3000);
   };
   const playing = state === 1 || state === 3;
+  // a tap on the video shows or hides the controls (like YouTube); pausing is the button
+  const tapVideo = () => {
+    if (!playing) return toggle();
+    if (bar) {
+      setBar(false);
+      window.clearTimeout(hideTimer.current);
+    } else showBar();
+  };
   const toggle = () => {
     const p = player.current;
     if (!p) return;
@@ -181,13 +189,22 @@ export function YouTubePlayer({ id, className, style, watermark, onEnded }: { id
         <div ref={host} />
       </div>
       {/* catches every tap so nothing reaches YouTube's links */}
-      {!needTap && <button type="button" className="cx-yt-tap" aria-label={playing ? 'Pause' : 'Play'} onClick={toggle} onMouseMove={showBar} />}
+      {!needTap && <button type="button" className="cx-yt-tap" aria-label="Show controls" onClick={tapVideo} onMouseMove={showBar} />}
+      {/* the end: cover YouTube's suggestions with our own screen */}
+      {state === 0 && (
+        <div className="cx-yt-end">
+          <img src={ytThumb(id)} alt="" />
+          <button type="button" className="btn btn-light btn-sm" onClick={toggle}>
+            Watch again
+          </button>
+        </div>
+      )}
       {watermark}
       {error && <p className="cx-yt-error">{error}</p>}
-      {!playing && !needTap && !error && (
-        <span className="cx-player-play cx-yt-big" aria-hidden="true">
-          <Icon name="play" size={28} filled />
-        </span>
+      {!needTap && !error && state !== 0 && (bar || !playing) && (
+        <button type="button" className="cx-player-play cx-yt-big" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
+          <Icon name={playing ? 'pause' : 'play'} size={28} filled={!playing} />
+        </button>
       )}
       <div className={`cx-yt-bar${bar || !playing ? ' is-on' : ''}`}>
         <button type="button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
