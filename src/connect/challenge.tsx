@@ -119,7 +119,7 @@ export function ChallengeTab() {
   const handIn = async () => {
     if (!current) return;
     const url = link.trim();
-    if (!toEmbed(url)) return toast('Paste a TikTok, Instagram, YouTube or Google Drive link to your video.');
+    if (!toEmbed(url)) return toast('Use a TikTok, Instagram, YouTube or Drive link.');
     setBusy(true);
     try {
       await api.submitEntry(current.id, url);
@@ -182,7 +182,7 @@ export function ChallengeTab() {
               <div className="cx-ch-mine">
                 <span className="cx-ch-mine-text">
                   <b>Handed in</b>
-                  <span>The pick comes out after {endsLabel(current.ends_at)}</span>
+                  <span>Pick comes after the deadline</span>
                 </span>
                 <button type="button" className="cx-ch-ghost" onClick={() => (setLink(mine.url), setHanding(true))} disabled={busy}>
                   Change
@@ -204,7 +204,7 @@ export function ChallengeTab() {
                 <label className="sr-only" htmlFor="ch-link">
                   Link to your video
                 </label>
-                <input id="ch-link" inputMode="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="TikTok, Instagram, YouTube or Drive link" autoFocus />
+                <input id="ch-link" inputMode="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="Link to your video" autoFocus />
                 <div className="cx-ch-form-btns">
                   <button type="submit" className="cx-ch-cta" disabled={busy || !link.trim()}>
                     {busy ? 'Sending…' : 'Hand in'}
@@ -239,7 +239,7 @@ export function ChallengeTab() {
       ) : (
         <section className="cx-ch-card is-empty">
           <h1>No challenge right now</h1>
-          <p className="cx-ch-brief">{team ? 'Set the next one. Every student gets a notification.' : 'The next one is coming soon.'}</p>
+          <p className="cx-ch-brief">{team ? 'Set the next one. Every student gets notified.' : 'Next one soon.'}</p>
           {team && (
             <button type="button" className="cx-ch-cta" onClick={() => setEditing('new')}>
               New challenge
@@ -360,7 +360,7 @@ function ChallengeForm({ c, onDone }: { c: Challenge | null; onDone: () => void 
     try {
       // ends at 23:59 on the chosen day
       await api.saveChallenge({ id: c?.id, title, brief, ends_at: new Date(`${ends}T23:59:00`).toISOString() });
-      toast(c ? 'Saved' : 'Challenge posted. Students have been told.');
+      toast(c ? 'Saved' : 'Posted. Students notified.');
       onDone();
     } catch (err) {
       toast((err as Error).message);
@@ -423,7 +423,7 @@ export function ChallengeScreen({ id }: { id: string }) {
   if (!c || !entries) return <Loading label="Loading entries" />;
 
   const pick = async (e: ChallengeEntry) => {
-    const note = await ask({ title: `Pick ${e.user?.name ?? 'this entry'}?`, body: 'Add a short note on why. Everyone sees it.', input: c.pick_id === e.id ? c.pick_note : '', confirm: 'Pick' });
+    const note = await ask({ title: `Pick ${e.user?.name ?? 'this entry'}?`, body: 'A short note on why. Everyone sees it.', input: c.pick_id === e.id ? c.pick_note : '', confirm: 'Pick' });
     if (note === null) return;
     await api.pickEntry(c.id, e.id, String(note)).catch((err: Error) => toast(err.message));
     toast('Picked');

@@ -7759,3 +7759,6 @@ html[data-cx-theme='dark'] .cx-ch-entries li.is-pick {
 .cx-ch-mine .cx-ch-ghost {
   background: var(--paper);
 }
+.cx-ch-entries li.is-pick {
+  outline: none;
+}
