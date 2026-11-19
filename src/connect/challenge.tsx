@@ -495,11 +495,18 @@ export function ChallengeScreen({ id }: { id: string }) {
   );
 }
 
-/* ---------- Projects tab (visitors): approved final projects ---------- */
+/* ---------- Projects tab (visitors): approved final projects ----------
+   Final project I is the phase 3 assignment (on the way to phase 4);
+   Final project II is the phase 4 assignment (on the way to the
+   certificate of mastery). */
+const FINALS = [
+  { phase: 3, label: 'Final project I' },
+  { phase: 4, label: 'Final project II' },
+];
 export function ProjectsTab() {
   const { api } = useConnect();
-  const [n, setN] = useState(1);
-  const [list, setList] = useState<Post[] | null>(() => peek<Post[]>('listProjects', 1) ?? null);
+  const [n, setN] = useState(3);
+  const [list, setList] = useState<Post[] | null>(() => peek<Post[]>('listProjects', 3) ?? null);
   useEffect(() => {
     setList(peek<Post[]>('listProjects', n) ?? null);
     api
@@ -510,9 +517,9 @@ export function ProjectsTab() {
   return (
     <div className="cx-projects">
       <div className="cx-chips" role="group" aria-label="Final project">
-        {[1, 2].map((k) => (
-          <button key={k} type="button" className={n === k ? 'cx-chip is-on' : 'cx-chip'} aria-pressed={n === k} onClick={() => setN(k)}>
-            Final project {k === 1 ? 'I' : 'II'}
+        {FINALS.map((f) => (
+          <button key={f.phase} type="button" className={n === f.phase ? 'cx-chip is-on' : 'cx-chip'} aria-pressed={n === f.phase} onClick={() => setN(f.phase)}>
+            {f.label}
           </button>
         ))}
       </div>
