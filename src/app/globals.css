@@ -7013,3 +7013,14 @@ html[data-cx-theme='dark'] .cx-toast {
   border-radius: 0;
   overflow: visible;
 }
+
+/* Cover Drive's "open in Drive" button completely (it sits top-right, over the video) */
+.cx-player-shield {
+  z-index: 2;
+  width: 88px;
+  height: 72px;
+  background: #000;
+  border-bottom-left-radius: 14px;
+  pointer-events: auto;
+  touch-action: none;
+}
