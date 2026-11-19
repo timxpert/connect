@@ -580,6 +580,12 @@ export function createDemoApi(): ConnectApi {
       onProgress?.(1);
       return URL.createObjectURL(file);
     },
+    async setTeamRole(userId, role) {
+      const p = who(userId);
+      p.team_role = role;
+      p.is_moderator = Boolean(role);
+    },
+    teamRoles: () => wait(Object.fromEntries(people.filter((p) => p.team_role).map((p) => [p.id, p.team_role!]))),
     listChallenges: () =>
       wait([...challenges].sort((a, b) => b.ends_at.localeCompare(a.ends_at)).map((c) => ({ ...c, entries: entries.filter((e) => e.challenge_id === c.id).length }))),
     listEntries(challengeId) {

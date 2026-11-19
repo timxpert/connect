@@ -423,7 +423,7 @@ export function ChallengeScreen({ id }: { id: string }) {
   if (!c || !entries) return <Loading label="Loading entries" />;
 
   const pick = async (e: ChallengeEntry) => {
-    const note = await ask({ title: `Pick ${e.user?.name ?? 'this entry'}?`, body: 'A short note on why. Everyone sees it.', input: c.pick_id === e.id ? c.pick_note : '', confirm: 'Pick' });
+    const note = await ask({ title: `Pick ${e.user?.name ?? 'this entry'}?`, body: 'A short note on why. Everyone sees it.', input: 'Great easing on the bounce', value: c.pick_id === e.id ? c.pick_note : '', confirm: 'Pick' });
     if (note === null) return;
     await api.pickEntry(c.id, e.id, String(note)).catch((err: Error) => toast(err.message));
     toast('Picked');

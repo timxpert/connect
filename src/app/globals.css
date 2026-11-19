@@ -7965,3 +7965,30 @@ a.cx-ch-cta:hover,
   color: var(--violet);
   font-weight: 700;
 }
+
+/* Team role next to a student's belt, e.g. "Community manager" */
+.cx-role-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #f1ebff;
+  color: var(--violet);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.cx-role-tag.is-sm {
+  height: 19px;
+  padding: 0 7px;
+  font-size: 0.7rem;
+}
+html[data-cx-theme='dark'] .cx-role-tag {
+  background: #2d2540;
+  color: #cdb6ff;
+}
+.cx-dev-list > li > .cx-role-tag {
+  align-self: flex-start;
+}

@@ -816,6 +816,17 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       await xhrUpload('media', path, file, onProgress);
       return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
     },
+    async setTeamRole(userId, role) {
+      const { error } = await sb.rpc('set_team_role', { uid: userId, role: role ?? '' });
+      if (error && /function|schema cache/i.test(error.message)) throw new Error('Team roles need a database update: run supabase/team.sql in Supabase.');
+      if (error?.message.includes('sensei_only')) throw new Error('Only the Grand Sensei can change the team.');
+      fail(error);
+    },
+    async teamRoles() {
+      const { data, error } = await sb.from('profiles').select('id, team_role').not('team_role', 'is', null);
+      if (error) return {};
+      return Object.fromEntries(((data ?? []) as { id: string; team_role: string }[]).map((r) => [r.id, r.team_role]));
+    },
     async listChallenges() {
       const [{ data, error }, { data: counts }] = await Promise.all([sb.from('challenges').select('*').order('ends_at', { ascending: false }).limit(50), sb.rpc('challenge_counts')]);
       if (error) {

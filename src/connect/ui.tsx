@@ -273,17 +273,22 @@ export function visiblePhase(p: Pick<Profile, 'id' | 'phase' | 'phase_public'>, 
   return p.phase_public === false ? null : p.phase;
 }
 
-export function BeltBadge({ p, small = false }: { p: Pick<Profile, 'id' | 'phase' | 'phase_public'>; small?: boolean }) {
+export function BeltBadge({ p, small = false }: { p: Pick<Profile, 'id' | 'phase' | 'phase_public'> & { team_role?: string | null }; small?: boolean }) {
   const { me } = useConnect();
   const phase = visiblePhase(p, me);
   const belt = phase ? BELTS[phase - 1] : null;
-  if (!belt) return null;
+  // team members who are students: their role sits next to the belt
+  const role = p.team_role ? <span className={small ? 'cx-role-tag is-sm' : 'cx-role-tag'}>{p.team_role}</span> : null;
+  if (!belt) return role;
   const cls = ['cx-badge', small ? 'cx-badge-sm' : '', `cx-belt cx-belt-${phase}`].filter(Boolean).join(' ');
   return (
-    <span className={cls} title={`${belt}: phase ${phase}, ${PHASES[phase! - 1]}`}>
-      <Icon name="obi" size={small ? 13 : 15} />
-      {small ? <span className="sr-only">{belt}</span> : belt}
-    </span>
+    <>
+      <span className={cls} title={`${belt}: phase ${phase}, ${PHASES[phase! - 1]}`}>
+        <Icon name="obi" size={small ? 13 : 15} />
+        {small ? <span className="sr-only">{belt}</span> : belt}
+      </span>
+      {role}
+    </>
   );
 }
 

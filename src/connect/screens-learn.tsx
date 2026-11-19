@@ -1359,6 +1359,33 @@ export function Devices() {
   const { api, me, toast, ask } = useConnect();
   const team = Boolean(me?.is_sensei || me?.is_moderator);
   const [rows, setRows] = useState<DeviceRow[] | null>(null);
+  const [roles, setRoles] = useState<Record<string, string>>({});
+  useEffect(() => {
+    api.teamRoles().then(setRoles).catch(() => {});
+  }, [api]);
+  // Grand Sensei: add a student to the team with a role, change it, or take them off
+  const setRole = async (r: DeviceRow, off = false) => {
+    const first = r.name.split(' ')[0];
+    let role: string | null = null;
+    if (!off) {
+      const v = await ask({ title: roles[r.user_id] ? `${first}’s role` : `Make ${first} part of the team`, body: 'Their role shows next to their belt, and they can moderate.', input: 'Community manager', value: roles[r.user_id] ?? '', confirm: 'Save' });
+      if (v === null) return;
+      role = v.trim().slice(0, 40) || null;
+      if (!role) return;
+    } else if (!(await ask({ title: `Remove ${first} from the team?`, body: 'They stay a student.', confirm: 'Remove', danger: true }))) return;
+    try {
+      await api.setTeamRole(r.user_id, role);
+      setRoles((cur) => {
+        const next = { ...cur };
+        if (role) next[r.user_id] = role;
+        else delete next[r.user_id];
+        return next;
+      });
+      toast(role ? `${first} is now ${role}` : `${first} is off the team`);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
   const [error, setError] = useState('');
   const [sure, setSure] = useState('');
   const [busy, setBusy] = useState('');
@@ -1463,7 +1490,18 @@ export function Devices() {
                 New ID: <b>{fresh.code}</b>. Send it to {r.name}. The old one no longer works.
               </span>
             )}
+            {roles[r.user_id] && <span className="cx-role-tag">{roles[r.user_id]}</span>}
             <span className="cx-dev-actions">
+              {me?.is_sensei && (
+                <button type="button" className="btn btn-sm cx-dev-act" onClick={() => setRole(r)} disabled={busy === r.user_id}>
+                  {roles[r.user_id] ? 'Change role' : 'Make team'}
+                </button>
+              )}
+              {me?.is_sensei && roles[r.user_id] && (
+                <button type="button" className="btn btn-sm cx-dev-act" onClick={() => setRole(r, true)} disabled={busy === r.user_id}>
+                  Remove from team
+                </button>
+              )}
               <button type="button" className="btn btn-sm cx-dev-act" onClick={() => reset(r)} disabled={busy === r.user_id}>
                 {sure === r.user_id ? 'Tap again to reset' : 'Reset member ID'}
               </button>

@@ -12,6 +12,8 @@ export type Profile = {
   phase: number | null;
   /** false: only the student (and the team) see their phase */
   phase_public?: boolean;
+  /** Students on the team: their role, e.g. "Community manager" */
+  team_role?: string | null;
   /** The phase a student says they're in, waiting for the team to confirm */
   phase_request?: number | null;
   phase_request_at?: string | null;
@@ -331,6 +333,10 @@ export interface ConnectApi {
   challengeStats(): Promise<ChallengeStat[]>;
   /** Approved final projects (phase assignments) for the Projects page */
   listProjects(phase: number): Promise<Post[]>;
+  /** Grand Sensei: put a student on the team with a role (null takes them off) */
+  setTeamRole(userId: string, role: string | null): Promise<void>;
+  /** Everyone on the team who is also a student: id → role */
+  teamRoles(): Promise<Record<string, string>>;
   /** Phase check: a student says which phase they're in; the team confirms */
   requestPhase(phase: number): Promise<void>;
   /** Team: students waiting for their phase to be confirmed */

@@ -12,10 +12,10 @@ type Ctx = {
   refreshMe: () => Promise<void>;
   toast: (msg: string) => void;
   /** In-page dialog. With `input`, resolves to the typed text; without, to 'ok'. Null when cancelled. */
-  ask: (o: { title: string; body?: string; input?: string; confirm: string; danger?: boolean }) => Promise<string | null>;
+  ask: (o: { title: string; body?: string; input?: string; value?: string; confirm: string; danger?: boolean }) => Promise<string | null>;
 };
 
-type Ask = { title: string; body?: string; input?: string; confirm: string; danger?: boolean; resolve: (v: string | null) => void };
+type Ask = { title: string; body?: string; input?: string; value?: string; confirm: string; danger?: boolean; resolve: (v: string | null) => void };
 
 const ConnectCtx = createContext<Ctx | null>(null);
 
@@ -67,7 +67,7 @@ export function ConnectProvider({ api, children }: { api: ConnectApi; children: 
   const ask = useCallback<Ctx['ask']>(
     (o) =>
       new Promise((resolve) => {
-        setText('');
+        setText(o.value ?? '');
         setDialog({ ...o, resolve });
       }),
     [],
