@@ -7688,3 +7688,74 @@ html[data-cx-theme='dark'] .cx-ch-entries li.is-pick {
 .cx-challenge > * {
   min-width: 0;
 }
+
+/* Challenge: white card, violet and lavender accents (no midnight, no lime) */
+.cx-ch-card {
+  background: var(--paper);
+  color: var(--ink);
+}
+.cx-ch-card h1,
+.cx-ch-card h2 {
+  color: var(--ink);
+}
+.cx-ch-when {
+  color: var(--violet);
+}
+.cx-ch-brief,
+.cx-ch-count {
+  color: var(--muted);
+}
+.cx-ch-count b {
+  color: var(--ink);
+}
+.cx-ch-faces > * {
+  border-color: var(--paper);
+}
+.cx-ch-cta {
+  background: var(--violet);
+  color: #fff;
+}
+.cx-ch-cta:hover {
+  background: #5a24cf;
+}
+.cx-ch-ghost {
+  background: #f1ebff;
+  color: var(--violet);
+}
+.cx-ch-mine {
+  background: #f1ebff;
+}
+.cx-ch-mine-text span {
+  color: var(--muted);
+}
+.cx-ch-form input {
+  background: var(--tint);
+  color: var(--ink);
+}
+.cx-entry-video {
+  background: #f1ebff;
+  color: var(--violet);
+}
+.cx-entry-play {
+  background: var(--violet);
+  color: #fff;
+}
+.cx-entry-video.is-link {
+  color: var(--violet);
+}
+.cx-ch-entries li.is-pick {
+  background: #f6f1ff;
+  outline: 2px solid #a77bff;
+}
+html[data-cx-theme='dark'] .cx-ch-ghost,
+html[data-cx-theme='dark'] .cx-ch-mine,
+html[data-cx-theme='dark'] .cx-entry-video {
+  background: #2d2540;
+  color: #cdb6ff;
+}
+html[data-cx-theme='dark'] .cx-ch-entries li.is-pick {
+  background: #2d2540;
+}
+.cx-ch-mine .cx-ch-ghost {
+  background: var(--paper);
+}
