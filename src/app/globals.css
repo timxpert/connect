@@ -2218,8 +2218,17 @@ details[open] > :not(summary) {
   background: var(--ground);
 }
 .cx-notice.is-new {
-  box-shadow: inset 3px 0 0 var(--ink);
   font-weight: 600;
+}
+/* new: a small violet dot at the end of the row */
+.cx-notice.is-new::after {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--violet);
 }
 .cx-notice-text {
   display: grid;
@@ -9641,4 +9650,38 @@ html.cx-in-chat body {
   border-radius: 8px;
   object-fit: cover;
   background: #1b1726;
+}
+
+/* Dark theme: sheets, fields and buttons that were still white */
+html[data-cx-theme='dark'] .cx-focus-times button,
+html[data-cx-theme='dark'] .cx-focus-own,
+html[data-cx-theme='dark'] .cx-invite-name,
+html[data-cx-theme='dark'] .cx-make .cx-make-body select.cx-invite-name,
+html[data-cx-theme='dark'] .cx-ch-form input,
+html[data-cx-theme='dark'] .cx-join-msg,
+html[data-cx-theme='dark'] .cx-install,
+html[data-cx-theme='dark'] .cx-continue {
+  background: var(--white);
+  color: var(--ink);
+  border-color: var(--line);
+}
+html[data-cx-theme='dark'] .cx-sheet .cx-focus-times button.is-on,
+html[data-cx-theme='dark'] .cx-focus-times button.is-on,
+html[data-cx-theme='dark'] .cx-focus-own.is-on {
+  background: rgba(167, 123, 255, 0.16);
+  border-color: #a77bff;
+  color: #c9b0ff;
+}
+html[data-cx-theme='dark'] .cx-sheet .btn-light,
+html[data-cx-theme='dark'] .cx-sheet .btn-light:hover {
+  background: rgba(167, 123, 255, 0.14);
+  color: #c9b0ff;
+}
+html[data-cx-theme='dark'] .cx-sheet .btn-primary:disabled {
+  background: #3b2d63;
+  color: rgba(255, 255, 255, 0.55);
+}
+html[data-cx-theme='dark'] .cx-focus-lock {
+  background: rgba(167, 123, 255, 0.16);
+  color: #c9b0ff;
 }
