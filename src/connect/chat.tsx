@@ -1192,7 +1192,7 @@ export function Chat({ id }: { id: string }) {
               {m.id === unreadFrom && <li className="cx-unread">Unread messages</li>}
               {(m.kind as string) === 'join' ? (
                 // the first line of a student's chat with the Grand Sensei
-                <li className="cx-welcome">
+                <li className="cx-joincard">
                   {m.sender_id === me.id ? (
                     <>
                       <b>You joined the community</b>
@@ -1207,7 +1207,7 @@ export function Chat({ id }: { id: string }) {
                         {other.country ? ` · ${other.country}` : ''}
                       </span>
                       {all.length === 1 && !draft && (
-                        <button type="button" className="cx-welcome-btn" onClick={() => setDraft(`Welcome to Motion Dojo, ${other.name.split(' ')[0]}. Start with the orientation video in Learn, then pick your phase.`)}>
+                        <button type="button" className="cx-joincard-btn" onClick={() => setDraft(`Welcome to Motion Dojo, ${other.name.split(' ')[0]}. Start with the orientation video in Learn, then pick your phase.`)}>
                           Send a welcome
                         </button>
                       )}

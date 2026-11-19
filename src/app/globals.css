@@ -7891,7 +7891,7 @@ html[data-cx-theme='dark'] .cx-ch-entries li.is-pick {
 }
 
 /* First line of a student's chat with the Grand Sensei */
-.cx-welcome {
+.cx-joincard {
   align-self: center;
   max-width: 300px;
   margin: 8px 0;
@@ -7906,12 +7906,12 @@ html[data-cx-theme='dark'] .cx-ch-entries li.is-pick {
   gap: 6px;
   list-style: none;
 }
-.cx-welcome span {
+.cx-joincard span {
   color: var(--muted);
   font-size: 0.85rem;
   line-height: 1.45;
 }
-html[data-cx-theme='dark'] .cx-welcome {
+html[data-cx-theme='dark'] .cx-joincard {
   background: #2d2540;
 }
 .cx-new-tag {
@@ -7937,10 +7937,10 @@ html[data-cx-theme='dark'] .cx-welcome {
 .cx-group-ico:empty {
   background: var(--tint);
 }
-.cx-welcome .cx-avatar-initials {
+.cx-joincard .cx-avatar-initials {
   color: #fff;
 }
-.cx-welcome-btn {
+.cx-joincard-btn {
   margin-top: 4px;
   height: 36px;
   padding: 0 14px;
