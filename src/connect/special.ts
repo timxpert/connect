@@ -2,7 +2,7 @@
 
 export type Poll = { q: string; o: string[]; multi?: boolean };
 /** call: a group call starting now (not a class) */
-export type Live = { t: string; at: string; mins: number; link: string; call?: boolean; room?: boolean };
+export type Live = { t: string; at: string; mins: number; link: string; call?: boolean };
 
 export function readPoll(body: string): Poll | null {
   try {
@@ -15,7 +15,7 @@ export function readPoll(body: string): Poll | null {
 export function readLive(body: string): Live | null {
   try {
     const v = JSON.parse(body) as Live;
-    return v && typeof v.t === 'string' && typeof v.at === 'string' && (typeof v.link === 'string' || v.room) ? v : null;
+    return v && typeof v.t === 'string' && typeof v.at === 'string' && typeof v.link === 'string' ? v : null;
   } catch {
     return null;
   }

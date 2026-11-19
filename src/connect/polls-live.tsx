@@ -109,8 +109,7 @@ const gcal = (l: Live) => {
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`Motion Dojo: ${l.t}`)}&dates=${z(a)}/${z(b)}&details=${encodeURIComponent(`Join on Google Meet: ${l.link}`)}&location=${encodeURIComponent(l.link)}`;
 };
 
-/** onJoin: a group call inside Connect */
-export function LiveCard({ m, onJoin }: { m: GroupMessage; onJoin?: () => void }) {
+export function LiveCard({ m }: { m: GroupMessage }) {
   const live = readLive(m.body);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -131,18 +130,12 @@ export function LiveCard({ m, onJoin }: { m: GroupMessage; onJoin?: () => void }
           <Icon name="clock" size={15} /> {fmtDay(new Date(start))} · {fmtTime(new Date(start))} · {live.mins >= 60 ? `${live.mins / 60} hr` : `${live.mins} min`}
         </p>
       )}
-      {!live.room && (
-        <p className="cx-live-where">
-          <Icon name="cam" size={15} /> Google Meet
-        </p>
-      )}
+      <p className="cx-live-where">
+        <Icon name="cam" size={15} /> Google Meet
+      </p>
       {state !== 'ended' && (
         <div className="cx-live-btns">
-          {live.room ? (
-            <button type="button" className="btn btn-primary btn-sm" onClick={onJoin}>
-              Join call
-            </button>
-          ) : canJoin ? (
+          {canJoin ? (
             <a className="btn btn-primary btn-sm" href={live.link} target="_blank" rel="noreferrer">
               {live.call ? 'Join call' : 'Join class'}
             </a>
@@ -237,11 +230,11 @@ export function LiveSheet({ onClose, onSend, now = false }: { onClose: () => voi
   const [busy, setBusy] = useState(false);
   const at = now ? new Date() : new Date(`${day}T${time}`);
   const goodLink = /^https:\/\/meet\.google\.com\/[a-z0-9-]+/i.test(link.trim());
-  const ok = t.trim() && !Number.isNaN(at.getTime()) && (now || goodLink);
+  const ok = t.trim() && !Number.isNaN(at.getTime()) && goodLink;
   const send = async () => {
     setBusy(true);
     try {
-      await onSend(JSON.stringify(now ? { t: t.trim().slice(0, 120), at: at.toISOString(), mins: 120, link: '', call: true, room: true } : { t: t.trim().slice(0, 120), at: at.toISOString(), mins, link: link.trim() }));
+      await onSend(JSON.stringify({ t: t.trim().slice(0, 120), at: at.toISOString(), mins: now ? 60 : mins, link: link.trim(), ...(now ? { call: true } : {}) }));
       onClose();
     } finally {
       setBusy(false);
@@ -283,10 +276,6 @@ export function LiveSheet({ onClose, onSend, now = false }: { onClose: () => voi
           </select>
           </>
           )}
-          {now ? (
-            <p className="cx-fwd-note">Everyone in the group gets a notification and joins here in Connect.</p>
-          ) : (
-            <>
           <label className="cx-invite-label" htmlFor="live-link">
             Google Meet link
           </label>
@@ -299,8 +288,6 @@ export function LiveSheet({ onClose, onSend, now = false }: { onClose: () => voi
             {' '}and copy the link. Free group calls end after 60 minutes.
           </p>
           {link.trim() && !goodLink && <p className="cx-fwd-note cx-make-err">Paste a meet.google.com link.</p>}
-            </>
-          )}
         </div>
         <button type="button" className="btn btn-primary cx-addp-go" disabled={!ok || busy} onClick={send}>
           {busy ? 'Sending…' : now ? 'Start call' : 'Send'}

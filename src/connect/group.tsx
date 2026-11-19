@@ -16,8 +16,7 @@ import { TypingBubble, AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel
 import { ForwardSheet } from './forward';
 import { MessageField, plainText, smartChange, useDraft } from './format';
 import { EmojiButton } from './emoji';
-import { readLive, specialLine } from './special';
-import { GroupCall } from './group-call';
+import { specialLine } from './special';
 import { StudyNudge } from './learning';
 import { LiveCard, LiveSheet, PollCard, PollSheet } from './polls-live';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
@@ -142,8 +141,7 @@ function GroupChatInner() {
   const [rxOf, setRxOf] = useState<GroupMessage | null>(null);
   // the team making a poll or a live class
   const [making, setMaking] = useState<'poll' | 'live' | 'call' | null>(null);
-  // in a group call inside Connect
-  const [inCall, setInCall] = useState<{ room: string; title: string } | null>(null);
+
   const [caret, setCaret] = useState(0);
   const placeCaret = useRef<number | null>(null);
   const end = useRef<HTMLLIElement>(null);
@@ -484,8 +482,7 @@ function GroupChatInner() {
       const m = await api.sendGroupSpecial(kind, body, gid);
       setMsgs((xs) => [...xs, m]);
       play('send');
-      // starting a group call: you go straight in
-      if (readLive(body)?.room) setInCall({ room: m.id, title: readLive(body)?.t || 'Group call' });
+
     } catch (e) {
       toast((e as Error).message);
       throw e;
@@ -670,7 +667,7 @@ function GroupChatInner() {
                     (m.kind as string) === 'poll' ? (
                       <PollCard m={m} people={people} onVote={(o) => vote(m, o)} />
                     ) : (m.kind as string) === 'live' ? (
-                      <LiveCard m={m} onJoin={() => setInCall({ room: m.id, title: readLive(m.body)?.t || 'Group call' })} />
+                      <LiveCard m={m} />
                     ) : undefined
                   }
                   onReply={
@@ -827,7 +824,7 @@ function GroupChatInner() {
       {making === 'poll' && <PollSheet onClose={() => setMaking(null)} onSend={sendSpecial('poll')} />}
       {making === 'live' && <LiveSheet onClose={() => setMaking(null)} onSend={sendSpecial('live')} />}
       {making === 'call' && <LiveSheet now onClose={() => setMaking(null)} onSend={sendSpecial('live')} />}
-      {inCall && <GroupCall room={inCall.room} title={inCall.title} onClose={() => setInCall(null)} />}
+
       {rxOf && (() => {
         const m = all.find((x) => x.id === rxOf.id) ?? rxOf;
         const rows = (m.reactions ?? []).flatMap((r) => (r.who ?? []).map((uid) => ({ uid, emoji: r.emoji })));

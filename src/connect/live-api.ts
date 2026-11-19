@@ -8,7 +8,7 @@ import { markPushOn, pushSubscription } from './alerts';
 import { plainText } from './format';
 import { specialLine } from './special';
 import { to } from './router';
-import type { CallSignal, RoomPerson, TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { CallSignal, TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -368,41 +368,6 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       } catch {
         return fallback;
       }
-    },
-    async sfu(path, method, body) {
-      const token = (await sb.auth.getSession()).data.session?.access_token;
-      const res = await fetch('/api/sfu', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token ?? ''}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path, method, body }),
-      });
-      const out = (await res.json().catch(() => ({}))) as { errorCode?: string; errorDescription?: string };
-      if (out.errorCode) throw new Error(out.errorCode === 'not_set_up' ? 'Group calls aren’t set up yet. Add the Cloudflare Realtime keys in Vercel.' : out.errorDescription || 'The call couldn’t connect.');
-      return out as never;
-    },
-    callRoom(room, onPeople) {
-      const ch = sb.channel(`cx-room-${room}`, { config: { presence: { key: crypto.randomUUID?.() ?? String(Math.random()) } } });
-      let mine: RoomPerson | null = null;
-      let joined = false;
-      ch.on('presence', { event: 'sync' }, () => {
-        const st = ch.presenceState() as Record<string, RoomPerson[]>;
-        onPeople(Object.values(st).flat());
-      }).subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') {
-          joined = true;
-          if (mine) ch.track(mine).catch(() => {});
-        }
-      });
-      return {
-        share(me) {
-          mine = me;
-          if (joined) ch.track(me).catch(() => {});
-        },
-        leave() {
-          ch.untrack().catch(() => {});
-          sb.removeChannel(ch);
-        },
-      };
     },
     async ringPhone(conversationId, video) {
       const token = (await sb.auth.getSession()).data.session?.access_token;

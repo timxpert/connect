@@ -237,10 +237,6 @@ export function createDemoApi(): ConnectApi {
       bc.postMessage({ to, sig });
       bc.close();
     },
-    async sfu() {
-      throw new Error('Group calls work on the real site, not in this preview.');
-    },
-    callRoom: () => ({ share() {}, leave() {} }),
     iceServers: async () => [{ urls: 'stun:stun.l.google.com:19302' }],
     async ringPhone() {},
     async logCall(conv, call) {
