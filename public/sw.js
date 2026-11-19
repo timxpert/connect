@@ -80,8 +80,16 @@ self.addEventListener('push', (e) => {
   e.waitUntil(
     (async () => {
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      // Connect is open on screen: the app shows its own alert
-      if (!d.force && wins.some((c) => c.visibilityState === 'visible' && c.focused)) return;
+      // Shown even while Connect is open, except when that exact chat is on screen
+      const target = new URL(d.url || '/', self.location.origin).pathname;
+      if (!d.force && !d.call && wins.some((c) => c.visibilityState === 'visible' && c.focused && new URL(c.url).pathname === target)) return;
+      // studying (focus mode): the notification still arrives, but quietly
+      let studying = false;
+      try {
+        const r = await (await caches.open('cx-state')).match('/__focus');
+        studying = r ? (await r.text()) === '1' : false;
+      } catch {}
+      const quiet = studying && !d.call;
       const tag = d.tag || 'connect';
       const earlier = await self.registration.getNotifications({ tag });
       const lines = d.call ? [d.body || ''] : [...((earlier[0] && earlier[0].data && earlier[0].data.lines) || []), d.body || ''].slice(-6);
@@ -90,9 +98,9 @@ self.addEventListener('push', (e) => {
       await self.registration.showNotification(title, {
         body,
         tag,
-        renotify: true,
-        silent: false,
-        vibrate: d.call ? [400, 200, 400, 200, 400, 200, 400] : [120, 60, 120],
+        renotify: !quiet,
+        silent: quiet,
+        vibrate: quiet ? [] : d.call ? [400, 200, 400, 200, 400, 200, 400] : [120, 60, 120],
         requireInteraction: Boolean(d.call),
         icon: d.icon || '/assets/icon-192.png',
         // Android shows this small one in white: the Motion Dojo mark

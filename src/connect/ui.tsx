@@ -412,6 +412,14 @@ export function Media({ post, priority = false }: { post: Pick<Post, 'kind' | 'm
       </a>
     );
   }
+  // Instagram: only the video, without Instagram's own header, likes and comment box around it
+  if (/instagram\.com/.test(embed)) {
+    return (
+      <div className="cx-media cx-media-ig">
+        <iframe src={embed} title="Posted video" loading="lazy" scrolling="no" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen />
+      </div>
+    );
+  }
   return (
     <div className={isTall(url) ? 'cx-media cx-media-tall' : 'cx-media cx-media-wide'}>
       <iframe src={embed} title="Posted video" loading="lazy" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen />

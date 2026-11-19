@@ -5,7 +5,7 @@ import { ConnectProvider, isMember, useConnect } from './context';
 import { Composer, openComposer } from './compose';
 import { onVisitorChange, visitorChosen } from './visitor';
 import { play, setSoundOn, soundOn } from './sounds';
-import { alertsAllowed, alertsSupported, askForAlerts, notify, registerAlerts } from './alerts';
+import { alertsAllowed, alertsSupported, askForAlerts, notify, pushOn, registerAlerts } from './alerts';
 import { startPresence } from './presence';
 import { guardDevice } from './device';
 import { CHAT_COLORS, useAppearance } from './appearance';
@@ -200,16 +200,10 @@ function Shell({ route }: { route: Route }) {
       document.querySelector('.cx-lock-chip')?.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 300 });
     }
   }, [route, Boolean(strict)]);
+  // Students choose a study time before every lesson (no skipping); the team isn't asked
   useEffect(() => {
-    if (route.name !== 'lesson' || strict || team || !me?.is_student) return;
-    try {
-      if (sessionStorage.getItem('cx-focus-asked')) return;
-      sessionStorage.setItem('cx-focus-asked', '1');
-    } catch {
-      /* ask anyway */
-    }
-    setAskFocus(true);
-  }, [route]);
+    setAskFocus((route.name === 'lesson' || route.name === 'live-rec') && !strict && !team && Boolean(me?.is_student));
+  }, [route, Boolean(strict), team, me?.is_student]);
   // count watching time (only while a lesson is open, on screen, and playing)
   useEffect(() => {
     if (!strict || route.name !== 'lesson') return;
@@ -242,8 +236,16 @@ function Shell({ route }: { route: Route }) {
   }, [route]);
   // Group sounds follow the person's choice: important only (default), all, or off
   const alertLevel = me?.alert_level ?? 'important';
-  // A message from someone else: sound + a short note, or a phone notification
-  // when Connect is in the background. Not when you're already in that chat.
+  // Alerts are phone notifications, even while Connect is open. With push on the
+  // server sends them; with only permission, this page shows one; with neither,
+  // a sound and a short note in the app.
+  const phoneAlert = (title: string, body: string, url: string, tag: string, sound: 'message' | 'comment') => {
+    if (pushOn()) return;
+    if (alertsAllowed()) return void notify(title, body, url, tag);
+    play(sound);
+    toast(`${title}: ${body}`.slice(0, 160));
+  };
+  // A message from someone else. Not when you're already in that chat.
   const onMessage = (m: IncomingMessage) => {
     const here = route.name === 'chat' && (route as { id?: string }).id === m.conversation_id && document.visibilityState === 'visible';
     if (here) return play('incoming');
@@ -256,12 +258,7 @@ function Shell({ route }: { route: Route }) {
       .getConversation(m.conversation_id)
       .then((conv) => {
         const name = conv?.other.name ?? 'New message';
-        if (document.visibilityState === 'visible') {
-          play('message');
-          toast(`${name}: ${what}`);
-        } else {
-          notify(name, what, new URL(to(`/messages/${m.conversation_id}`), window.location.href).href, m.conversation_id);
-        }
+        phoneAlert(name, what, new URL(to(`/messages/${m.conversation_id}`), window.location.href).href, m.conversation_id, 'message');
       })
       .catch(() => {});
   };
@@ -290,12 +287,7 @@ function Shell({ route }: { route: Route }) {
     if (focusing || alertLevel === 'off') return;
     const title = n.kind === 'group_reply' ? 'New reply in the group' : 'You were mentioned in the group';
     const body = n.snippet ?? '';
-    if (document.visibilityState === 'visible') {
-      play('comment');
-      toast(`${title}. ${body}`.slice(0, 160));
-    } else {
-      notify(title, body, new URL(to('/messages/group'), window.location.href).href, `group-${n.kind}`);
-    }
+    phoneAlert(title, body, new URL(to('/messages/group'), window.location.href).href, `group-${n.kind}`, 'comment');
   };
   const allCounts = useCounts(onMessage, onGroup, onGroupMessage);
   const counts = focusing ? { unread: 0, requests: 0, messages: 0 } : allCounts;
@@ -610,7 +602,7 @@ function Shell({ route }: { route: Route }) {
       {me && member && !strict && <CallLayer />}
       {askFocus && (
         <FocusPrompt
-          onClose={() => setAskFocus(false)}
+          onClose={() => navigate('/learn')}
           onStart={(m) => {
             startFocus(m);
             setAskFocus(false);
@@ -690,8 +682,8 @@ function FocusPrompt({ onClose, onStart }: { onClose: () => void; onStart: (minu
   const custom = own !== '';
   const mins = custom ? Math.min(300, Math.max(5, Math.round(Number(own) || 0))) : m;
   return (
-    <div className="cx-sheet-wrap" onClick={onClose}>
-      <div className="cx-sheet cx-focus-ask" role="dialog" aria-label="Focus mode" onClick={(e) => e.stopPropagation()}>
+    <div className="cx-sheet-wrap">
+      <div className="cx-sheet cx-focus-ask" role="dialog" aria-modal="true" aria-label="Focus mode">
         <span className="cx-focus-lock" aria-hidden="true">
           <Icon name="lock" size={26} />
         </span>
@@ -712,8 +704,8 @@ function FocusPrompt({ onClose, onStart }: { onClose: () => void; onStart: (minu
         <button type="button" className="btn btn-primary cx-addp-go" disabled={custom && !(Number(own) >= 5)} onClick={() => onStart(mins)}>
           Lock for {mins >= 60 ? `${+(mins / 60).toFixed(1)} hr` : `${mins} min`}
         </button>
-        <button type="button" className="btn btn-light cx-addp-go" onClick={onClose}>
-          Not now
+        <button type="button" className="cx-link-btn cx-focus-back" onClick={onClose}>
+          Back to lessons
         </button>
       </div>
     </div>

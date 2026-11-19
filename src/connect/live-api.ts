@@ -94,7 +94,9 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     const me = await uid();
     const sub = me ? await pushSubscription() : null;
     if (!me || !sub) return false;
-    const { error } = await sb.from('push_subscriptions').upsert({ ...sub, user_id: me });
+    // this phone now belongs to whoever is signed in (it may have been someone else's before)
+    let { error } = await sb.rpc('claim_push', { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth });
+    if (error && /claim_push/.test(error.message)) ({ error } = await sb.from('push_subscriptions').upsert({ ...sub, user_id: me }));
     markPushOn(!error);
     return !error;
   }
@@ -424,6 +426,15 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       }
     },
     async signOut() {
+      // this phone stops getting my notifications
+      try {
+        const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+        const sub = await reg?.pushManager?.getSubscription();
+        if (sub) await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+      } catch {
+        /* signing out still works */
+      }
+      markPushOn(false);
       // only this device: the one-device rule must not sign out the new device
       await sb.auth.signOut({ scope: 'local' });
     },

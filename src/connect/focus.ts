@@ -18,7 +18,19 @@ try {
 // a session never lasts past a day (so no one is stuck if lessons run out)
 if (focus && Date.now() - focus.started > 24 * 3600 * 1000) focus = null;
 const subs = new Set<() => void>();
+// tells the notification worker whether a study session is on (so alerts arrive silently)
+let toldWorker: boolean | null = null;
+const tellWorker = () => {
+  const on = Boolean(focus);
+  if (on === toldWorker || typeof caches === 'undefined') return;
+  toldWorker = on;
+  caches
+    .open('cx-state')
+    .then((c) => c.put('/__focus', new Response(on ? '1' : '0')))
+    .catch(() => {});
+};
 const save = () => {
+  tellWorker();
   try {
     if (focus) localStorage.setItem(KEY, JSON.stringify(focus));
     else localStorage.removeItem(KEY);

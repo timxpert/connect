@@ -9685,3 +9685,76 @@ html[data-cx-theme='dark'] .cx-focus-lock {
   background: rgba(167, 123, 255, 0.16);
   color: #c9b0ff;
 }
+
+/* Study time is required: the only way out is back to the lesson list */
+.cx-focus-back {
+  display: block;
+  margin: 6px auto 2px;
+  padding: 10px 16px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Text in my bubbles follows the chat colour (dark text on lime, white on violet) */
+.cx .cx-msg.is-mine p {
+  color: inherit;
+}
+.cx .cx-msg.is-mine .cx-msg-dl {
+  color: var(--mine-meta, rgba(255, 255, 255, 0.5));
+}
+/* Dark theme: a tapped chip or link no longer turns cream */
+html[data-cx-theme='dark'] .cx-chip:hover:not(.is-on),
+html[data-cx-theme='dark'] .cx-pf-links a:hover {
+  background: #34303d;
+}
+@media (hover: none) {
+  .cx-chip:hover:not(.is-on),
+  .cx-pf-links a:hover {
+    background: var(--tint);
+  }
+}
+
+/* Notifications: a plain list like Messages, no boxes or side bars */
+.cx-list.cx-notices {
+  margin-inline: calc(var(--gutter) * -1);
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.cx-list.cx-notices > li + li {
+  border-top: 0;
+}
+.cx-notices .cx-notice {
+  padding: 12px var(--gutter);
+  color: var(--ink);
+  text-decoration: none;
+}
+.cx-notices .cx-notice-text {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.cx-notices .cx-notice.is-new {
+  font-weight: 600;
+}
+.cx-notices .cx-notice-text time {
+  font-size: 0.8rem;
+}
+
+/* Instagram posts: the frame is cropped to the picture/video (Instagram's
+   header is 54px tall; its footer falls below the box) */
+.cx-media-ig {
+  aspect-ratio: 4 / 5;
+  max-height: 80vh;
+  margin-inline: auto;
+  overflow: hidden;
+  background: #000;
+}
+.cx-media-ig iframe {
+  position: absolute;
+  left: 0;
+  top: -54px;
+  width: 100%;
+  height: calc(100% + 54px + 260px);
+}
