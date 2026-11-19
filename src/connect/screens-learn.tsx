@@ -679,13 +679,12 @@ export function LessonEditor({ id }: { id?: string }) {
         </label>
         <label className="field">
           <span>Section</span>
-          <input value={f.section} maxLength={80} list="cx-sections" onChange={(e) => set('section', e.target.value)} placeholder="Background music" />
+          <input value={f.section} maxLength={80} list="cx-sections" onChange={(e) => set('section', e.target.value)} placeholder="None" />
           <datalist id="cx-sections">
             {[...new Set((lessonsAll ?? []).filter((l) => l.phase === f.phase && l.section).map((l) => l.section!.trim()))].map((x) => (
               <option key={x} value={x} />
             ))}
           </datalist>
-          <small>Optional</small>
         </label>
         <label className="field">
           <span>Title</span>
