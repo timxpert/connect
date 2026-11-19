@@ -1,7 +1,8 @@
 /* Polls and live classes travel as group messages whose body is JSON. */
 
 export type Poll = { q: string; o: string[]; multi?: boolean };
-export type Live = { t: string; at: string; mins: number; link: string };
+/** call: a group call starting now (not a class) */
+export type Live = { t: string; at: string; mins: number; link: string; call?: boolean };
 
 export function readPoll(body: string): Poll | null {
   try {
@@ -40,6 +41,6 @@ export function callLine(c: CallLog | null, mine: boolean) {
 export function specialLine(kind: string | null | undefined, body: string): string | null {
   if (kind === 'call') return `📞 ${callLine(readCall(body), false)}`;
   if (kind === 'poll') return `📊 Poll: ${readPoll(body)?.q ?? ''}`;
-  if (kind === 'live') return `🎥 Live class: ${readLive(body)?.t ?? ''}`;
+  if (kind === 'live') return readLive(body)?.call ? '📞 Group call started' : `🎥 Live class: ${readLive(body)?.t ?? ''}`;
   return null;
 }

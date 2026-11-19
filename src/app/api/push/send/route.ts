@@ -25,7 +25,9 @@ const what = (m: Row) =>
     : m.kind === 'poll'
     ? `📊 Poll: ${json(m.body).q ?? ''}`
     : m.kind === 'live'
-      ? `🎥 Live class: ${json(m.body).t ?? ''}`
+      ? (json(m.body) as { call?: boolean }).call
+        ? 'Group call started. Tap to join.'
+        : `🎥 Live class: ${json(m.body).t ?? ''}`
       : m.kind === 'voice'
     ? 'Voice message'
     : m.kind === 'image'

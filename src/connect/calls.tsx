@@ -319,7 +319,7 @@ export function CallLayer() {
               <Icon name="phone" size={26} />
             </button>
             <button type="button" className="cx-call-btn is-answer" onClick={accept} aria-label="Answer">
-              <Icon name={st.video ? 'video' : 'phone'} size={26} />
+              <Icon name={st.video ? 'cam' : 'phone'} size={26} />
             </button>
           </>
         ) : (
@@ -330,7 +330,7 @@ export function CallLayer() {
             </button>
             {st.video && (
               <button type="button" className={st.camOff ? 'cx-call-btn is-on' : 'cx-call-btn'} onClick={toggleCam} aria-label={st.camOff ? 'Turn camera on' : 'Turn camera off'} aria-pressed={st.camOff}>
-                <Icon name="video" size={24} />
+                <Icon name="cam" size={24} />
                 {st.camOff && <span className="cx-call-slash" aria-hidden="true" />}
               </button>
             )}

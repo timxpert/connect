@@ -778,7 +778,7 @@ function GroupChatInner() {
                 team
                   ? [
                       { label: 'Poll', icon: 'poll', color: '#0f9d76', onClick: () => setMaking('poll') },
-                      { label: 'Live class', icon: 'video', color: '#e8590c', onClick: () => setMaking('live') },
+                      { label: 'Live class', icon: 'cam', color: '#e8590c', onClick: () => setMaking('live') },
                       { label: 'Group call', icon: 'phone', color: '#1c7ed6', onClick: () => setMaking('call') },
                     ]
                   : undefined

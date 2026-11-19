@@ -125,24 +125,28 @@ export function LiveCard({ m }: { m: GroupMessage }) {
     <div className="cx-live" onClick={(e) => e.stopPropagation()}>
       <span className={`cx-live-tag is-${state}`}>{state === 'live' ? 'Live now' : state === 'ended' ? 'Ended' : `Starts in ${until(start - now)}`}</span>
       <p className="cx-live-title">{live.t}</p>
-      <p className="cx-live-when">
-        <Icon name="clock" size={15} /> {fmtDay(new Date(start))} · {fmtTime(new Date(start))} · {live.mins >= 60 ? `${live.mins / 60} hr` : `${live.mins} min`}
-      </p>
+      {!live.call && (
+        <p className="cx-live-when">
+          <Icon name="clock" size={15} /> {fmtDay(new Date(start))} · {fmtTime(new Date(start))} · {live.mins >= 60 ? `${live.mins / 60} hr` : `${live.mins} min`}
+        </p>
+      )}
       <p className="cx-live-where">
-        <Icon name="video" size={15} /> Google Meet
+        <Icon name="cam" size={15} /> Google Meet
       </p>
       {state !== 'ended' && (
         <div className="cx-live-btns">
           {canJoin ? (
             <a className="btn btn-primary btn-sm" href={live.link} target="_blank" rel="noreferrer">
-              Join class
+              {live.call ? 'Join call' : 'Join class'}
             </a>
           ) : (
             <span className="cx-live-note">Join opens 15 min before</span>
           )}
-          <a className="btn btn-light btn-sm" href={gcal(live)} target="_blank" rel="noreferrer">
-            Add to calendar
-          </a>
+          {!live.call && (
+            <a className="btn btn-light btn-sm" href={gcal(live)} target="_blank" rel="noreferrer">
+              Add to calendar
+            </a>
+          )}
         </div>
       )}
     </div>
@@ -230,7 +234,7 @@ export function LiveSheet({ onClose, onSend, now = false }: { onClose: () => voi
   const send = async () => {
     setBusy(true);
     try {
-      await onSend(JSON.stringify({ t: t.trim().slice(0, 120), at: at.toISOString(), mins, link: link.trim() }));
+      await onSend(JSON.stringify({ t: t.trim().slice(0, 120), at: at.toISOString(), mins, link: link.trim(), ...(now ? { call: true } : {}) }));
       onClose();
     } finally {
       setBusy(false);
@@ -258,6 +262,8 @@ export function LiveSheet({ onClose, onSend, now = false }: { onClose: () => voi
             </label>
           </span>
           )}
+{!now && (
+          <>
           <label className="cx-invite-label" htmlFor="live-len">
             How long
           </label>
@@ -268,6 +274,8 @@ export function LiveSheet({ onClose, onSend, now = false }: { onClose: () => voi
               </option>
             ))}
           </select>
+          </>
+          )}
           <label className="cx-invite-label" htmlFor="live-link">
             Google Meet link
           </label>
@@ -277,12 +285,12 @@ export function LiveSheet({ onClose, onSend, now = false }: { onClose: () => voi
             <a href="https://meet.google.com/new" target="_blank" rel="noreferrer">
               Open Google Meet
             </a>
-             and copy the link. Free group calls end after 60 minutes.
+            {' '}and copy the link. Free group calls end after 60 minutes.
           </p>
           {link.trim() && !goodLink && <p className="cx-fwd-note cx-make-err">Paste a meet.google.com link.</p>}
         </div>
         <button type="button" className="btn btn-primary cx-addp-go" disabled={!ok || busy} onClick={send}>
-          {busy ? 'Sending…' : now ? 'Start the call' : 'Send to the group'}
+          {busy ? 'Sending…' : now ? 'Start call' : 'Send'}
         </button>
       </div>
     </div>

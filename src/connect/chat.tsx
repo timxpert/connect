@@ -236,7 +236,7 @@ function CallLine({ m, mine, onCall }: { m: Message; mine: boolean; onCall: (vid
   return (
     <div className={missed && !mine ? 'cx-callline is-missed' : 'cx-callline'}>
       <span className="cx-callline-ico" aria-hidden="true">
-        <Icon name={c?.video ? 'video' : 'phone'} size={18} />
+        <Icon name={c?.video ? 'cam' : 'phone'} size={18} />
       </span>
       <span>{callLine(c, mine)}</span>
       <button type="button" onClick={(e) => (e.stopPropagation(), onCall(Boolean(c?.video)))}>
@@ -1365,7 +1365,7 @@ export function Chat({ id }: { id: string }) {
         {!blocked && (
           <>
             <button type="button" className="cx-icon-btn cx-icon-flat cx-call-start" aria-label={`Video call ${other.name}`} onClick={() => startCall(other, id, true)}>
-              <Icon name="video" />
+              <Icon name="cam" />
             </button>
             <button type="button" className="cx-icon-btn cx-icon-flat cx-call-start" aria-label={`Call ${other.name}`} onClick={() => startCall(other, id, false)}>
               <Icon name="phone" />
