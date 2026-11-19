@@ -354,6 +354,13 @@ export function createDemoApi(): ConnectApi {
       if (on) likes.add(k);
       else likes.delete(k);
     },
+    listLikers: (postId) =>
+      wait(
+        [...likes]
+          .filter((k) => k.startsWith(`${postId}:`))
+          .map((k) => who(k.split(':')[1]))
+          .filter(Boolean),
+      ),
     listComments: (postId) =>
       wait(comments.filter((c) => c.post_id === postId).map((c) => ({ ...c, author: who(c.author_id) }))),
     async addComment(postId, body) {

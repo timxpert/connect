@@ -7837,3 +7837,55 @@ html[data-cx-theme='dark'] .cx-ch-entries li.is-pick {
   text-align: center;
   white-space: normal;
 }
+
+/* Who liked a post */
+.cx-likers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 16px 14px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+.cx-likers-faces {
+  display: flex;
+}
+.cx-likers-faces > * {
+  margin-right: -6px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+}
+.cx-likers-sheet {
+  max-height: 75dvh;
+  overflow-y: auto;
+}
+.cx-likers-sheet h2 {
+  margin: 2px 8px 8px;
+  font-size: 1.05rem;
+}
+.cx-likers-sheet ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cx-likers-sheet a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 12px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.cx-likers-sheet a span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}

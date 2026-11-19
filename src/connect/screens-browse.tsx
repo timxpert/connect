@@ -264,6 +264,62 @@ function PinIcon() {
   );
 }
 
+/* "Liked by Ada Okafor and 3 others": tap for everyone who liked it */
+function Likers({ postId, tick }: { postId: string; tick: number }) {
+  const { api } = useConnect();
+  const [people, setPeople] = useState<Profile[]>(() => peek<Profile[]>('listLikers', postId) ?? []);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    api
+      .listLikers(postId)
+      .then(setPeople)
+      .catch(() => {});
+  }, [api, postId, tick]);
+  if (!people.length) return null;
+  const first = people[0].name;
+  return (
+    <>
+      <button type="button" className="cx-likers" onClick={() => setOpen(true)}>
+        <span className="cx-likers-faces" aria-hidden="true">
+          {people.slice(0, 3).map((p) => (
+            <Avatar key={p.id} p={p} size={22} />
+          ))}
+        </span>
+        <span>
+          Liked by <b>{first}</b>
+          {people.length > 1 && (
+            <>
+              {' '}
+              and <b>{people.length - 1 === 1 ? '1 other' : `${people.length - 1} others`}</b>
+            </>
+          )}
+        </span>
+      </button>
+      {open && (
+        <div className="cx-sheet-wrap" onClick={() => setOpen(false)}>
+          <div className="cx-sheet cx-likers-sheet" role="dialog" aria-label="Likes" onClick={(e) => e.stopPropagation()}>
+            <span className="cx-grab" aria-hidden="true" />
+            <h2>Likes · {people.length}</h2>
+            <ul>
+              {people.map((p) => (
+                <li key={p.id}>
+                  <A path={`/u/${p.handle}`} onClick={() => setOpen(false)}>
+                    <Avatar p={p} size={40} />
+                    <span>
+                      <b>{p.name}</b>
+                      <BeltBadge p={p} small />
+                    </span>
+                  </A>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ================= Profile ================= */
 export function ProfileScreen({ handle }: { handle: string }) {
   const { api, me, signedIn, toast, ask } = useConnect();
@@ -619,6 +675,7 @@ export function PostScreen({ id }: { id: string }) {
   const { api, me, signedIn, toast, ask } = useConnect();
   const [post, setPost] = useState<Post | null | undefined>(() => peek<Post | null>('getPost', id));
   const [comments, setComments] = useState<Comment[]>([]);
+  const [likeTick, setLikeTick] = useState(0);
   const [fresh, setFresh] = useState('');
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -705,7 +762,7 @@ export function PostScreen({ id }: { id: string }) {
         {post.caption && <p className="cx-caption">{post.caption}</p>}
         <Media post={post} priority />
         <footer className="cx-post-actions">
-          <LikeButton post={post} />
+          <LikeButton post={post} onChange={() => setLikeTick((t) => t + 1)} />
           <label htmlFor="comment-box" className="cx-act" aria-label={`${comments.length} comments`}>
             <Icon name="comment" />
             <span>{comments.length}</span>
@@ -722,6 +779,7 @@ export function PostScreen({ id }: { id: string }) {
             </button>
           )}
         </footer>
+        <Likers postId={post.id} tick={likeTick} />
       </article>
 
       {me && isMember(me) ? (

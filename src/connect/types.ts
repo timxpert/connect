@@ -57,7 +57,7 @@ export type ConnectionStatus = 'none' | 'requested' | 'incoming' | 'connected';
 
 export type Notice = {
   id: string;
-  kind: 'community_post' | 'connection_request' | 'connection_accepted' | 'assignment_submitted' | 'assignment_approved' | 'assignment_changes' | 'group_reply' | 'group_mention' | 'phase_request' | 'phase_approved' | 'phase_declined' | 'challenge_new' | 'challenge_pick';
+  kind: 'community_post' | 'connection_request' | 'connection_accepted' | 'assignment_submitted' | 'assignment_approved' | 'assignment_changes' | 'group_reply' | 'group_mention' | 'phase_request' | 'phase_approved' | 'phase_declined' | 'challenge_new' | 'challenge_pick' | 'post_like' | 'post_comment';
   /** Group replies and mentions: "Name: what they wrote" */
   snippet?: string | null;
   actor: Profile | null;
@@ -277,6 +277,8 @@ export interface ConnectApi {
   deletePost(id: string): Promise<void>;
   setLike(postId: string, on: boolean): Promise<void>;
   listComments(postId: string): Promise<Comment[]>;
+  /** Who liked a post, newest first */
+  listLikers(postId: string): Promise<Profile[]>;
   addComment(postId: string, body: string): Promise<Comment>;
   deleteComment(id: string): Promise<void>;
 

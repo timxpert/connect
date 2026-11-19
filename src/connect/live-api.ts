@@ -507,6 +507,11 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         : await sb.from('likes').delete().eq('post_id', postId).eq('user_id', me);
       fail(error);
     },
+    async listLikers(postId) {
+      const { data, error } = await sb.from('likes').select('created_at, user:profiles(*)').eq('post_id', postId).order('created_at', { ascending: false }).limit(200);
+      fail(error);
+      return ((data ?? []) as unknown as { user: Profile | null }[]).map((r) => r.user).filter((p): p is Profile => Boolean(p));
+    },
     async listComments(postId) {
       const { data, error } = await sb
         .from('comments')

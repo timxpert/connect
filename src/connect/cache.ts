@@ -52,6 +52,7 @@ const LIVE = new Set<keyof ConnectApi>([
   'groupLastRead',
   'groupReaders',
   'listChallenges',
+  'listLikers',
   'listEntries',
   'challengeStats',
   'listProjects',
