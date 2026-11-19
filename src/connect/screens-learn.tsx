@@ -589,7 +589,6 @@ function PicturesField({ images, onChange }: { images: string[]; onChange: (fn: 
           </label>
         )}
       </div>
-      <small>Optional. Up to 10.</small>
     </div>
   );
 }
