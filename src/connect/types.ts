@@ -168,6 +168,7 @@ export type BriefItem = { kind: 'image' | 'file' | 'link' | 'video'; url: string
 
 export type PhaseRequest = { id: string; name: string; handle: string; avatar_url: string | null; phase_request: number; phase_request_at: string };
 
+export type RoomPerson = { id: string; name: string; avatar_url: string | null; session: string; tracks: { name: string; kind: 'audio' | 'video' }[]; muted: boolean; camOff: boolean };
 export type CallSignal = {
   type: 'ring' | 'accept' | 'decline' | 'busy' | 'offer' | 'answer' | 'ice' | 'hangup';
   call: string;
@@ -265,6 +266,10 @@ export interface ConnectApi {
   callSend(to: string, s: CallSignal): void;
   /** Where calls connect through (phone to phone, or Cloudflare's relay) */
   iceServers(): Promise<RTCIceServer[]>;
+  /** Group calls: a request to Cloudflare Realtime through our server (keeps the secret off the phone) */
+  sfu<T = Record<string, unknown>>(path: string, method: 'POST' | 'PUT', body?: unknown): Promise<T>;
+  /** Group calls: who's in the call and what they're sharing (live presence) */
+  callRoom(room: string, onPeople: (people: RoomPerson[]) => void): { share: (me: RoomPerson) => void; leave: () => void };
   /** Rings the other person's phone through a notification */
   ringPhone(conversationId: string, video: boolean): Promise<void>;
   /** "Missed voice call", "Video call · 12 min" in the chat */
