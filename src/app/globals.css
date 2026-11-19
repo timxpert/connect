@@ -3299,7 +3299,8 @@ button.cx-composer {
   display: flex;
   flex-direction: column;
   max-width: 760px;
-  height: 100dvh;
+  /* --vvh: the height left above the keyboard (set by the app) */
+  height: var(--vvh, 100dvh);
   min-height: 0;
   margin: 0 auto;
   background: var(--ground);
@@ -3314,7 +3315,7 @@ button.cx-composer {
 }
 @media (min-width: 860px) {
   .cx.is-chat .cx-chat {
-    height: calc(100dvh - 65px);
+    height: calc(var(--vvh, 100dvh) - 65px);
     border-inline: 1px solid var(--line);
   }
 }
@@ -8683,4 +8684,11 @@ html[data-cx-theme='dark'] .cx-role-tag {
 .cx-msg.is-swipe-left .cx-swipe-ico {
   left: auto;
   right: -40px;
+}
+
+/* chats: the page itself never scrolls; only the messages do */
+html.cx-in-chat,
+html.cx-in-chat body {
+  overflow: hidden;
+  overscroll-behavior: none;
 }

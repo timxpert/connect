@@ -93,8 +93,9 @@ self.addEventListener('push', (e) => {
         renotify: true,
         silent: false,
         vibrate: [120, 60, 120],
-        icon: d.icon || '/assets/favicon-128.png',
-        badge: '/assets/favicon-128.png',
+        icon: d.icon || '/assets/icon-192.png',
+        // Android shows this small one in white: the Motion Dojo mark
+        badge: '/assets/badge-96.png',
         data: { url: d.url || '/', lines },
       });
     })(),

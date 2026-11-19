@@ -224,6 +224,31 @@ function Shell({ route }: { route: Route }) {
   useEffect(() => {
     registerAlerts();
   }, []);
+  // In a chat, fit the screen to the space above the keyboard and keep the
+  // page from sliding (so the header and message box both stay in view)
+  const inChat = route.name === 'chat' || route.name === 'group';
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('cx-in-chat', inChat);
+    const vv = window.visualViewport;
+    if (!inChat || !vv) {
+      root.style.removeProperty('--vvh');
+      return;
+    }
+    const fit = () => {
+      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+      if (window.scrollY) window.scrollTo(0, 0);
+    };
+    fit();
+    vv.addEventListener('resize', fit);
+    vv.addEventListener('scroll', fit);
+    return () => {
+      vv.removeEventListener('resize', fit);
+      vv.removeEventListener('scroll', fit);
+      root.classList.remove('cx-in-chat');
+      root.style.removeProperty('--vvh');
+    };
+  }, [inChat]);
   // "typing…" in my private chats
   useTypingRoom(api, me?.id ? `u:${me.id}` : null, me?.id);
   // Alerts already allowed: make sure this phone gets messages when Connect is closed

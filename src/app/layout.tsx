@@ -16,6 +16,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: '#F6F4FB',
+  // the keyboard shrinks the page (instead of sliding it up under the header),
+  // so a chat keeps its header and message box on screen while typing
+  interactiveWidget: 'resizes-content',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
