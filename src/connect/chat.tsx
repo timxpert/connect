@@ -13,7 +13,7 @@ import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
 import { CameraScreen } from './camera';
-import { FormatBar, MessageField, Rich, loadDraft, smartChange, useDraft } from './format';
+import { MessageField, Rich, loadDraft, smartChange, useDraft } from './format';
 import { EmojiButton } from './emoji';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import { NewGroupSheet } from './group';
@@ -1406,7 +1406,6 @@ export function Chat({ id }: { id: string }) {
             </button>
           </div>
         )}
-        <FormatBar box={box} value={draft} onChange={setDraft} />
         <form
           className="cx-compose cx-chat-compose"
           onSubmit={(e) => {

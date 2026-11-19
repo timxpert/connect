@@ -14,7 +14,7 @@ import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { TypingBubble, AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
 import { ForwardSheet } from './forward';
-import { FormatBar, MessageField, plainText, smartChange, useDraft } from './format';
+import { MessageField, plainText, smartChange, useDraft } from './format';
 import { EmojiButton } from './emoji';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
@@ -714,7 +714,6 @@ function GroupChatInner() {
               </button>
             </div>
           )}
-          <FormatBar box={box} value={draft} onChange={setDraft} />
           <form
             className="cx-compose cx-chat-compose"
             onSubmit={(e) => {
