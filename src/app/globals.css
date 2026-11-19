@@ -9451,13 +9451,15 @@ html.cx-in-chat body {
     bottom: 20px;
   }
 }
+.cx.is-locked .cx-bell,
+.cx.is-locked .cx-me {
+  display: none;
+}
 .cx.is-locked .cx-tabbar a:not([href$='/learn']),
 .cx.is-locked .cx-top nav a:not([href$='/learn']),
-.cx.is-locked .cx-bell,
-.cx.is-locked .cx-me,
 .cx.is-locked .cx-tabbar button,
 .cx.is-locked .cx-top button.btn-primary {
-  opacity: 0.35;
+  opacity: 0.3;
   pointer-events: none;
 }
 .cx-focus-ask {
@@ -9550,4 +9552,29 @@ html.cx-in-chat body {
 }
 .cx-focus-own input {
   -moz-appearance: textfield;
+}
+
+/* Focus mode: a quiet padlock in the top bar */
+.cx-lock-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #f1ebff;
+  color: var(--violet);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+}
+.cx-lock-line {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--violet);
+  transition: width 1s linear;
 }

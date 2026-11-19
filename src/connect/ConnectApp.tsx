@@ -193,9 +193,9 @@ function Shell({ route }: { route: Route }) {
   useEffect(() => {
     if (!strict) return;
     if (!FOCUS_ROUTES.includes(route.name)) {
-      // the bar at the bottom says why; give it a nudge
+      // the padlock at the top says why; give it a nudge
       navigate('/learn');
-      document.querySelector('.cx-focusbar')?.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 300 });
+      document.querySelector('.cx-lock-chip')?.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 300 });
     }
   }, [route, Boolean(strict)]);
   useEffect(() => {
@@ -478,6 +478,13 @@ function Shell({ route }: { route: Route }) {
                 <span>Post</span>
               </button>
             )}
+            {strict && (
+              <span className="cx-lock-chip" role="status" aria-label={`Focus mode: ${left(strict)} of lessons left`}>
+                <Icon name="lock" size={14} />
+                {left(strict)}
+                <span className="cx-lock-line" style={{ width: `${(strict.watched / strict.goal) * 100}%` }} aria-hidden="true" />
+              </span>
+            )}
             {member && (
               <A path="/notifications" className="cx-bell" aria-label={`Notifications${counts.unread ? `, ${counts.unread} new` : ''}`}>
                 <Icon name="bell" />
@@ -597,18 +604,6 @@ function Shell({ route }: { route: Route }) {
       <Composer />
       {route.name !== 'settings' && route.name !== 'login' && <PhasePrompt />}
       {me && member && !strict && <CallLayer />}
-      {strict && (
-        <div className="cx-focusbar" role="status">
-          <Icon name="lock" size={16} />
-          <span>
-            {left(strict)} left
-            {route.name !== 'lesson' && <small> · play a lesson to count</small>}
-          </span>
-          <span className="cx-focusbar-track" aria-hidden="true">
-            <span style={{ width: `${(strict.watched / strict.goal) * 100}%` }} />
-          </span>
-        </div>
-      )}
       {askFocus && (
         <FocusPrompt
           onClose={() => setAskFocus(false)}
