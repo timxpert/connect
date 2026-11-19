@@ -1632,7 +1632,8 @@ details[open] > :not(summary) {
   display: grid;
   place-items: center;
   height: 140px;
-  background: var(--midnight) center / cover no-repeat;
+  background: #f1ebff center / cover no-repeat;
+  border-radius: 16px;
 }
 .cx-cover-pick label {
   cursor: pointer;
@@ -3469,11 +3470,8 @@ button.cx-composer {
   padding: 3px 10px 3px 6px;
   background: #f1ebff;
   color: #4c1fb8;
-  box-shadow: inset 0 0 0 1px #dccdff;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 /* The Grand Sensei's profile: the same white page as everyone, with
@@ -3662,8 +3660,8 @@ button.cx-composer {
   height: 72px;
   margin-bottom: 6px;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 2px var(--ink);
-  color: var(--ink);
+  background: #f1ebff;
+  color: var(--violet);
 }
 .cx-inbox-empty-title {
   font-family: var(--font-display);
@@ -3782,10 +3780,8 @@ button.cx-composer {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 .cx-conn-label .cx-inbox-count {
@@ -8213,4 +8209,66 @@ html[data-cx-theme='dark'] .cx-role-tag {
 .cx-sheet .btn-light:hover {
   background: #f1ebff;
   color: var(--violet);
+}
+
+/* Add to home screen */
+.cx-install {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 60;
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 10px 12px;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 14px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 12px 32px -16px rgba(20, 10, 46, 0.35);
+  animation: cx-install-in 0.3s ease-out;
+}
+.cx-install img {
+  border-radius: 11px;
+}
+.cx-install-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.cx-install-text b {
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+.cx-install-text em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--ink);
+}
+.cx-install-text span svg {
+  display: inline-block;
+  vertical-align: -2px;
+}
+.cx-install-btns {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.cx-install-btns .btn {
+  box-shadow: none;
+}
+@keyframes cx-install-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@media (min-width: 900px) {
+  .cx-install {
+    bottom: 24px;
+  }
 }

@@ -10,7 +10,8 @@ export const metadata: Metadata = {
   description,
   openGraph: { title, description, siteName: 'Motion Dojo Connect', type: 'website' },
   twitter: { card: 'summary', title, description },
-  icons: { icon: '/assets/favicon-128.png', apple: '/assets/favicon.png' },
+  icons: { icon: '/assets/favicon-128.png', apple: '/assets/icon-192.png' },
+  appleWebApp: { capable: true, title: 'Connect', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {

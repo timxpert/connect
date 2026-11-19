@@ -20,6 +20,7 @@ import { Login, Settings, Welcome } from './screens-me';
 import { Chat, Inbox } from './chat';
 import { GroupChat, GroupInfoScreen, JoinGroupScreen } from './group';
 import { PhasePrompt } from './phase-prompt';
+import { InstallPrompt } from './install';
 import { ChallengeScreen } from './challenge';
 import { Connections, Notifications, Saved } from './screens-social';
 import { AssignmentScreen, Devices, Learn, LessonEditor, LessonScreen, Reviews } from './screens-learn';
@@ -463,6 +464,7 @@ function Shell({ route }: { route: Route }) {
       )}
       <Composer />
       {route.name !== 'settings' && route.name !== 'login' && <PhasePrompt />}
+      <InstallPrompt when={Boolean(signedIn && member && !['chat', 'group', 'login', 'join'].includes(route.name))} />
     </div>
   );
 }
