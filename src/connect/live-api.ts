@@ -828,6 +828,13 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const link = await sign([path]);
       return { ...(data as unknown as Message), media_url: link(path) };
     },
+    async markGroupDelivered() {
+      await sb.rpc('mark_group_delivered').then(() => {}, () => {});
+    },
+    async groupReceipts(messageId) {
+      const { data, error } = await sb.from('group_receipts').select('user_id, delivered_at, seen_at').eq('message_id', messageId);
+      return error ? null : ((data ?? []) as { user_id: string; delivered_at: string; seen_at: string | null }[]);
+    },
     async markPlayed(messageId) {
       const me = await uid();
       if (!me) return;

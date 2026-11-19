@@ -39,6 +39,8 @@ const LIVE = new Set<keyof ConnectApi>([
   'listNotices',
   'markRead',
   'markDelivered',
+  'markGroupDelivered',
+  'markPlayed',
   'myAssignments',
   'reviewQueue',
   'phaseRequests',
@@ -64,6 +66,7 @@ const LIVE = new Set<keyof ConnectApi>([
   'teamRoles',
   'listPins',
   'listPlays',
+  'groupReceipts',
 ]);
 
 const TTL = 45_000;

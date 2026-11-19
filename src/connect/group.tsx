@@ -987,111 +987,76 @@ function GroupChatInner() {
 function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: GroupReader[]; people: Profile[]; onClose: () => void }) {
   const { api } = useConnect();
   const sheet = useDragToClose<HTMLDivElement>(onClose);
-  const sorted = [...readers].sort((a, b) => (a.read_at < b.read_at ? -1 : 1));
-  // voice notes: who played it and when
+  const online = useOnlineSet();
+  // exact times per person (receipts.sql); without it, a close guess from who opened the group
+  const [receipts, setReceipts] = useState<{ user_id: string; delivered_at: string; seen_at: string | null }[] | null | undefined>(undefined);
   const [plays, setPlays] = useState<{ user_id: string; played_at: string }[]>([]);
   useEffect(() => {
+    api.groupReceipts(m.id).then(setReceipts).catch(() => setReceipts(null));
     if (m.kind === 'voice') api.listPlays(m.id).then((l) => setPlays(l.filter((p) => p.user_id !== m.sender_id))).catch(() => {});
   }, [api, m.id, m.kind, m.sender_id]);
-  const at = (iso: string) => (dayLabel(iso) === 'Today' ? clock2(iso) : `${dayLabel(iso)}, ${clock2(iso)}`);
-  // Delivered: they've had Connect open since it was sent (so it reached their phone)
-  const online = useOnlineSet();
+  const at = (iso: string) => (dayLabel(iso) === 'Today' ? `Today, ${clock2(iso)}` : `${dayLabel(iso)}, ${clock2(iso)}`);
   const others = people.filter((p) => p.id !== m.sender_id);
-  const seenIds = new Set(readers.map((r) => r.id));
-  const reached = (p: Profile) => seenIds.has(p.id) || online.has(p.id) || (!!p.last_seen_at && p.last_seen_at >= m.created_at);
-  const delivered = others.filter((p) => !seenIds.has(p.id) && reached(p));
-  const waiting = others.filter((p) => !reached(p));
-  const deliveredCount = others.filter(reached).length;
-  const yetToSee = Math.max(0, others.length - readers.length);
+  const byId = new Map(others.map((p) => [p.id, p]));
+
+  let read: { p: Profile; at: string }[];
+  let delivered: { p: Profile; at: string | null }[];
+  if (receipts) {
+    read = receipts.filter((r) => r.seen_at && byId.has(r.user_id)).map((r) => ({ p: byId.get(r.user_id)!, at: r.seen_at! }));
+    delivered = receipts.filter((r) => !r.seen_at && byId.has(r.user_id)).map((r) => ({ p: byId.get(r.user_id)!, at: r.delivered_at }));
+  } else {
+    read = readers.filter((r) => byId.has(r.id)).map((r) => ({ p: byId.get(r.id)!, at: r.read_at }));
+    const seen = new Set(read.map((r) => r.p.id));
+    delivered = others.filter((p) => !seen.has(p.id) && (online.has(p.id) || (!!p.last_seen_at && p.last_seen_at >= m.created_at))).map((p) => ({ p, at: null }));
+  }
+  read.sort((a, b) => (a.at < b.at ? -1 : 1));
+  const done = new Set([...read.map((r) => r.p.id), ...delivered.map((d) => d.p.id)]);
+  const remaining = others.filter((p) => !done.has(p.id));
+
+  const list = (rows: { p: Profile; at: string | null }[]) => (
+    <ul className="cx-fwd-list">
+      {rows.map(({ p, at: t }) => (
+        <li key={p.id} className="cx-fwd-row cx-info-person">
+          <Avatar p={p} size={40} />
+          <span className="cx-fwd-name">
+            {p.name}
+            {t && <small>{at(t)}</small>}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
   return (
     <div className="cx-sheet-wrap" onClick={onClose}>
-      <div className="cx-sheet cx-drag cx-seen" role="dialog" aria-label="Seen by" ref={sheet} onClick={(e) => e.stopPropagation()}>
+      <div className="cx-sheet cx-drag cx-seen" role="dialog" aria-label="Message info" ref={sheet} onClick={(e) => e.stopPropagation()}>
         <span className="cx-grab" aria-hidden="true" />
         <h2 className="cx-fwd-title">Message info</h2>
         <p className="cx-seen-msg">
-          {m.kind === 'voice' ? `Voice message${m.duration ? ` · ${clock(m.duration)}` : ''}` : m.body ? snippet(m).slice(0, 140) : snippet(m)}
+          {m.kind === 'voice' ? `Voice message${m.duration ? ` · ${clock(m.duration)}` : ''}` : snippet(m).slice(0, 140)}
+          <small> · {at(m.created_at)}</small>
         </p>
-        <ul className="cx-info-rows">
-          <li>
-            <span>Sent</span>
-            <b>{at(m.created_at)}</b>
-          </li>
-          <li>
-            <span>Delivered to</span>
-            <b>
-              {deliveredCount} of {others.length}
-            </b>
-          </li>
-          <li>
-            <span>Seen by</span>
-            <b>
-              {readers.length} of {others.length}
-            </b>
-          </li>
-          <li>
-            <span>Yet to see</span>
-            <b>{yetToSee}</b>
-          </li>
-        </ul>
         {m.kind === 'voice' && (
           <>
-            <h3 className="cx-info-h">Played</h3>
-            {plays.length ? (
-              <ul className="cx-fwd-list">
-                {plays.map((p) => {
-                  const who = people.find((x) => x.id === p.user_id);
-                  return (
-                    <li key={p.user_id} className="cx-fwd-row">
-                      {who ? <Avatar p={who} size={38} /> : <span className="cx-rx-who-blank" />}
-                      <span className="cx-fwd-name">{who?.name ?? 'Member'}</span>
-                      <small>{at(p.played_at)}</small>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="cx-fwd-note">No one has played it yet.</p>
-            )}
+            <h3 className="cx-info-h">
+              Played <span>{plays.length}</span>
+            </h3>
+            {plays.length ? list(plays.filter((x) => byId.has(x.user_id)).map((x) => ({ p: byId.get(x.user_id)!, at: x.played_at }))) : <p className="cx-fwd-note">No one yet</p>}
           </>
         )}
-        <h3 className="cx-info-h">Seen</h3>
-        {sorted.length ? (
-          <ul className="cx-fwd-list" data-scroll>
-            {sorted.map((r) => (
-              <li key={r.id} className="cx-fwd-row">
-                <Avatar p={{ name: r.name, avatar_url: r.avatar_url, handle: '' }} size={38} />
-                <span className="cx-fwd-name">{r.name}</span>
-                <small>{dayLabel(r.read_at) === 'Today' ? clock2(r.read_at) : `${dayLabel(r.read_at)}, ${clock2(r.read_at)}`}</small>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="cx-fwd-note">No one has seen it yet.</p>
-        )}
-        {delivered.length > 0 && (
+        <h3 className="cx-info-h">
+          Read by <span>{read.length}</span>
+        </h3>
+        {read.length ? list(read) : <p className="cx-fwd-note">No one yet</p>}
+        <h3 className="cx-info-h">
+          Delivered to <span>{delivered.length}</span>
+        </h3>
+        {delivered.length ? list(delivered) : <p className="cx-fwd-note">No one yet</p>}
+        {remaining.length > 0 && (
           <>
-            <h3 className="cx-info-h">Delivered, not seen</h3>
-            <ul className="cx-fwd-list">
-              {delivered.map((p) => (
-                <li key={p.id} className="cx-fwd-row">
-                  <Avatar p={p} size={38} />
-                  <span className="cx-fwd-name">{p.name}</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-        {waiting.length > 0 && (
-          <>
-            <h3 className="cx-info-h">Remaining</h3>
-            <ul className="cx-fwd-list">
-              {waiting.map((p) => (
-                <li key={p.id} className="cx-fwd-row">
-                  <Avatar p={p} size={38} />
-                  <span className="cx-fwd-name">{p.name}</span>
-                </li>
-              ))}
-            </ul>
+            <h3 className="cx-info-h">
+              Remaining <span>{remaining.length}</span>
+            </h3>
+            {list(remaining.map((p) => ({ p, at: null })))}
           </>
         )}
       </div>

@@ -9016,3 +9016,26 @@ html.cx-in-chat body {
   max-height: 86dvh;
   overflow-y: auto;
 }
+.cx-info-h {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+}
+.cx-info-h span {
+  font-weight: 600;
+}
+.cx-info-person .cx-fwd-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cx-info-person .cx-fwd-name small {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.cx-seen .cx-fwd-note {
+  text-align: left;
+  padding: 8px;
+}

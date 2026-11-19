@@ -309,6 +309,10 @@ export interface ConnectApi {
   deleteMessage(id: string): Promise<void>;
   /** Your own text, within the delete-for-everyone time */
   editMessage(id: string, body: string): Promise<void>;
+  /** Group messages: they reached this phone (called when Connect opens) */
+  markGroupDelivered(): Promise<void>;
+  /** Group message info: when it reached each person and when they read it (null: not available) */
+  groupReceipts(messageId: string): Promise<{ user_id: string; delivered_at: string; seen_at: string | null }[] | null>;
   /** Voice notes: I played it (first time only) */
   markPlayed(messageId: string): Promise<void>;
   /** Voice notes: who played it and when */

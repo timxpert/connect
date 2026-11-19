@@ -115,6 +115,7 @@ function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind:
     const load = async () => {
       // Tell senders their messages reached this device (grey double tick)
       api.markDelivered().catch(() => {});
+      api.markGroupDelivered().catch(() => {});
       const [unread, r, messages] = await Promise.all([api.unreadCount(), api.listRequests(), api.unreadMessageCount().catch(() => 0)]);
       if (live) setC({ unread, requests: r.incoming.length, messages });
     };

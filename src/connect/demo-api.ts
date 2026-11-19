@@ -483,6 +483,8 @@ export function createDemoApi(): ConnectApi {
       setTimeout(() => (m.delivered_at = new Date().toISOString()), 1500);
       return m;
     },
+    async markGroupDelivered() {},
+    groupReceipts: async () => null,
     async markPlayed(mid) {
       const me = needMe();
       if (!plays.some((p) => p.message_id === mid && p.user_id === me)) plays.push({ message_id: mid, user_id: me, played_at: new Date().toISOString() });
