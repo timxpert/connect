@@ -95,9 +95,6 @@ $$;
 grant execute on function public.grp_info(uuid) to authenticated;
 
 -- pin lines don't count as unread
-create policy gr_add on public.group_reactions for insert to authenticated
-  with check (user_id = auth.uid() and exists (select 1 from public.group_messages m where m.id = message_id));
-
 -- The community group's own counts leave out messages of other groups
 create or replace function public.group_unread() returns int
 language sql stable security definer set search_path = public as $$
