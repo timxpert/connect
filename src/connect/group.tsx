@@ -1083,7 +1083,7 @@ function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: Gro
         )}
         {waiting.length > 0 && (
           <>
-            <h3 className="cx-info-h">Not delivered yet</h3>
+            <h3 className="cx-info-h">Remaining</h3>
             <ul className="cx-fwd-list">
               {waiting.map((p) => (
                 <li key={p.id} className="cx-fwd-row">
