@@ -888,11 +888,19 @@ function Submission({ a, showStudent = false }: { a: Assignment; showStudent?: b
 
 /* ---------- Brief attachments: pictures, documents and links ---------- */
 function BriefItemsView({ items }: { items: BriefItem[] }) {
+  const { me } = useConnect();
   const pics = items.filter((i) => i.kind === 'image');
-  const rest = items.filter((i) => i.kind !== 'image');
+  const videos = items.filter((i) => i.kind === 'video');
+  const rest = items.filter((i) => i.kind !== 'image' && i.kind !== 'video');
   if (!items.length) return null;
   return (
     <>
+      {videos.map((v) => (
+        <figure key={v.url} className="cx-brief-video">
+          <Player url={v.url} title={v.name || 'Video to recreate'} mark={me ? `${me.name} · @${me.handle}` : ''} portrait={!/#ar=(16:9|4:3|1:1)/.test(v.url)} />
+          {v.name && <figcaption>{v.name}</figcaption>}
+        </figure>
+      ))}
       {pics.length > 0 && (
         <div className="cx-ln-pics cx-brief-pics">
           {pics.map((p) => (
@@ -942,11 +950,16 @@ function BriefItemsEditor({ items, onChange }: { items: BriefItem[]; onChange: (
     let u = url.trim();
     if (!u) return;
     if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
-    onChange((cur) => [...cur, { kind: 'link', url: u, name: name.trim().slice(0, 120) }]);
+    // YouTube and Drive videos play right in the brief
+    const video = Boolean(embedSrc(u));
+    if (video && youtubeId(u) && !isShort(u)) u = `${u.replace(/#.*$/, '')}#ar=${shape}`;
+    onChange((cur) => [...cur, { kind: video ? 'video' : 'link', url: u, name: name.trim().slice(0, 120) }]);
     setUrl('');
     setName('');
     setAdding(false);
   };
+  const [shape, setShape] = useState('9:16');
+  const isYt = Boolean(youtubeId(url)) && !isShort(url);
   return (
     <div className="field">
       <span>Attachments</span>
@@ -954,7 +967,7 @@ function BriefItemsEditor({ items, onChange }: { items: BriefItem[]; onChange: (
         <ul className="cx-brief-edit">
           {items.map((i, n) => (
             <li key={i.url + n}>
-              {i.kind === 'image' ? <img src={i.url} alt="" /> : <Icon name={i.kind === 'link' ? 'link' : 'file'} size={20} />}
+              {i.kind === 'image' ? <img src={i.url} alt="" /> : <Icon name={i.kind === 'link' ? 'link' : i.kind === 'video' ? 'video' : 'file'} size={20} />}
               <span>{i.name || i.url}</span>
               <button type="button" aria-label="Remove" onClick={() => onChange((cur) => cur.filter((_, k) => k !== n))}>
                 <Icon name="close" size={16} />
@@ -965,11 +978,20 @@ function BriefItemsEditor({ items, onChange }: { items: BriefItem[]; onChange: (
       )}
       {adding ? (
         <div className="cx-brief-link">
-          <input value={url} inputMode="url" placeholder="https://" onChange={(e) => setUrl(e.target.value)} autoFocus />
+          <input value={url} inputMode="url" placeholder="Link, or a YouTube or Drive video" onChange={(e) => setUrl(e.target.value)} autoFocus />
           <input value={name} placeholder="Name (optional)" maxLength={120} onChange={(e) => setName(e.target.value)} />
+          {isYt && (
+            <div className="cx-chips" role="radiogroup" aria-label="Video shape">
+              {SHAPES.map(([label, w, h]) => (
+                <button key={label} type="button" role="radio" aria-checked={shape === `${w}:${h}`} className={shape === `${w}:${h}` ? 'cx-chip is-on' : 'cx-chip'} onClick={() => setShape(`${w}:${h}`)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="cx-brief-btns">
             <button type="button" className="btn btn-primary btn-sm" onClick={addLink}>
-              Add link
+              Add
             </button>
             <button type="button" className="btn btn-light btn-sm" onClick={() => setAdding(false)}>
               Cancel

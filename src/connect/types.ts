@@ -135,7 +135,7 @@ export type GroupMessage = Message & {
 export type GroupHistory = 'all' | '14d' | '100' | 'none';
 export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string; photo_url?: string | null };
 
-export type BriefItem = { kind: 'image' | 'file' | 'link'; url: string; name: string };
+export type BriefItem = { kind: 'image' | 'file' | 'link' | 'video'; url: string; name: string };
 
 export type PhaseRequest = { id: string; name: string; handle: string; avatar_url: string | null; phase_request: number; phase_request_at: string };
 

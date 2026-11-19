@@ -7274,3 +7274,12 @@ html[data-cx-theme='dark'] .cx-toast {
   display: grid;
   gap: 8px;
 }
+.cx-brief-video {
+  margin: 14px 0;
+}
+.cx-brief-video figcaption {
+  margin-top: -12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
