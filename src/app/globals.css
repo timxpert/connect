@@ -7196,3 +7196,23 @@ html[data-cx-theme='dark'] .cx-toast {
 .cx-yt-bar {
   gap: 4px;
 }
+
+/* Quieter watermark: small and faint, sits in a corner, changes corner
+   every 45 seconds with a fade instead of sliding across the video */
+.cx-wm {
+  max-width: 55%;
+  padding: 2px 6px;
+  color: rgba(255, 255, 255, 0.22);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-shadow: none;
+  transition: none;
+  animation: wm-in 0.8s ease;
+}
+.cx-wm-0 { top: 10px; left: 10px; right: auto; bottom: auto; }
+.cx-wm-1 { top: 10px; left: 38%; right: auto; bottom: auto; }
+.cx-wm-2 { bottom: 56px; left: 10px; top: auto; right: auto; }
+.cx-wm-3 { bottom: 56px; right: 10px; top: auto; left: auto; }
+@keyframes wm-in {
+  from { opacity: 0; }
+}

@@ -325,11 +325,11 @@ export function Learn() {
 function Watermark({ text }: { text: string }) {
   const [spot, setSpot] = useState(0);
   useEffect(() => {
-    const t = window.setInterval(() => setSpot((s) => (s + 1) % 4), 12000);
+    const t = window.setInterval(() => setSpot((s) => (s + 1) % 4), 45000);
     return () => window.clearInterval(t);
   }, []);
   return (
-    <span className={`cx-wm cx-wm-${spot}`} aria-hidden="true">
+    <span key={spot} className={`cx-wm cx-wm-${spot}`} aria-hidden="true">
       {text}
     </span>
   );
