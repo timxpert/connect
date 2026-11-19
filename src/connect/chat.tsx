@@ -590,11 +590,11 @@ export async function makeThumb(file: File, kind: Attachment['kind']): Promise<s
 }
 
 /** A private reply's quote: {name, text} from the group */
-export function readQuote(q: string | null | undefined): { name: string; text: string } | null {
+export function readQuote(q: string | null | undefined): { name: string; text: string; dm?: boolean } | null {
   if (!q) return null;
   try {
-    const v = JSON.parse(q) as { name?: string; text?: string };
-    return v.text ? { name: v.name ?? 'Member', text: v.text } : null;
+    const v = JSON.parse(q) as { name?: string; text?: string; dm?: boolean };
+    return v.text ? { name: v.name ?? 'Member', text: v.text, dm: v.dm } : null;
   } catch {
     return null;
   }
@@ -626,6 +626,7 @@ export function Bubble({
   domId,
   avatar,
   onReactions,
+  onReply,
 }: {
   m: Message;
   mine: boolean;
@@ -644,6 +645,8 @@ export function Bubble({
   avatar?: Profile | false;
   /** Group chats: tapping the reactions shows who reacted */
   onReactions?: () => void;
+  /** Swipe the message left or right to reply to it */
+  onReply?: (m: Message) => void;
   /** Downloaded (or sent by me): show the media itself */
   ready: boolean;
   onHold: (m: Message) => void;
@@ -652,16 +655,56 @@ export function Bubble({
   onOpen: (m: Message) => void;
 }) {
   const timer = useRef<number | undefined>(undefined);
+  // Swipe to reply: drag the message sideways (either way) past the line and let go
+  const swipe = useRef<{ x: number; y: number; dx: number; on: boolean | null } | null>(null);
+  const li = useRef<HTMLLIElement>(null);
+  const SWIPE = 64;
+  const setShift = (dx: number) => {
+    const el = li.current;
+    if (!el) return;
+    el.style.transform = dx ? `translateX(${dx}px)` : '';
+    el.style.setProperty('--swipe', String(Math.min(1, Math.abs(dx) / SWIPE)));
+    el.classList.toggle('is-swiping', dx !== 0);
+    el.classList.toggle('is-swipe-left', dx < 0);
+  };
   const hold = {
     onContextMenu: (e: React.MouseEvent) => {
       e.preventDefault();
       onHold(m);
     },
-    onTouchStart: () => {
+    onTouchStart: (e: React.TouchEvent) => {
       timer.current = window.setTimeout(() => onHold(m), 450);
+      const t = e.touches[0];
+      swipe.current = onReply && !m.pending ? { x: t.clientX, y: t.clientY, dx: 0, on: null } : null;
     },
-    onTouchEnd: () => window.clearTimeout(timer.current),
-    onTouchMove: () => window.clearTimeout(timer.current),
+    onTouchMove: (e: React.TouchEvent) => {
+      window.clearTimeout(timer.current);
+      const s = swipe.current;
+      if (!s) return;
+      const t = e.touches[0];
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
+      // decide once: sideways means swipe, up/down means scrolling
+      if (s.on === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) s.on = Math.abs(dx) > Math.abs(dy) * 1.4;
+      if (!s.on) return;
+      const limited = Math.sign(dx) * Math.min(Math.abs(dx) * 0.6, SWIPE + 16);
+      if (Math.abs(s.dx) < SWIPE && Math.abs(limited) >= SWIPE) navigator.vibrate?.(10);
+      s.dx = limited;
+      setShift(limited);
+    },
+    onTouchEnd: () => {
+      window.clearTimeout(timer.current);
+      const s = swipe.current;
+      swipe.current = null;
+      if (!s?.on) return;
+      const el = li.current;
+      if (el) {
+        el.style.transition = 'transform 0.18s ease-out';
+        window.setTimeout(() => el && (el.style.transition = ''), 200);
+      }
+      setShift(0);
+      if (Math.abs(s.dx) >= SWIPE) onReply?.(m);
+    },
   };
 
   if (m.deleted_at) {
@@ -679,6 +722,7 @@ export function Bubble({
   return (
     <li
       id={domId}
+      ref={li}
       className={[
         'cx-msg',
         mine ? 'is-mine' : '',
@@ -693,6 +737,11 @@ export function Bubble({
       {...hold}
       onClick={m.failed && onRetry ? () => onRetry(m) : undefined}
     >
+      {onReply && (
+        <span className="cx-swipe-ico" aria-hidden="true">
+          <Icon name="forward" size={18} />
+        </span>
+      )}
       {avatar && (
         <span className="cx-msg-av" aria-hidden="true">
           <Avatar p={avatar} size={30} />
@@ -1272,7 +1321,12 @@ export function Chat({ id }: { id: string }) {
                 onRetry={retry}
                 onDownload={download}
                 onOpen={(x) => (x.kind === 'file' ? openFile(x, toast) : setViewing(x))}
-                quote={readQuote(m.quote) ? { name: `${readQuote(m.quote)!.name} in the group`, text: readQuote(m.quote)!.text } : null}
+                quote={readQuote(m.quote) ? { name: readQuote(m.quote)!.dm ? readQuote(m.quote)!.name : `${readQuote(m.quote)!.name} in the group`, text: readQuote(m.quote)!.text } : null}
+                onReply={(x) => {
+                  const text = x.body || (x.kind === 'voice' ? 'Voice message' : x.kind === 'image' ? 'Photo' : x.kind === 'video' ? 'Video' : x.file_name || 'File');
+                  setQuote(JSON.stringify({ name: x.sender_id === me.id ? 'You' : other.name, text: text.slice(0, 200), dm: true }));
+                  window.setTimeout(() => box.current?.focus(), 50);
+                }}
               />
               )}
             </React.Fragment>
@@ -1318,7 +1372,7 @@ export function Chat({ id }: { id: string }) {
         {quote && readQuote(quote) && (
           <div className="cx-replying">
             <span>
-              <b>Replying privately to {readQuote(quote)!.name}</b>
+              <b>{readQuote(quote)!.dm ? `Replying to ${readQuote(quote)!.name === 'You' ? 'yourself' : readQuote(quote)!.name}` : `Replying privately to ${readQuote(quote)!.name}`}</b>
               <small>{readQuote(quote)!.text}</small>
             </span>
             <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Cancel reply" onClick={() => setQuote(null)}>

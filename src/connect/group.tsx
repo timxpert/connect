@@ -634,6 +634,14 @@ function GroupChatInner() {
                   who={showWho ? { name: whoName(m) } : null}
                   avatar={mine ? undefined : showWho ? (m.sender ?? false) : false}
                   onReactions={() => setRxOf(m)}
+                  onReply={
+                    canSend
+                      ? (x) => {
+                          setReplyTo(x as GroupMessage);
+                          window.setTimeout(() => box.current?.focus(), 50);
+                        }
+                      : undefined
+                  }
                   quote={parent ? { name: parent.sender_id === me.id ? 'You' : parent.sender?.name ?? 'Member', text: snippet(parent).slice(0, 120), onClick: () => jump(parent.id) } : null}
                   reactions={m.reactions}
                   onReact={(e) => react(m, e)}

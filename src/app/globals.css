@@ -8651,3 +8651,36 @@ html[data-cx-theme='dark'] .cx-role-tag {
   border-radius: 50%;
   background: #f1ebff;
 }
+
+/* Swipe a message sideways to reply */
+.cx-msg {
+  touch-action: pan-y;
+}
+.cx-swipe-ico {
+  position: absolute;
+  top: 50%;
+  left: -40px;
+  display: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-top: -15px;
+  border-radius: 50%;
+  background: #f1ebff;
+  color: var(--violet);
+  opacity: var(--swipe, 0);
+  transform: scale(calc(0.6 + var(--swipe, 0) * 0.4)) scaleX(-1);
+}
+.cx-msg.is-swiping {
+  position: relative;
+}
+.cx-msg.is-swiping .cx-swipe-ico {
+  display: grid;
+}
+.cx-msg.has-av .cx-swipe-ico {
+  left: -78px;
+}
+.cx-msg.is-swipe-left .cx-swipe-ico {
+  left: auto;
+  right: -40px;
+}
