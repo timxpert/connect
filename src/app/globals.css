@@ -9578,3 +9578,30 @@ html.cx-in-chat body {
   background: var(--violet);
   transition: width 1s linear;
 }
+
+/* Names stay on one line; a long one ends in "…" instead of pushing the belt or call buttons */
+.cx-name-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx-chat-head .cx-person {
+  flex: 1 1 auto;
+}
+.cx-chat-head .cx-person-name,
+.cx-inbox-top .cx-person-name {
+  max-width: 100%;
+}
+.cx-chat-head .cx-person-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx-chat-head .cx-person-text,
+.cx-inbox-row .cx-person-text {
+  grid-template-columns: minmax(0, 1fr);
+}
+.cx-chat-head .cx-person-name {
+  overflow: hidden;
+}

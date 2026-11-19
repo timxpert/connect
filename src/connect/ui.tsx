@@ -284,12 +284,12 @@ export function visiblePhase(p: Pick<Profile, 'id' | 'phase' | 'phase_public'>, 
   return p.phase_public === false ? null : p.phase;
 }
 
-export function BeltBadge({ p, small = false }: { p: Pick<Profile, 'id' | 'phase' | 'phase_public'> & { team_role?: string | null }; small?: boolean }) {
+export function BeltBadge({ p, small = false, showRole = true }: { p: Pick<Profile, 'id' | 'phase' | 'phase_public'> & { team_role?: string | null }; small?: boolean; showRole?: boolean }) {
   const { me } = useConnect();
   const phase = visiblePhase(p, me);
   const belt = phase ? BELTS[phase - 1] : null;
   // team members who are students: their role sits next to the belt
-  const role = p.team_role ? <span className={small ? 'cx-role-tag is-sm' : 'cx-role-tag'}>{p.team_role}</span> : null;
+  const role = showRole && p.team_role ?<span className={small ? 'cx-role-tag is-sm' : 'cx-role-tag'}>{p.team_role}</span> : null;
   if (!belt) return role;
   const cls = ['cx-badge', small ? 'cx-badge-sm' : '', `cx-belt cx-belt-${phase}`].filter(Boolean).join(' ');
   return (

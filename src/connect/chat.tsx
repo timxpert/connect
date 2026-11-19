@@ -1367,13 +1367,16 @@ export function Chat({ id }: { id: string }) {
           <Avatar p={other} size={40} />
           <span className="cx-person-text">
             <span className="cx-person-name">
-              {other.name}
-              {other.is_student && <BeltBadge p={other} small />}
+              <span className="cx-name-text">{other.name}</span>
+              {other.is_student && <BeltBadge p={other} small showRole={false} />}
             </span>
             {typers.length ? (
               <span className="cx-person-meta is-typing">typing…</span>
             ) : (
-              <span className={otherOnline ? 'cx-person-meta is-online' : 'cx-person-meta'}>{presenceLabel(otherOnline, other.id, other.last_seen_at)}</span>
+              <span className={otherOnline ? 'cx-person-meta is-online' : 'cx-person-meta'}>
+                {other.team_role ? `${other.team_role} · ` : ''}
+                {presenceLabel(otherOnline, other.id, other.last_seen_at)}
+              </span>
             )}
           </span>
         </A>
@@ -1882,8 +1885,8 @@ function ChatRow({ c, p }: { c: Conversation; p: PinProps }) {
         <span className="cx-inbox-text">
           <span className="cx-inbox-top">
             <span className="cx-person-name">
-              {c.other.name}
-              {c.other.is_sensei ? null : c.other.is_student && <BeltBadge p={c.other} small />}
+              <span className="cx-name-text">{c.other.name}</span>
+              {c.other.is_sensei ? null : c.other.is_student && <BeltBadge p={c.other} small showRole={false} />}
               {joined && unread > 0 && <span className="cx-new-tag">New</span>}
             </span>
             <span className="cx-inbox-time">{shortTime(c.last_message_at)}</span>
