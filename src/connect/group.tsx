@@ -1010,11 +1010,32 @@ function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: Gro
         <h2 className="cx-fwd-title">Message info</h2>
         <p className="cx-seen-msg">
           {m.kind === 'voice' ? `Voice message${m.duration ? ` · ${clock(m.duration)}` : ''}` : m.body ? snippet(m).slice(0, 140) : snippet(m)}
-          <small> · Sent {at(m.created_at)}</small>
         </p>
+        <ul className="cx-info-rows">
+          <li>
+            <span>Sent</span>
+            <b>{at(m.created_at)}</b>
+          </li>
+          <li>
+            <span>Delivered to</span>
+            <b>
+              {deliveredCount} of {others.length}
+            </b>
+          </li>
+          <li>
+            <span>Seen by</span>
+            <b>
+              {readers.length} of {others.length}
+            </b>
+          </li>
+          <li>
+            <span>Yet to see</span>
+            <b>{yetToSee}</b>
+          </li>
+        </ul>
         {m.kind === 'voice' && (
           <>
-            <h3 className="cx-info-h">Played by {plays.length}</h3>
+            <h3 className="cx-info-h">Played</h3>
             {plays.length ? (
               <ul className="cx-fwd-list">
                 {plays.map((p) => {
@@ -1033,18 +1054,7 @@ function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: Gro
             )}
           </>
         )}
-        <div className="cx-info-stats">
-          <span>
-            <b>{deliveredCount}</b> Delivered
-          </span>
-          <span>
-            <b>{readers.length}</b> Seen
-          </span>
-          <span>
-            <b>{yetToSee}</b> Yet to see
-          </span>
-        </div>
-        <h3 className="cx-info-h">Seen by {readers.length}</h3>
+        <h3 className="cx-info-h">Seen</h3>
         {sorted.length ? (
           <ul className="cx-fwd-list" data-scroll>
             {sorted.map((r) => (
@@ -1060,7 +1070,7 @@ function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: Gro
         )}
         {delivered.length > 0 && (
           <>
-            <h3 className="cx-info-h">Delivered, not seen yet {delivered.length}</h3>
+            <h3 className="cx-info-h">Delivered, not seen</h3>
             <ul className="cx-fwd-list">
               {delivered.map((p) => (
                 <li key={p.id} className="cx-fwd-row">
@@ -1073,7 +1083,7 @@ function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: Gro
         )}
         {waiting.length > 0 && (
           <>
-            <h3 className="cx-info-h">Not delivered yet {waiting.length}</h3>
+            <h3 className="cx-info-h">Not delivered yet</h3>
             <ul className="cx-fwd-list">
               {waiting.map((p) => (
                 <li key={p.id} className="cx-fwd-row">
