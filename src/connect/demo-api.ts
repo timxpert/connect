@@ -156,6 +156,15 @@ const groupMutes = new Map<string, number>();
 /** removed from the group: id -> banned */
 const groupOut = new Map<string, boolean>();
 let groupReadAt = ago(6);
+// The Grand Sensei's own groups (demo)
+type OwnGroup = { id: string; name: string; photo_url: string | null; announce_only: boolean; pinned_id: string | null; history: 'all' | '14d' | '100' | 'none'; people: Map<string, { added: string; read: string | null; muted: number }>; msgs: RawGroup[]; created_at: string };
+const ownGroups: OwnGroup[] = [];
+const invites = new Map<string, { gid: string; message: string; expires: number }>();
+const og = (gid: string) => {
+  const g = ownGroups.find((x) => x.id === gid);
+  if (!g) throw new Error('This group no longer exists.');
+  return g;
+};
 const briefItems: Record<number, BriefItem[]> = {};
 const briefs: Record<number, string> = { 1: 'Sample brief: animate a 5-second logo reveal using what you learned in phase 1.' };
 
@@ -183,6 +192,18 @@ const needMe = () => {
 };
 
 export function createDemoApi(): ConnectApi {
+  const addPeople = (gid: string, ids: string[]) => {
+    const g = og(gid);
+    let n = 0;
+    for (const id of ids) {
+      if (g.people.has(id)) continue;
+      const now = new Date().toISOString();
+      g.people.set(id, { added: now, read: null, muted: 0 });
+      g.msgs.push({ id: nid(), conversation_id: `g:${gid}`, sender_id: id, body: '', kind: 'join', created_at: now } as unknown as RawGroup);
+      n++;
+    }
+    return n;
+  };
   return {
     mode: 'demo',
     session: () => wait(current ? { userId: current, email: `${who(current).handle}@example.com` } : null),
@@ -480,15 +501,21 @@ export function createDemoApi(): ConnectApi {
     isBlocked: (id) => wait(Boolean(current && blocks.has(`${current}:${id}`))),
 
     listLessons: () => wait(outline()),
-    async groupInfo() {
+    async groupInfo(gid) {
+      if (gid) {
+        const g = ownGroups.find((x) => x.id === gid);
+        const mine = g && current ? g.people.get(current) : undefined;
+        if (!g || (!mine && !(current && who(current).is_sensei))) return null;
+        return wait({ members: g.people.size, announce_only: g.announce_only, pinned_id: g.pinned_id, history: g.history, name: g.name, photo_url: g.photo_url, muted_until: mine && mine.muted > Date.now() ? new Date(mine.muted).toISOString() : null });
+      }
       const me = current ? who(current) : null;
       if (!me || !(me.is_student || me.is_sensei || me.is_moderator) || groupOut.has(me.id)) return null;
       const until = groupMutes.get(me.id);
       return wait({ members: people.filter((p) => p.is_student || p.is_sensei).length, ...groupSet, muted_until: until && until > Date.now() ? new Date(until).toISOString() : null });
     },
-    listGroupMessages: () =>
+    listGroupMessages: (gid) =>
       wait(
-        group.map((m) => {
+        (gid ? og(gid).msgs : group).map((m) => {
           const rx = [...groupRx].filter(([k]) => k.startsWith(m.id + ':'));
           const list: { emoji: string; count: number; mine: boolean }[] = [];
           for (const [k, e] of rx) {
@@ -504,22 +531,30 @@ export function createDemoApi(): ConnectApi {
       const unread = group.filter((x) => x.sender_id !== current && x.created_at > groupReadAt).length;
       return wait(m ? { name: groupSet.name, photo_url: groupSet.photo_url, text: `${who(m.sender_id).name}: ${m.body || 'Photo'}`, at: m.created_at, unread } : null);
     },
-    async sendGroupMessage(body, replyTo, forwarded) {
+    async sendGroupMessage(body, replyTo, forwarded, gid) {
       const me = needMe();
+      if (gid) {
+        const g = og(gid);
+        if ((g.announce_only && !who(me).is_sensei) || (g.people.get(me)?.muted ?? 0) > Date.now()) throw new Error('You can’t send messages in the group right now.');
+        const m: RawGroup = { id: nid(), conversation_id: `g:${gid}`, sender_id: me, body, kind: 'text', reply_to: replyTo ?? null, forwarded: forwarded ?? false, created_at: new Date().toISOString() };
+        g.msgs.push(m);
+        return wait({ ...m, sender: who(me), reactions: [] });
+      }
       if (groupSet.announce_only && !who(me).is_sensei) throw new Error('You can’t send messages in the group right now.');
       if ((groupMutes.get(me) ?? 0) > Date.now()) throw new Error('You can’t send messages in the group right now.');
       const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body, kind: 'text', reply_to: replyTo ?? null, forwarded: forwarded ?? false, created_at: new Date().toISOString() };
       group.push(m);
       return wait({ ...m, sender: who(me), reactions: [] });
     },
-    async sendGroupAttachment(a, caption, replyTo, onProgress, forwarded) {
+    async sendGroupAttachment(a, caption, replyTo, onProgress, forwarded, gid) {
       const me = needMe();
       onProgress?.(1);
-      const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body: caption, kind: a.kind, file_name: a.kind === 'file' ? a.file.name : null, media_url: URL.createObjectURL(a.file), file_size: a.file.size, duration: a.duration, thumb: a.thumb, reply_to: replyTo ?? null, forwarded: forwarded ?? false, created_at: new Date().toISOString() };
-      group.push(m);
+      const m: RawGroup = { id: nid(), conversation_id: gid ? `g:${gid}` : 'group', sender_id: me, body: caption, kind: a.kind, file_name: a.kind === 'file' ? a.file.name : null, media_url: URL.createObjectURL(a.file), file_size: a.file.size, duration: a.duration, thumb: a.thumb, reply_to: replyTo ?? null, forwarded: forwarded ?? false, created_at: new Date().toISOString() };
+      (gid ? og(gid).msgs : group).push(m);
       return wait({ ...m, sender: who(me), reactions: [] });
     },
     async deleteGroupMessage(id) {
+      for (const g of ownGroups) g.msgs = g.msgs.map((m) => (m.id === id ? { ...m, deleted_at: new Date().toISOString(), body: '', media_url: null } : m));
       group = group.map((m) => (m.id === id ? { ...m, deleted_at: new Date().toISOString(), body: '', media_url: null } : m));
     },
     async reactGroup(id, emoji) {
@@ -527,20 +562,32 @@ export function createDemoApi(): ConnectApi {
       if (emoji) groupRx.set(k, emoji);
       else groupRx.delete(k);
     },
-    groupLastRead: async () => groupReadAt,
-    async groupReaders() {
+    groupLastRead: async (gid) => (gid ? (og(gid).people.get(current ?? '')?.read ?? null) : groupReadAt),
+    async groupReaders(gid) {
+      if (gid) return [...og(gid).people].filter(([id, x]) => id !== current && x.read).map(([id, x]) => ({ id, name: who(id).name, avatar_url: who(id).avatar_url ?? null, read_at: x.read! }));
       const soon = new Date(Date.now() + 60_000).toISOString();
       const ppl = people.filter((p) => p.id !== current).slice(0, 3);
       return ppl.map((p, i) => ({ id: p.id, name: p.name, avatar_url: p.avatar_url ?? null, read_at: i === 2 ? new Date(Date.now() - 3 * 3600_000).toISOString() : soon }));
     },
-    async markGroupRead() {
+    async markGroupRead(gid) {
+      if (gid) {
+        const x = og(gid).people.get(current ?? '');
+        if (x) x.read = new Date().toISOString();
+        return;
+      }
       groupReadAt = new Date().toISOString();
     },
-    async setGroupSettings(s) {
+    async setGroupSettings(s, gid) {
+      if (gid) {
+        if (!who(needMe()).is_sensei) throw new Error('Only the Grand Sensei can change this group.');
+        Object.assign(og(gid), s);
+        return;
+      }
       Object.assign(groupSet, s);
     },
-    groupMembers: () => wait(people.filter((p) => (p.is_student || p.is_sensei || p.is_moderator) && !groupOut.has(p.id))),
-    groupStatus: async () => {
+    groupMembers: (gid) => gid ? wait([...og(gid).people.keys()].map(who)) : wait(people.filter((p) => (p.is_student || p.is_sensei || p.is_moderator) && !groupOut.has(p.id))),
+    groupStatus: async (gid) => {
+      if (gid) return 'none';
       if (!current) return 'none';
       const out = groupOut.get(current);
       if (out !== undefined) return out ? 'banned' : 'removed';
@@ -552,16 +599,85 @@ export function createDemoApi(): ConnectApi {
       if (groupOut.get(me)) throw new Error('You can’t join the group right now.');
       groupOut.delete(me);
     },
-    async removeFromGroup(userId, ban) {
+    async removeFromGroup(userId, ban, gid) {
+      if (gid) {
+        og(gid).people.delete(userId);
+        return;
+      }
       groupOut.set(userId, ban);
     },
-    async addToGroup(userId) {
+    async addToGroup(userId, gid) {
+      if (gid) {
+        addPeople(gid, [userId]);
+        return;
+      }
       groupOut.delete(userId);
     },
-    groupRemoved: () => wait([...groupOut].map(([id, banned]) => ({ profile: who(id), banned }))),
-    async muteInGroup(userId, hours) {
+    groupRemoved: (gid) => gid ? wait([]) : wait([...groupOut].map(([id, banned]) => ({ profile: who(id), banned }))),
+    async muteInGroup(userId, hours, gid) {
+      if (gid) {
+        const x = og(gid).people.get(userId);
+        if (x) x.muted = hours > 0 ? Date.now() + hours * 3600_000 : 0;
+        return;
+      }
       if (hours > 0) groupMutes.set(userId, Date.now() + hours * 3600_000);
       else groupMutes.delete(userId);
+    },
+    myGroups: () =>
+      wait(
+        ownGroups
+          .filter((g) => current && g.people.has(current))
+          .map((g) => {
+            const last = g.msgs[g.msgs.length - 1];
+            const read = g.people.get(current!)!.read ?? g.people.get(current!)!.added;
+            return {
+              id: g.id,
+              name: g.name,
+              photo_url: g.photo_url,
+              text: !last ? 'No messages yet' : (last.kind as string) === 'join' ? `${who(last.sender_id).name} joined the group` : `${who(last.sender_id).name}: ${last.deleted_at ? 'Message deleted' : last.body || 'Photo'}`,
+              at: last?.created_at ?? g.created_at,
+              unread: g.msgs.filter((m) => m.sender_id !== current && (m.kind as string) !== 'join' && m.created_at > read).length,
+            };
+          })
+          .sort((a, b) => (a.at < b.at ? 1 : -1)),
+      ),
+    async createGroup(name, photoUrl) {
+      const me = needMe();
+      if (!who(me).is_sensei) throw new Error('Only the Grand Sensei can create groups.');
+      const now = new Date().toISOString();
+      const g: OwnGroup = { id: nid(), name: name.slice(0, 60), photo_url: photoUrl ?? null, announce_only: false, pinned_id: null, history: 'all', people: new Map([[me, { added: now, read: now, muted: 0 }]]), msgs: [], created_at: now };
+      ownGroups.push(g);
+      return g.id;
+    },
+    async deleteGroup(gid) {
+      const i = ownGroups.findIndex((g) => g.id === gid);
+      if (i >= 0) ownGroups.splice(i, 1);
+    },
+    addPeopleToGroup: async (gid, ids) => addPeople(gid, ids),
+    async leaveGroup(gid) {
+      og(gid).people.delete(needMe());
+    },
+    async createInvite(gid, message) {
+      og(gid);
+      const t = Math.random().toString(36).slice(2, 12);
+      invites.set(t, { gid, message, expires: Date.now() + 3 * 864e5 });
+      return t;
+    },
+    async getInvite(token) {
+      const i = invites.get(token);
+      const g = i && ownGroups.find((x) => x.id === i.gid);
+      if (!i || !g) return null;
+      const sensei = people.find((p) => p.is_sensei);
+      return wait({ gid: g.id, name: g.name, photo_url: g.photo_url, message: i.message, expires_at: new Date(i.expires).toISOString(), members: g.people.size, sender: sensei?.name ?? null, expired: i.expires < Date.now(), joined: Boolean(current && g.people.has(current)) });
+    },
+    async joinInvite(token) {
+      const i = invites.get(token);
+      if (!i) throw new Error('This invite link isn’t valid.');
+      if (i.expires < Date.now()) throw new Error('This invite link has expired. Ask the Grand Sensei for a new one.');
+      const p = who(needMe());
+      if (!(p.is_student || p.is_sensei || p.is_moderator)) throw new Error('Groups are for Motion Dojo students. Sign in with your student ID first.');
+      addPeople(i.gid, [p.id]);
+      return i.gid;
     },
     myAssignments: () => wait(assignments.filter((a) => a.user_id === current)),
     async submitAssignment(phase, kind, mediaUrl, caption) {

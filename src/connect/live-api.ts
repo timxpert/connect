@@ -967,19 +967,23 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       return String(data ?? '');
     },
 
-    async groupInfo() {
+    async groupInfo(gid) {
+      if (gid) {
+        const { data, error } = await sb.rpc('grp_info', { gid });
+        if (error) return null;
+        return ((data ?? []) as GroupInfo[])[0] ?? null;
+      }
       const [{ data, error }, { data: g }] = await Promise.all([sb.rpc('group_info'), sb.from('group_settings').select('*').eq('id', 1).maybeSingle()]);
       if (error) return null;
       const r = ((data ?? []) as GroupInfo[])[0];
       return r ? { ...r, photo_url: (g as { photo_url?: string | null } | null)?.photo_url ?? null } : null;
     },
-    async listGroupMessages() {
+    async listGroupMessages(gid) {
       const me = await uid();
-      const { data, error } = await sb
-        .from('group_messages')
-        .select('*, sender:profiles!group_messages_sender_id_fkey(*)')
-        .order('created_at', { ascending: false })
-        .limit(200);
+      const q = () => sb.from('group_messages').select('*, sender:profiles!group_messages_sender_id_fkey(*)').order('created_at', { ascending: false }).limit(200);
+      let { data, error } = await (gid ? q().eq('group_id', gid) : q().is('group_id', null));
+      // database without your own groups yet (groups.sql): everything is the community group
+      if (error && !gid && /group_id/.test(error.message)) ({ data, error } = await q());
       if (error && /group_messages/.test(error.message)) throw new Error('The group needs its database update. Run supabase/group.sql in Supabase.');
       fail(error);
       const rows = ((data ?? []) as GroupMessage[]).reverse();
@@ -994,7 +998,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         by.set(r.message_id, list);
       }
       const link = await sign(rows.map((r) => r.media_path).filter((p): p is string => Boolean(p)));
-      return rows.map((r) => ({ ...r, conversation_id: 'group', media_url: r.media_path ? link(r.media_path) : null, reactions: by.get(r.id) ?? [] }));
+      return rows.map((r) => ({ ...r, conversation_id: gid ? `g:${gid}` : 'group', media_url: r.media_path ? link(r.media_path) : null, reactions: by.get(r.id) ?? [] }));
     },
     async groupPreview() {
       // the group's own name and picture (group_info works even where the settings row can't be read directly)
@@ -1004,11 +1008,9 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         const row = g as { name?: string | null; photo_url?: string | null } | null;
         return { name: row?.name || i?.name || 'Dojo group', photo_url: row?.photo_url ?? null };
       };
-      const { data, error } = await sb
-        .from('group_messages')
-        .select('body, kind, deleted_at, created_at, sender:profiles!group_messages_sender_id_fkey(name)')
-        .order('created_at', { ascending: false })
-        .limit(1);
+      const q = () => sb.from('group_messages').select('body, kind, deleted_at, created_at, sender:profiles!group_messages_sender_id_fkey(name)').order('created_at', { ascending: false }).limit(1);
+      let { data, error } = await q().is('group_id', null);
+      if (error && /group_id/.test(error.message)) ({ data, error } = await q());
       if (error) {
         // still show the group in Messages; opening it shows what's wrong
         console.warn('[connect] group preview', error.message);
@@ -1020,17 +1022,18 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const text = r.kind === 'join' ? `${r.sender?.name ?? 'Someone'} joined the group` : `${r.sender?.name ?? 'Someone'}: ${preview(r)}`;
       return { name, photo_url, text, at: r.created_at, unread: Number(n ?? 0) };
     },
-    async sendGroupMessage(body, replyTo, forwarded) {
+    async sendGroupMessage(body, replyTo, forwarded, gid) {
       const me = await needUid();
       const sel = '*, sender:profiles!group_messages_sender_id_fkey(*)';
-      let { data, error } = await sb.from('group_messages').insert({ sender_id: me, body, kind: 'text', reply_to: replyTo ?? null, ...(forwarded ? { forwarded: true } : {}) }).select(sel).single();
-      if (error && forwarded && /forwarded/.test(error.message)) ({ data, error } = await sb.from('group_messages').insert({ sender_id: me, body, kind: 'text', reply_to: replyTo ?? null }).select(sel).single());
+      const g = gid ? { group_id: gid } : {};
+      let { data, error } = await sb.from('group_messages').insert({ ...g, sender_id: me, body, kind: 'text', reply_to: replyTo ?? null, ...(forwarded ? { forwarded: true } : {}) }).select(sel).single();
+      if (error && forwarded && /forwarded/.test(error.message)) ({ data, error } = await sb.from('group_messages').insert({ ...g, sender_id: me, body, kind: 'text', reply_to: replyTo ?? null }).select(sel).single());
       if (error && /row-level|policy/i.test(error.message)) throw new Error('You can’t send messages in the group right now.');
       fail(error);
-      ping('group', (data as GroupMessage).id, '/messages/group');
-      return { ...(data as GroupMessage), conversation_id: 'group', reactions: [] };
+      ping('group', (data as GroupMessage).id, gid ? `/messages/g/${gid}` : '/messages/group');
+      return { ...(data as GroupMessage), conversation_id: gid ? `g:${gid}` : 'group', reactions: [] };
     },
-    async sendGroupAttachment(a, caption, replyTo, onProgress, forwarded) {
+    async sendGroupAttachment(a, caption, replyTo, onProgress, forwarded, gid) {
       const me = await needUid();
       const file = a.kind === 'image' ? await prepareImage(a.file, 'posts') : a.file;
       const ext = (file.name.split('.').pop() || (a.kind === 'voice' ? 'webm' : 'bin')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
@@ -1042,7 +1045,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         path = `group/${me}-${Date.now()}.${ext}`;
         await xhrUpload('chat', path, file, onProgress);
       }
-      const row: Record<string, unknown> = { sender_id: me, body: caption, kind: a.kind, media_path: path, file_size: file.size, duration: a.duration ?? null, thumb: a.thumb ?? null, reply_to: replyTo ?? null, ...(a.kind === 'file' ? { file_name: a.file.name.slice(0, 200) } : {}), ...(forwarded ? { forwarded: true } : {}) };
+      const row: Record<string, unknown> = { ...(gid ? { group_id: gid } : {}), sender_id: me, body: caption, kind: a.kind, media_path: path, file_size: file.size, duration: a.duration ?? null, thumb: a.thumb ?? null, reply_to: replyTo ?? null, ...(a.kind === 'file' ? { file_name: a.file.name.slice(0, 200) } : {}), ...(forwarded ? { forwarded: true } : {}) };
       const sel = '*, sender:profiles!group_messages_sender_id_fkey(*)';
       let { data, error } = await sb.from('group_messages').insert(row).select(sel).single();
       if (error && /forwarded/.test(error.message) && row.forwarded) {
@@ -1052,9 +1055,9 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       if (error && /row-level|policy/i.test(error.message)) throw new Error('You can’t send messages in the group right now.');
       if (error && /file_name|kind_check/.test(error.message)) throw new Error('Documents need a database update: run supabase/group-files.sql in Supabase.');
       fail(error);
-      ping('group', (data as GroupMessage).id, '/messages/group');
+      ping('group', (data as GroupMessage).id, gid ? `/messages/g/${gid}` : '/messages/group');
       const link = await sign([path]);
-      return { ...(data as GroupMessage), conversation_id: 'group', media_url: link(path), reactions: [] };
+      return { ...(data as GroupMessage), conversation_id: gid ? `g:${gid}` : 'group', media_url: link(path), reactions: [] };
     },
     async deleteGroupMessage(id) {
       const { error } = await sb.rpc('delete_group_message', { mid: id });
@@ -1069,32 +1072,52 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         : await sb.from('group_reactions').delete().eq('message_id', id).eq('user_id', me);
       fail(error);
     },
-    async groupLastRead() {
+    async groupLastRead(gid) {
       const me = await uid();
       if (!me) return null;
+      if (gid) {
+        const { data } = await sb.from('group_people').select('last_read_at, added_at').eq('group_id', gid).eq('user_id', me).maybeSingle();
+        const r = data as { last_read_at: string | null; added_at: string } | null;
+        return r ? (r.last_read_at ?? r.added_at) : null;
+      }
       const { data } = await sb.from('group_reads').select('last_read_at').eq('user_id', me).maybeSingle();
       return (data as { last_read_at: string } | null)?.last_read_at ?? null;
     },
-    async groupReaders() {
-      const { data, error } = await sb.rpc('group_readers');
+    async groupReaders(gid) {
+      const { data, error } = gid ? await sb.rpc('grp_readers', { gid }) : await sb.rpc('group_readers');
       // not set up yet (group-reads.sql): no counts, nothing breaks
       if (error) return [];
       return ((data ?? []) as { user_id: string; name: string; avatar_url: string | null; last_read_at: string }[]).map((r) => ({ id: r.user_id, name: r.name, avatar_url: r.avatar_url, read_at: r.last_read_at }));
     },
-    async markGroupRead() {
+    async markGroupRead(gid) {
       const me = await uid();
       if (!me) return;
+      if (gid) {
+        await sb.rpc('grp_mark_read', { gid });
+        return;
+      }
       // also marks when other people's messages were first seen (group-update.sql)
       const { error } = await sb.rpc('mark_group_read');
       if (error) await sb.from('group_reads').upsert({ user_id: me, last_read_at: new Date().toISOString() });
     },
-    async setGroupSettings(s) {
+    async setGroupSettings(s, gid) {
+      if (gid) {
+        const { data, error } = await sb.from('groups').update(s).eq('id', gid).select('id');
+        fail(error);
+        if (!data?.length) throw new Error('Only the Grand Sensei can change this group.');
+        return;
+      }
       const { data, error } = await sb.from('group_settings').update(s).eq('id', 1).select('id');
       fail(error);
       // nothing changed means the database didn't allow it: say so instead of pretending it saved
       if (!data?.length) throw new Error('Couldn’t save the group settings. Only the Grand Sensei and moderators can change them.');
     },
-    async groupMembers() {
+    async groupMembers(gid) {
+      if (gid) {
+        const { data, error } = await sb.rpc('grp_members', { gid });
+        fail(error);
+        return (data ?? []) as Profile[];
+      }
       const { data, error } = await sb.rpc('group_members');
       if (!error) return (data ?? []) as Profile[];
       // database without the member list yet
@@ -1102,7 +1125,8 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(r.error);
       return (r.data ?? []) as Profile[];
     },
-    async groupStatus() {
+    async groupStatus(gid) {
+      if (gid) return 'none';
       const { data, error } = await sb.rpc('my_group_status');
       if (error) return 'member';
       return data as 'member' | 'removed' | 'banned' | 'none';
@@ -1112,26 +1136,96 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       if (error?.message.includes('banned_from_group')) throw new Error('You can’t join the group right now.');
       fail(error);
     },
-    async removeFromGroup(userId, ban) {
+    async removeFromGroup(userId, ban, gid) {
+      if (gid) {
+        const { error } = await sb.rpc('grp_remove', { gid, uid: userId });
+        fail(error);
+        return;
+      }
       const { error } = await sb.rpc('remove_from_group', { uid: userId, ban });
       if (error && /remove_from_group/.test(error.message)) throw new Error('Run supabase/admin.sql in Supabase first.');
       fail(error);
     },
-    async addToGroup(userId) {
+    async addToGroup(userId, gid) {
+      if (gid) {
+        const { error } = await sb.rpc('grp_add', { gid, uids: [userId] });
+        fail(error);
+        return;
+      }
       const { error } = await sb.rpc('add_to_group', { uid: userId });
       fail(error);
     },
-    async groupRemoved() {
+    async groupRemoved(gid) {
+      if (gid) return [];
       const { data, error } = await sb.from('group_removed').select('banned, profile:profiles!group_removed_user_id_fkey(*)').order('at', { ascending: false });
       if (error) return [];
       return ((data ?? []) as unknown as { banned: boolean; profile: Profile }[]).filter((r) => r.profile);
     },
-    async muteInGroup(userId, hours) {
+    async muteInGroup(userId, hours, gid) {
+      if (gid) {
+        const { error } = await sb.rpc('grp_mute', { gid, uid: userId, hours });
+        fail(error);
+        return;
+      }
       const me = await needUid();
       const { error } = hours > 0
         ? await sb.from('group_mutes').upsert({ user_id: userId, until: new Date(Date.now() + hours * 3600_000).toISOString(), by: me })
         : await sb.from('group_mutes').delete().eq('user_id', userId);
       fail(error);
+    },
+
+    /* Your own groups (groups.sql) */
+    async myGroups() {
+      const { data, error } = await sb.rpc('my_groups');
+      if (error) return [];
+      return ((data ?? []) as { id: string; name: string; photo_url: string | null; last_body: string | null; last_kind: string | null; last_file: string | null; last_deleted: boolean | null; last_sender: string | null; last_at: string | null; unread: number; created_at: string }[]).map((r) => ({
+        id: r.id,
+        name: r.name,
+        photo_url: r.photo_url,
+        text: !r.last_kind ? 'No messages yet' : r.last_kind === 'join' ? `${r.last_sender ?? 'Someone'} joined the group` : `${r.last_sender ?? 'Someone'}: ${preview({ body: r.last_body ?? '', kind: r.last_kind, deleted_at: r.last_deleted ? 'x' : null, file_name: r.last_file } as never)}`,
+        at: r.last_at ?? r.created_at,
+        unread: Number(r.unread ?? 0),
+      }));
+    },
+    async createGroup(name, photoUrl) {
+      const { data, error } = await sb.rpc('create_group', { gname: name, photo: photoUrl ?? null });
+      if (error && /create_group/.test(error.message) && /function/i.test(error.message)) throw new Error('Run supabase/groups.sql in Supabase first.');
+      if (error?.message.includes('sensei_only')) throw new Error('Only the Grand Sensei can create groups.');
+      fail(error);
+      return String(data);
+    },
+    async deleteGroup(gid) {
+      const { error } = await sb.rpc('delete_group', { gid });
+      fail(error);
+    },
+    async addPeopleToGroup(gid, userIds) {
+      const { data, error } = await sb.rpc('grp_add', { gid, uids: userIds });
+      fail(error);
+      return Number(data ?? 0);
+    },
+    async leaveGroup(gid) {
+      const me = await needUid();
+      const { error } = await sb.rpc('grp_remove', { gid, uid: me });
+      fail(error);
+    },
+    async createInvite(gid, message) {
+      const { data, error } = await sb.rpc('create_group_invite', { gid, msg: message });
+      fail(error);
+      return String(data);
+    },
+    async getInvite(token) {
+      const { data, error } = await sb.rpc('group_invite', { t: token });
+      fail(error);
+      const r = ((data ?? []) as { group_id: string; name: string; photo_url: string | null; message: string; expires_at: string; members: number; sender: string | null; expired: boolean; joined: boolean }[])[0];
+      return r ? { gid: r.group_id, name: r.name, photo_url: r.photo_url, message: r.message, expires_at: r.expires_at, members: r.members, sender: r.sender, expired: r.expired, joined: r.joined } : null;
+    },
+    async joinInvite(token) {
+      const { data, error } = await sb.rpc('join_group_invite', { t: token });
+      if (error?.message.includes('invite_expired')) throw new Error('This invite link has expired. Ask the Grand Sensei for a new one.');
+      if (error?.message.includes('invite_not_found')) throw new Error('This invite link isn’t valid.');
+      if (error?.message.includes('members_only')) throw new Error('Groups are for Motion Dojo students. Sign in with your student ID first.');
+      fail(error);
+      return String(data);
     },
 
     async report(target, id, reason) {

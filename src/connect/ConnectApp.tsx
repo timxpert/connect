@@ -18,7 +18,7 @@ import { A, Avatar, Icon, Loading } from './ui';
 import { Feed, PostScreen, ProfileScreen, Students } from './screens-browse';
 import { Login, Settings, Welcome } from './screens-me';
 import { Chat, Inbox } from './chat';
-import { GroupChat, GroupInfoScreen } from './group';
+import { GroupChat, GroupInfoScreen, JoinGroupScreen } from './group';
 import { PhasePrompt } from './phase-prompt';
 import { ChallengeScreen } from './challenge';
 import { Connections, Notifications, Saved } from './screens-social';
@@ -229,10 +229,23 @@ function Shell({ route }: { route: Route }) {
   const authKnown = me !== undefined;
   // The home address always asks again, so someone who tapped "just looking" by
   // mistake (or pressed back) can still say they're a member
-  const welcome = authKnown && !signedIn && route.name !== 'login' && (route.name === 'feed' || !visitor);
+  const welcome = authKnown && !signedIn && route.name !== 'login' && route.name !== 'join' && (route.name === 'feed' || !visitor);
+  // Opened a group invite before signing in: go back to it once signed in
+  useEffect(() => {
+    if (!signedIn) return;
+    try {
+      const t = localStorage.getItem('cx-join');
+      if (t) {
+        localStorage.removeItem('cx-join');
+        navigate(`/join/${t}`);
+      }
+    } catch {
+      /* storage blocked */
+    }
+  }, [signedIn]);
 
   // Non-members only see Students, student profiles and their posts
-  const guestOk = ['students', 'profile', 'post', 'login', 'feed', 'learn', 'lesson', 'appearance'].includes(route.name) || (signedIn && route.name === 'settings');
+  const guestOk = ['students', 'profile', 'post', 'login', 'feed', 'learn', 'lesson', 'appearance', 'join'].includes(route.name) || (signedIn && route.name === 'settings');
   useEffect(() => {
     if (authKnown && !member && !guestOk) navigate('/students');
   }, [authKnown, member, guestOk]);
@@ -262,9 +275,11 @@ function Shell({ route }: { route: Route }) {
       case 'appearance':
         return <AppearanceScreen />;
       case 'group':
-        return <GroupChat />;
+        return <GroupChat key={route.gid ?? 'main'} gid={route.gid ?? null} />;
       case 'group-info':
-        return <GroupInfoScreen />;
+        return <GroupInfoScreen key={route.gid ?? 'main'} gid={route.gid ?? null} />;
+      case 'join':
+        return <JoinGroupScreen token={route.token} />;
       case 'chat':
         return <Chat key={route.id} id={route.id} />;
       case 'login':

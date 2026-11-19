@@ -4,17 +4,17 @@
    and reactions. The team can pin a message, remove any message, mute a
    student for a while and switch the group to announcements only. */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useConnect } from './context';
 import { peek } from './cache';
 import { useDragToClose } from './drag';
-import { navigate } from './router';
+import { navigate, to } from './router';
 import { useOnline } from './presence';
 import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
 import { ForwardSheet } from './forward';
-import type { Attachment, GroupHistory, GroupInfo, GroupMessage, GroupReader, Profile } from './types';
+import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
 
 const MAX_FILE = 50 * 1024 * 1024;
@@ -25,6 +25,55 @@ const HISTORY: [GroupHistory, string][] = [
   ['100', 'The last 100 messages'],
   ['none', 'Only messages after they join'],
 ];
+
+/* One screen serves every group: the community group (no id) and the Grand
+   Sensei's own groups. GroupScope says which; useGroup() hands out an api
+   whose group calls go to that group, so the screens below don't change. */
+const GroupScope = createContext<string | null>(null);
+// where the group id goes in each call (after the call's own arguments)
+const ARITY: Record<string, number> = {
+  groupInfo: 0, listGroupMessages: 0, sendGroupMessage: 3, sendGroupAttachment: 5, markGroupRead: 0, groupLastRead: 0, groupReaders: 0,
+  setGroupSettings: 1, groupMembers: 0, groupStatus: 0, removeFromGroup: 2, addToGroup: 1, groupRemoved: 0, muteInGroup: 2,
+};
+type Api = ReturnType<typeof useConnect>['api'];
+function scopedApi(api: Api, gid: string): Api {
+  return new Proxy(api, {
+    get(target, prop: string | symbol) {
+      const fn = Reflect.get(target, prop) as unknown;
+      if (typeof fn !== 'function') return fn;
+      const name = String(prop);
+      if (name === 'subscribe')
+        return (table: string, filter: string, cb: (c: { event: string; row: Record<string, unknown> }) => void) =>
+          table === 'group_messages'
+            ? target.subscribe('group_messages', `group_id=eq.${gid}`, cb)
+            : table === 'group_settings'
+              ? target.subscribe('groups', `id=eq.${gid}`, cb)
+              : target.subscribe(table as 'group_reactions', filter, cb);
+      if (name in ARITY)
+        return (...args: unknown[]) => {
+          const a = args.slice(0, ARITY[name]);
+          while (a.length < ARITY[name]) a.push(undefined);
+          return (fn as (...x: unknown[]) => unknown).apply(target, [...a, gid]);
+        };
+      return (fn as (...x: unknown[]) => unknown).bind(target);
+    },
+  });
+}
+export function groupPath(gid: string | null) {
+  return gid ? `/messages/g/${gid}` : '/messages/group';
+}
+type Scope = ReturnType<typeof useConnect> & { api: Api; gid: string | null; team: boolean; base: string; last: <T>(name: string) => T | undefined };
+function useGroup(): Scope {
+  const c = useConnect();
+  const gid = useContext(GroupScope);
+  const api: Api = useMemo(() => (gid ? scopedApi(c.api, gid) : c.api), [c.api, gid]);
+  // In your own groups only the Grand Sensei runs things; in the community group the whole team does
+  const team = Boolean(gid ? c.me?.is_sensei : c.me?.is_sensei || c.me?.is_moderator);
+  function last<T>(name: string): T | undefined {
+    return gid ? peek<T>(name, gid) : peek<T>(name);
+  }
+  return { ...c, api, gid, team, base: groupPath(gid), last };
+}
 
 const snippet = (m: GroupMessage) =>
   m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.kind === 'file' ? m.body || m.file_name || 'Document' : m.body;
@@ -45,10 +94,18 @@ function whoName(m: GroupMessage) {
   return m.sender?.is_moderator ? `${n} · Team` : n;
 }
 
-export function GroupChat() {
-  const { api, me, signedIn, toast, ask } = useConnect();
-  const [info, setInfo] = useState<GroupInfo | null | undefined>(() => peek<GroupInfo | null>('groupInfo'));
-  const [msgs, setMsgs] = useState<GroupMessage[]>(() => peek<GroupMessage[]>('listGroupMessages') ?? []);
+export function GroupChat({ gid = null }: { gid?: string | null }) {
+  return (
+    <GroupScope.Provider value={gid}>
+      <GroupChatInner />
+    </GroupScope.Provider>
+  );
+}
+
+function GroupChatInner() {
+  const { api, me, signedIn, toast, ask, team, base, gid, last } = useGroup();
+  const [info, setInfo] = useState<GroupInfo | null | undefined>(() => last<GroupInfo | null>('groupInfo'));
+  const [msgs, setMsgs] = useState<GroupMessage[]>(() => last<GroupMessage[]>('listGroupMessages') ?? []);
   const [local, setLocal] = useState<GroupMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
@@ -73,8 +130,6 @@ export function GroupChat() {
   const recorder = useRef<{ mr: MediaRecorder; chunks: Blob[]; stream: MediaStream; cancel: boolean } | null>(null);
   const heldSheet = useDragToClose<HTMLDivElement>(() => setHeld(null), Boolean(held));
   useEffect(() => setDownloaded(loadDownloaded()), []);
-
-  const team = Boolean(me?.is_sensei || me?.is_moderator);
 
   // after picking a mention, put the cursor right after it
   useEffect(() => {
@@ -447,10 +502,10 @@ export function GroupChat() {
         <A path="/messages" className="cx-icon-btn cx-icon-flat" aria-label="All messages">
           <Icon name="back" />
         </A>
-        <A path="/messages/group/info" className="cx-person" aria-label="Group info">
-          <GroupPhoto url={info.photo_url} size={40} />
+        <A path={`${base}/info`} className="cx-person" aria-label="Group info">
+          <GroupPhoto url={info.photo_url} size={40} name={gid ? info.name : undefined} />
           <span className="cx-person-text">
-            <span className="cx-person-name">{info.name || storedName()}</span>
+            <span className="cx-person-name">{info.name || (gid ? '' : storedName())}</span>
             <span className="cx-person-meta cx-group-names">{memberNames(people, me.id) || `${info.members} members`}</span>
           </span>
         </A>
@@ -463,7 +518,7 @@ export function GroupChat() {
               <>
                 <div className="cx-menu-scrim" onClick={() => setMenu(false)} aria-hidden="true" />
                 <div className="cx-menu-list" role="menu">
-                  <A path="/messages/group/info" role="menuitem">
+                  <A path={`${base}/info`} role="menuitem">
                     Group info
                   </A>
                   <button type="button" role="menuitem" onClick={() => (setMenu(false), pin(null))}>
@@ -534,7 +589,7 @@ export function GroupChat() {
 
       {!canSend ? (
         <div className="cx-chat-blocked">
-          <p>{muted ? `You’re muted in the group until ${new Date(info.muted_until!).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}.` : 'Only the team can post right now.'}</p>
+          <p>{muted ? `You’re muted in the group until ${new Date(info.muted_until!).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}.` : gid ? 'Only the Grand Sensei can post right now.' : 'Only the team can post right now.'}</p>
         </div>
       ) : rec ? (
         <div className="cx-chat-compose cx-rec" role="group" aria-label="Recording a voice note">
@@ -702,9 +757,11 @@ export function GroupChat() {
                 <button type="button" role="menuitem" className="cx-danger" onClick={() => (setHeld(null), outOfGroup(api, ask, toast, held.sender!, false))}>
                   <Icon name="out" /> Remove {held.sender?.name} from the group
                 </button>
-                <button type="button" role="menuitem" className="cx-danger" onClick={() => (setHeld(null), outOfGroup(api, ask, toast, held.sender!, true))}>
-                  <Icon name="close" /> Ban {held.sender?.name} from the group
-                </button>
+                {!gid && (
+                  <button type="button" role="menuitem" className="cx-danger" onClick={() => (setHeld(null), outOfGroup(api, ask, toast, held.sender!, true))}>
+                    <Icon name="close" /> Ban {held.sender?.name} from the group
+                  </button>
+                )}
               </>
             )}
             {team || (held.sender_id === me.id && canUnsend(held.created_at, held.seen_at)) ? (
@@ -788,10 +845,17 @@ function storedName(): string {
   }
 }
 
-export function GroupPhoto({ url, size }: { url?: string | null; size: number }) {
+/** name: your own groups show their first letter until they have a photo */
+export function GroupPhoto({ url, size, name }: { url?: string | null; size: number; name?: string }) {
   return (
     <span className="cx-group-ico" style={{ width: size, height: size }} aria-hidden="true">
-      <img src={url || '/assets/favicon-128.png'} alt="" width={size} height={size} />
+      {!url && name ? (
+        <span className="cx-group-initial" style={{ fontSize: size * 0.42 }}>
+          {name.trim().charAt(0).toUpperCase()}
+        </span>
+      ) : (
+        <img src={url || '/assets/favicon-128.png'} alt="" width={size} height={size} />
+      )}
     </span>
   );
 }
@@ -826,7 +890,7 @@ async function outOfGroup(
 
 /** Shown instead of the chat to someone who isn't in the group */
 function NotInGroup({ onBack }: { onBack: () => void }) {
-  const { api, toast } = useConnect();
+  const { api, toast, gid } = useGroup();
   const [status, setStatus] = useState<'member' | 'removed' | 'banned' | 'none' | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -856,6 +920,7 @@ function NotInGroup({ onBack }: { onBack: () => void }) {
       </Empty>
     );
   if (status === 'banned') return <Empty title="You can’t join the group right now" />;
+  if (gid) return <Empty title="You’re not in this group" />;
   return <Empty title="The group is for Black Belt members" />;
 }
 
@@ -887,10 +952,19 @@ function MemberRow({ p, me, onMenu }: { p: Profile; me: string; onMenu?: (p: Pro
   );
 }
 
-export function GroupInfoScreen() {
-  const { api, me, toast, ask } = useConnect();
-  const team = Boolean(me?.is_sensei || me?.is_moderator);
-  const [info, setInfo] = useState<GroupInfo | null | undefined>(() => peek<GroupInfo | null>('groupInfo'));
+export function GroupInfoScreen({ gid = null }: { gid?: string | null }) {
+  return (
+    <GroupScope.Provider value={gid}>
+      <GroupInfoInner />
+    </GroupScope.Provider>
+  );
+}
+
+function GroupInfoInner() {
+  const { api, me, toast, ask, team, gid, base, last } = useGroup();
+  const [info, setInfo] = useState<GroupInfo | null | undefined>(() => last<GroupInfo | null>('groupInfo'));
+  const [adding, setAdding] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [members, setMembers] = useState<Profile[] | null>(null);
   const [media, setMedia] = useState<GroupMessage[]>([]);
   const [tab, setTab] = useState<'members' | 'media' | 'settings'>('members');
@@ -918,7 +992,7 @@ export function GroupInfoScreen() {
   }, [api, me]);
 
   if (me === undefined || info === undefined) return <Loading />;
-  if (!me || info === null) return <Empty title="The group is for Black Belt members" />;
+  if (!me || info === null) return <Empty title={gid ? 'You’re not in this group' : 'The group is for Black Belt members'} />;
 
   const save = async (s: Parameters<typeof api.setGroupSettings>[0], done?: string) => {
     setInfo({ ...info, ...s });
@@ -952,14 +1026,14 @@ export function GroupInfoScreen() {
 
   return (
     <div className="cx-col cx-gi">
-      <A path="/messages/group" className="cx-back">
+      <A path={base} className="cx-back">
         <Icon name="back" size={20} />
         Back to the group
       </A>
 
       <div className="cx-gi-head">
-        <GroupPhoto url={info.photo_url} size={96} />
-        <h1>{info.name || storedName()}</h1>
+        <GroupPhoto url={info.photo_url} size={96} name={gid ? info.name : undefined} />
+        <h1>{info.name || (gid ? '' : storedName())}</h1>
         <p>{info.members} members</p>
         {team && (
           <div className="cx-gi-actions">
@@ -993,6 +1067,22 @@ export function GroupInfoScreen() {
           <Loading label="Loading members" />
         ) : (
           <>
+            {gid && team && (
+              <div className="cx-gi-invite">
+                <button type="button" className="cx-gi-act" onClick={() => setAdding(true)}>
+                  <span className="cx-gi-act-ico" aria-hidden="true">
+                    <Icon name="plus" size={20} />
+                  </span>
+                  Add people
+                </button>
+                <button type="button" className="cx-gi-act" onClick={() => setInviting(true)}>
+                  <span className="cx-gi-act-ico" aria-hidden="true">
+                    <Icon name="link" size={20} />
+                  </span>
+                  Invite with a link
+                </button>
+              </div>
+            )}
             <label className="cx-search cx-gi-search">
               <Icon name="search" size={20} />
               <input type="search" placeholder="Search members" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -1003,6 +1093,31 @@ export function GroupInfoScreen() {
               ))}
               {list.length === 0 && <li className="cx-gi-none">No one matches “{q}”.</li>}
             </ul>
+            {gid && (
+              <button
+                type="button"
+                className="btn btn-sm cx-ln-delete cx-gi-leave"
+                onClick={async () => {
+                  const del = team;
+                  const ok = await ask({
+                    title: del ? `Delete ${info.name}?` : `Leave ${info.name}?`,
+                    body: del ? 'The group and all its messages are removed for everyone.' : 'You can join again with a new invite link.',
+                    confirm: del ? 'Delete group' : 'Leave',
+                    danger: true,
+                  });
+                  if (!ok) return;
+                  try {
+                    await (del ? api.deleteGroup(gid) : api.leaveGroup(gid));
+                    toast(del ? 'Group deleted' : 'You left the group');
+                    navigate('/messages');
+                  } catch (e) {
+                    toast((e as Error).message);
+                  }
+                }}
+              >
+                {team ? 'Delete group' : 'Leave group'}
+              </button>
+            )}
             {team && removed.length > 0 && (
               <section className="cx-gi-removed">
                 <h2>Not in the group</h2>
@@ -1063,8 +1178,8 @@ export function GroupInfoScreen() {
               <button type="button" role="radio" aria-checked={!info.announce_only} className={!info.announce_only ? 'is-on' : ''} onClick={() => save({ announce_only: false }, 'Everyone can post')}>
                 Everyone
               </button>
-              <button type="button" role="radio" aria-checked={info.announce_only} className={info.announce_only ? 'is-on' : ''} onClick={() => save({ announce_only: true }, 'Only the team can post')}>
-                Only the team
+              <button type="button" role="radio" aria-checked={info.announce_only} className={info.announce_only ? 'is-on' : ''} onClick={() => save({ announce_only: true }, gid ? 'Only you can post' : 'Only the team can post')}>
+                {gid ? 'Only me' : 'Only the team'}
               </button>
             </div>
           </section>
@@ -1109,18 +1224,20 @@ export function GroupInfoScreen() {
             >
               <Icon name="out" /> Remove from the group
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="cx-danger"
-              onClick={() => {
-                const p = acting;
-                setActing(null);
-                outOfGroup(api, ask, toast, p, true, reloadMembers);
-              }}
-            >
-              <Icon name="close" /> Ban from the group
-            </button>
+            {!gid && (
+              <button
+                type="button"
+                role="menuitem"
+                className="cx-danger"
+                onClick={() => {
+                  const p = acting;
+                  setActing(null);
+                  outOfGroup(api, ask, toast, p, true, reloadMembers);
+                }}
+              >
+                <Icon name="close" /> Ban from the group
+              </button>
+            )}
             <button type="button" role="menuitem" onClick={() => setActing(null)}>
               Cancel
             </button>
@@ -1128,7 +1245,248 @@ export function GroupInfoScreen() {
         </div>
       )}
 
+      {adding && gid && <AddPeople gid={gid} have={new Set((members ?? []).map((p) => p.id))} onClose={() => setAdding(false)} onDone={reloadMembers} />}
+      {inviting && gid && <InviteSheet gid={gid} name={info.name ?? ''} onClose={() => setInviting(false)} />}
       {viewing && <Viewer m={viewing} onClose={() => setViewing(null)} onSave={() => saveToPhone(viewing, toast)} />}
+    </div>
+  );
+}
+
+/* ================= Your own groups ================= */
+/** Grand Sensei: pick students to put in the group */
+function AddPeople({ gid, have, onClose, onDone }: { gid: string; have: Set<string>; onClose: () => void; onDone: () => void }) {
+  const { api, toast } = useConnect();
+  const sheet = useDragToClose<HTMLDivElement>(onClose);
+  const [all, setAll] = useState<Profile[] | null>(null);
+  const [q, setQ] = useState('');
+  const [pick, setPick] = useState<Set<string>>(() => new Set());
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.groupMembers(null).then((l) => setAll(l.filter((p) => !have.has(p.id)))).catch(() => setAll([]));
+  }, [api]);
+  const term = q.trim().toLowerCase();
+  const list = (all ?? []).filter((p) => !term || p.name.toLowerCase().includes(term) || p.handle.toLowerCase().includes(term));
+  const flip = (id: string) =>
+    setPick((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const add = async () => {
+    setBusy(true);
+    try {
+      const n = await api.addPeopleToGroup(gid, [...pick]);
+      toast(n === 1 ? '1 person added' : `${n} people added`);
+      onDone();
+      onClose();
+    } catch (e) {
+      toast((e as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-drag cx-addp" role="dialog" aria-label="Add people" ref={sheet} onClick={(e) => e.stopPropagation()}>
+        <span className="cx-grab" aria-hidden="true" />
+        <h2 className="cx-fwd-title">Add people</h2>
+        <label className="cx-search cx-gi-search">
+          <Icon name="search" size={20} />
+          <input type="search" placeholder="Search students" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
+        {!all ? (
+          <Loading />
+        ) : (
+          <ul className="cx-fwd-list" data-scroll>
+            {list.map((p) => (
+              <li key={p.id}>
+                <button type="button" className="cx-fwd-row cx-addp-row" aria-pressed={pick.has(p.id)} onClick={() => flip(p.id)}>
+                  <Avatar p={p} size={40} />
+                  <span className="cx-fwd-name">
+                    {p.name}
+                    {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
+                  </span>
+                  <span className={pick.has(p.id) ? 'cx-addp-tick is-on' : 'cx-addp-tick'} aria-hidden="true">
+                    {pick.has(p.id) && <Icon name="check" size={16} />}
+                  </span>
+                </button>
+              </li>
+            ))}
+            {list.length === 0 && <li className="cx-fwd-note">{all.length ? `No one matches “${q}”.` : 'Everyone is already in the group.'}</li>}
+          </ul>
+        )}
+        <button type="button" className="btn btn-primary cx-addp-go" disabled={!pick.size || busy} onClick={add}>
+          {busy ? 'Adding…' : pick.size ? `Add ${pick.size}` : 'Add'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Grand Sensei: a link that works for 3 days, sent with a message */
+function InviteSheet({ gid, name, onClose }: { gid: string; name: string; onClose: () => void }) {
+  const { api, toast } = useConnect();
+  const sheet = useDragToClose<HTMLDivElement>(onClose);
+  const [msg, setMsg] = useState(`Join ${name} on Motion Dojo Connect.`);
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const make = async () => {
+    setBusy(true);
+    try {
+      const t = await api.createInvite(gid, msg.trim());
+      setLink(new URL(to(`/join/${t}`), window.location.href).href);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const text = `${msg.trim()}\n${link}`;
+  const share = async () => {
+    try {
+      if (navigator.share) await navigator.share({ title: name, text: msg.trim(), url: link });
+      else {
+        await navigator.clipboard.writeText(text);
+        toast('Copied');
+      }
+    } catch {
+      /* closed the share sheet */
+    }
+  };
+  return (
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-drag cx-invite" role="dialog" aria-label="Invite link" ref={sheet} onClick={(e) => e.stopPropagation()}>
+        <span className="cx-grab" aria-hidden="true" />
+        <h2 className="cx-fwd-title">Invite with a link</h2>
+        {!link ? (
+          <>
+            <label className="cx-invite-label" htmlFor="cx-invite-msg">
+              Message
+            </label>
+            <textarea id="cx-invite-msg" className="cx-invite-msg" rows={4} maxLength={600} value={msg} onChange={(e) => setMsg(e.target.value)} />
+            <p className="cx-fwd-note">The link works for 3 days.</p>
+            <button type="button" className="btn btn-primary cx-addp-go" disabled={busy} onClick={make}>
+              {busy ? 'Making link…' : 'Make link'}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="cx-invite-out">
+              <p>{msg.trim()}</p>
+              <a href={link}>{link}</a>
+            </div>
+            <p className="cx-fwd-note">Expires {new Date(Date.now() + 3 * 864e5).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}.</p>
+            <div className="cx-invite-btns">
+              <button type="button" className="btn btn-primary" onClick={share}>
+                Share
+              </button>
+              <button
+                type="button"
+                className="btn btn-light"
+                onClick={() =>
+                  navigator.clipboard
+                    .writeText(text)
+                    .then(() => toast('Copied'))
+                    .catch(() => toast('Couldn’t copy'))
+                }
+              >
+                Copy
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Grand Sensei: name a new group, then add people */
+export function NewGroupSheet({ onClose }: { onClose: () => void }) {
+  const { api, toast } = useConnect();
+  const sheet = useDragToClose<HTMLDivElement>(onClose);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const create = async () => {
+    setBusy(true);
+    try {
+      const gid = await api.createGroup(name.trim());
+      onClose();
+      navigate(`${groupPath(gid)}/info`);
+    } catch (e) {
+      toast((e as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-drag cx-invite" role="dialog" aria-label="New group" ref={sheet} onClick={(e) => e.stopPropagation()}>
+        <span className="cx-grab" aria-hidden="true" />
+        <h2 className="cx-fwd-title">New group</h2>
+        <label className="cx-invite-label" htmlFor="cx-group-name">
+          Group name
+        </label>
+        <input id="cx-group-name" className="cx-invite-name" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} placeholder="Phase 3 crew" autoFocus />
+        <button type="button" className="btn btn-primary cx-addp-go" disabled={!name.trim() || busy} onClick={create}>
+          {busy ? 'Creating…' : 'Create'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** What someone sees when they open an invite link */
+export function JoinGroupScreen({ token }: { token: string }) {
+  const { api, me, signedIn, toast } = useConnect();
+  const [inv, setInv] = useState<GroupInvite | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.getInvite(token).then(setInv).catch(() => setInv(null));
+  }, [api, token, me?.id]);
+  if (inv === undefined) return <Loading />;
+  if (!inv) return <Empty title="This invite link isn’t valid" />;
+  if (inv.joined) {
+    navigate(groupPath(inv.gid));
+    return <Loading />;
+  }
+  const join = async () => {
+    if (!signedIn) {
+      try {
+        localStorage.setItem('cx-join', token);
+      } catch {
+        /* storage blocked */
+      }
+      return navigate('/login');
+    }
+    setBusy(true);
+    try {
+      const gid = await api.joinInvite(token);
+      navigate(groupPath(gid));
+    } catch (e) {
+      toast((e as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="cx-col cx-join">
+      <GroupPhoto url={inv.photo_url} size={96} name={inv.name} />
+      <h1>{inv.name}</h1>
+      <p className="cx-join-count">{inv.members === 1 ? '1 member' : `${inv.members} members`}</p>
+      {inv.message && (
+        <div className="cx-join-msg">
+          <p>{inv.message}</p>
+          {inv.sender && <small>{inv.sender}</small>}
+        </div>
+      )}
+      {inv.expired ? (
+        <p className="cx-join-note">This link has expired. Ask the Grand Sensei for a new one.</p>
+      ) : (
+        <>
+          <button type="button" className="btn btn-primary cx-join-go" disabled={busy} onClick={join}>
+            {busy ? 'Joining…' : signedIn ? 'Join group' : 'Sign in to join'}
+          </button>
+          <p className="cx-join-note">Link expires {new Date(inv.expires_at).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}</p>
+        </>
+      )}
     </div>
   );
 }

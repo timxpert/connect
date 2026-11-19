@@ -7,12 +7,13 @@ import { play } from './sounds';
 import { alertsUndecided, askForAlerts } from './alerts';
 import { presenceLabel, useOnline } from './presence';
 import { useDragToClose } from './drag';
-import type { Attachment, Conversation, Message, Profile } from './types';
+import type { Attachment, Conversation, GroupRow, Message, Profile } from './types';
 import { peek } from './cache';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
 import { CameraScreen } from './camera';
+import { NewGroupSheet } from './group';
 
 /* ------------------------------------------------------------------
    One conversation, WhatsApp-style:
@@ -1431,6 +1432,48 @@ function GroupInboxRow() {
   );
 }
 
+/** The Grand Sensei's own groups I'm in */
+function OwnGroupRows() {
+  const { api } = useConnect();
+  const [rows, setRows] = useState<GroupRow[]>(() => peek<GroupRow[]>('myGroups') ?? []);
+  useEffect(() => {
+    const load = () => api.myGroups().then(setRows).catch(() => {});
+    load();
+    const stop = api.subscribe('group_messages', '', load);
+    const t = window.setInterval(() => document.visibilityState === 'visible' && load(), 30000);
+    return () => {
+      stop();
+      window.clearInterval(t);
+    };
+  }, [api]);
+  if (!rows.length) return null;
+  return (
+    <ul className="cx-inbox cx-inbox-group">
+      {rows.map((g) => (
+        <li key={g.id}>
+          <A path={`/messages/g/${g.id}`} className={g.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
+            <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true">
+              {g.photo_url ? <img src={g.photo_url} alt="" width={56} height={56} /> : <span className="cx-group-initial">{g.name.trim().charAt(0).toUpperCase()}</span>}
+            </span>
+            <span className="cx-inbox-text">
+              <span className="cx-inbox-top">
+                <span className="cx-person-name">{g.name}</span>
+                {g.at && <span className="cx-inbox-time">{shortTime(g.at)}</span>}
+              </span>
+              <span className="cx-inbox-bottom">
+                <span className="cx-inbox-last">
+                  <span className="cx-inbox-snippet">{g.text}</span>
+                </span>
+                {g.unread > 0 && <span className="cx-inbox-count">{g.unread > 99 ? '99+' : g.unread}</span>}
+              </span>
+            </span>
+          </A>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function OnlineDot({ id }: { id: string }) {
   return useOnline(id) ? <span className="cx-online-dot" aria-label="Online" /> : null;
 }
@@ -1452,6 +1495,7 @@ export function Inbox() {
   const [q, setQ] = useState('');
   const [opening, setOpening] = useState('');
   const [askAlerts, setAskAlerts] = useState(false);
+  const [newGroup, setNewGroup] = useState(false);
   useEffect(() => {
     let dismissed = false;
     try {
@@ -1518,7 +1562,16 @@ export function Inbox() {
 
   return (
     <div className="cx-col cx-inbox-page">
-      <h1 className="cx-inbox-title">Messages</h1>
+      <div className="cx-inbox-head">
+        <h1 className="cx-inbox-title">Messages</h1>
+        {me.is_sensei && (
+          <button type="button" className="cx-new-group" onClick={() => setNewGroup(true)}>
+            <Icon name="people" size={18} />
+            New group
+          </button>
+        )}
+      </div>
+      {newGroup && <NewGroupSheet onClose={() => setNewGroup(false)} />}
 
       {askAlerts && (
         <div className="cx-alerts-ask">
@@ -1555,6 +1608,7 @@ export function Inbox() {
       )}
 
       {(me.is_student || me.is_sensei || me.is_moderator) && !term && <GroupInboxRow />}
+      {!term && <OwnGroupRows />}
 
       {list!.length === 0 ? (
         <div className="cx-inbox-empty">

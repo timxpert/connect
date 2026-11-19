@@ -157,6 +157,9 @@ export type BriefItem = { kind: 'image' | 'file' | 'link' | 'video'; url: string
 
 export type PhaseRequest = { id: string; name: string; handle: string; avatar_url: string | null; phase_request: number; phase_request_at: string };
 
+export type GroupRow = { id: string; name: string; photo_url: string | null; text: string; at: string; unread: number };
+export type GroupInvite = { gid: string; name: string; photo_url: string | null; message: string; expires_at: string; members: number; sender: string | null; expired: boolean; joined: boolean };
+
 export type GroupReader = { id: string; name: string; avatar_url: string | null; read_at: string };
 
 export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number; thumb?: string };
@@ -236,7 +239,7 @@ export interface ConnectApi {
   /** Live updates from the database; returns a function that stops them */
   /** Who's online right now: calls back with their ids whenever it changes */
   presence(cb: (online: Set<string>) => void): () => void;
-  subscribe(table: 'messages' | 'comments' | 'notifications' | 'group_messages' | 'group_reactions' | 'group_settings', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
+  subscribe(table: 'messages' | 'comments' | 'notifications' | 'group_messages' | 'group_reactions' | 'group_settings' | 'groups', filter: string, cb: (change: { event: string; row: Record<string, unknown> }) => void): () => void;
   signIn(email: string): Promise<void>;
   /** Students: email + the student ID they got when they enrolled */
   studentSignIn(email: string, studentId: string): Promise<void>;
@@ -355,33 +358,48 @@ export interface ConnectApi {
   banUser(userId: string, on: boolean): Promise<void>;
   removeUser(userId: string): Promise<void>;
 
-  /** The Dojo group: every student and the team */
-  groupInfo(): Promise<GroupInfo | null>;
-  listGroupMessages(): Promise<GroupMessage[]>;
+  /** The Dojo group: every student and the team.
+      gid: one of the Grand Sensei's own groups (none: the community group). */
+  groupInfo(gid?: string | null): Promise<GroupInfo | null>;
+  listGroupMessages(gid?: string | null): Promise<GroupMessage[]>;
   groupPreview(): Promise<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>;
-  sendGroupMessage(body: string, replyTo?: string | null, forwarded?: boolean): Promise<GroupMessage>;
-  sendGroupAttachment(a: Attachment, caption: string, replyTo?: string | null, onProgress?: (share: number) => void, forwarded?: boolean): Promise<GroupMessage>;
+  sendGroupMessage(body: string, replyTo?: string | null, forwarded?: boolean, gid?: string | null): Promise<GroupMessage>;
+  sendGroupAttachment(a: Attachment, caption: string, replyTo?: string | null, onProgress?: (share: number) => void, forwarded?: boolean, gid?: string | null): Promise<GroupMessage>;
   deleteGroupMessage(id: string): Promise<void>;
   /** null removes your reaction */
   reactGroup(id: string, emoji: string | null): Promise<void>;
-  markGroupRead(): Promise<void>;
+  markGroupRead(gid?: string | null): Promise<void>;
   /** When I last read the group (null: never) */
-  groupLastRead(): Promise<string | null>;
+  groupLastRead(gid?: string | null): Promise<string | null>;
   /** Members and when they last had the group open */
-  groupReaders(): Promise<GroupReader[]>;
+  groupReaders(gid?: string | null): Promise<GroupReader[]>;
   /** Team only */
-  setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null; history?: GroupHistory; name?: string; photo_url?: string | null }): Promise<void>;
+  setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null; history?: GroupHistory; name?: string; photo_url?: string | null }, gid?: string | null): Promise<void>;
   /** Everyone in the group: students and the team */
-  groupMembers(): Promise<Profile[]>;
+  groupMembers(gid?: string | null): Promise<Profile[]>;
   /** Am I in the group, removed from it, banned from it, or not a member at all */
-  groupStatus(): Promise<'member' | 'removed' | 'banned' | 'none'>;
+  groupStatus(gid?: string | null): Promise<'member' | 'removed' | 'banned' | 'none'>;
   rejoinGroup(): Promise<void>;
   /** Team only */
-  removeFromGroup(userId: string, ban: boolean): Promise<void>;
-  addToGroup(userId: string): Promise<void>;
-  groupRemoved(): Promise<{ profile: Profile; banned: boolean }[]>;
+  removeFromGroup(userId: string, ban: boolean, gid?: string | null): Promise<void>;
+  addToGroup(userId: string, gid?: string | null): Promise<void>;
+  groupRemoved(gid?: string | null): Promise<{ profile: Profile; banned: boolean }[]>;
   /** Team only. hours = 0 unmutes */
-  muteInGroup(userId: string, hours: number): Promise<void>;
+  muteInGroup(userId: string, hours: number, gid?: string | null): Promise<void>;
+
+  /** The Grand Sensei's own groups I'm in, for Messages */
+  myGroups(): Promise<GroupRow[]>;
+  /** Grand Sensei only; returns the new group's id */
+  createGroup(name: string, photoUrl?: string | null): Promise<string>;
+  deleteGroup(gid: string): Promise<void>;
+  /** Returns how many were added */
+  addPeopleToGroup(gid: string, userIds: string[]): Promise<number>;
+  leaveGroup(gid: string): Promise<void>;
+  /** A link code valid for 3 days */
+  createInvite(gid: string, message: string): Promise<string>;
+  getInvite(token: string): Promise<GroupInvite | null>;
+  /** Returns the group's id */
+  joinInvite(token: string): Promise<string>;
 
   report(target: 'post' | 'comment' | 'profile' | 'message', id: string, reason: string): Promise<void>;
   setBlock(userId: string, on: boolean): Promise<void>;

@@ -26,8 +26,9 @@ export type Route =
   | { name: 'assignment'; phase: number }
   | { name: 'reviews' }
   | { name: 'devices' }
-  | { name: 'group' }
-  | { name: 'group-info' }
+  | { name: 'group'; gid?: string }
+  | { name: 'group-info'; gid?: string }
+  | { name: 'join'; token: string }
   | { name: 'appearance' }
   | { name: 'notfound' };
 
@@ -50,6 +51,8 @@ export function parse(path: string): Route {
   if (a === 'challenge' && b) return { name: 'challenge', id: b };
   if (a === 'u' && b) return { name: 'profile', handle: b };
   if (a === 'p' && b) return { name: 'post', id: b };
+  if (a === 'messages' && b === 'g' && parts[2]) return parts[3] === 'info' ? { name: 'group-info', gid: parts[2] } : { name: 'group', gid: parts[2] };
+  if (a === 'join' && b) return { name: 'join', token: b };
   if (a === 'messages' && b === 'group') return parts[2] === 'info' ? { name: 'group-info' } : { name: 'group' };
   if (a === 'messages') return b ? { name: 'chat', id: b } : { name: 'messages' };
   if (a === 'login') return { name: 'login' };

@@ -7992,3 +7992,200 @@ html[data-cx-theme='dark'] .cx-role-tag {
 .cx-dev-list > li > .cx-role-tag {
   align-self: flex-start;
 }
+
+/* ===== Your own groups ===== */
+.cx-inbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cx-new-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #f1ebff;
+  color: var(--violet);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cx-group-initial {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: var(--violet);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+.cx-gi-invite {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 8px;
+}
+.cx-gi-act {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.cx-gi-act-ico {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+  flex: none;
+}
+.cx-gi-leave {
+  display: block;
+  margin: 18px auto 8px;
+}
+.cx-addp,
+.cx-invite {
+  display: flex;
+  flex-direction: column;
+  max-height: 86vh;
+}
+.cx-addp .cx-fwd-list {
+  flex: 1;
+}
+.cx-addp-row {
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.cx-addp-row[aria-pressed='true'] {
+  background: #f1ebff;
+}
+.cx-addp-tick {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  flex: none;
+}
+.cx-addp-tick.is-on {
+  border-color: var(--violet);
+  background: var(--violet);
+  color: #fff;
+}
+.cx-addp-go {
+  margin: 10px 4px 4px;
+}
+.cx-invite-label {
+  margin: 4px 8px 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.cx-invite-msg,
+.cx-invite-name {
+  margin: 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  resize: none;
+}
+.cx-invite-name {
+  height: 48px;
+}
+.cx-invite .cx-fwd-note {
+  padding: 8px;
+  text-align: left;
+  font-size: 0.85rem;
+}
+.cx-invite-out {
+  margin: 0 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #f1ebff;
+}
+.cx-invite-out p {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}
+.cx-invite-out a {
+  color: var(--violet);
+  font-weight: 600;
+  word-break: break-all;
+}
+.cx-invite-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 4px 4px 4px;
+}
+.cx-invite-btns .btn {
+  justify-content: center;
+}
+.cx-join {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 40px 16px;
+  text-align: center;
+}
+.cx-join h1 {
+  margin: 8px 0 0;
+  font-size: 1.5rem;
+}
+.cx-join-count {
+  margin: 0;
+  color: var(--muted);
+}
+.cx-join-msg {
+  width: 100%;
+  margin: 12px 0 4px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #fff;
+  text-align: left;
+}
+.cx-join-msg p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+.cx-join-msg small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.cx-join-go {
+  width: 100%;
+  margin-top: 12px;
+}
+.cx-join-note {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}

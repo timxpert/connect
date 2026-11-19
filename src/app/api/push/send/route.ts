@@ -55,24 +55,42 @@ export async function POST(req: Request) {
     to = [conv.user_a === uid ? conv.user_b : conv.user_a];
     data = { title: sender.name, body: what(msg).slice(0, 300), icon: sender.avatar_url, tag: msg.conversation_id, url: link(`/messages/${msg.conversation_id}`) };
   } else if (body.kind === 'group') {
-    const { data: m } = await admin.from('group_messages').select('id, sender_id, body, kind, file_name, created_at').eq('id', String(body.id)).maybeSingle();
-    const msg = m as Row | null;
+    let { data: m, error: e1 } = await admin.from('group_messages').select('id, sender_id, body, kind, file_name, created_at, group_id').eq('id', String(body.id)).maybeSingle();
+    if (e1) ({ data: m } = await admin.from('group_messages').select('id, sender_id, body, kind, file_name, created_at').eq('id', String(body.id)).maybeSingle());
+    const msg = m as (Row & { group_id?: string | null }) | null;
     if (!msg || msg.sender_id !== uid) return Response.json({ ok: false });
-    const [{ data: people }, { data: removed }, { data: g }] = await Promise.all([
-      admin.from('profiles').select('id, banned_at').or('is_student.eq.true,is_sensei.eq.true,is_moderator.eq.true'),
-      admin.from('group_removed').select('user_id'),
-      admin.from('group_settings').select('name, photo_url').eq('id', 1).maybeSingle(),
-    ]);
-    const out = new Set([...((removed ?? []) as { user_id: string }[]).map((r) => r.user_id), uid]);
-    to = ((people ?? []) as { id: string; banned_at?: string | null }[]).filter((p) => !p.banned_at && !out.has(p.id)).map((p) => p.id);
-    const group = (g as { name?: string; photo_url?: string | null } | null) ?? {};
-    data = {
-      title: group.name || 'Motion Dojo Community',
-      body: `${sender.name.split(' ')[0]}: ${what(msg)}`.slice(0, 300),
-      icon: group.photo_url || sender.avatar_url,
-      tag: 'group',
-      url: link('/messages/group'),
-    };
+    if (msg.group_id) {
+      // one of the Grand Sensei's own groups: everyone in it
+      const [{ data: ppl }, { data: g }] = await Promise.all([
+        admin.from('group_people').select('user_id, profile:profiles!group_people_user_id_fkey(banned_at)').eq('group_id', msg.group_id),
+        admin.from('groups').select('name, photo_url').eq('id', msg.group_id).maybeSingle(),
+      ]);
+      to = ((ppl ?? []) as unknown as { user_id: string; profile: { banned_at: string | null } | null }[]).filter((p) => p.user_id !== uid && !p.profile?.banned_at).map((p) => p.user_id);
+      const group = (g as { name?: string; photo_url?: string | null } | null) ?? {};
+      data = {
+        title: group.name || 'Group',
+        body: `${sender.name.split(' ')[0]}: ${what(msg)}`.slice(0, 300),
+        icon: group.photo_url || sender.avatar_url,
+        tag: `g-${msg.group_id}`,
+        url: link(`/messages/g/${msg.group_id}`),
+      };
+    } else {
+      const [{ data: people }, { data: removed }, { data: g }] = await Promise.all([
+        admin.from('profiles').select('id, banned_at').or('is_student.eq.true,is_sensei.eq.true,is_moderator.eq.true'),
+        admin.from('group_removed').select('user_id'),
+        admin.from('group_settings').select('name, photo_url').eq('id', 1).maybeSingle(),
+      ]);
+      const out = new Set([...((removed ?? []) as { user_id: string }[]).map((r) => r.user_id), uid]);
+      to = ((people ?? []) as { id: string; banned_at?: string | null }[]).filter((p) => !p.banned_at && !out.has(p.id)).map((p) => p.id);
+      const group = (g as { name?: string; photo_url?: string | null } | null) ?? {};
+      data = {
+        title: group.name || 'Motion Dojo Community',
+        body: `${sender.name.split(' ')[0]}: ${what(msg)}`.slice(0, 300),
+        icon: group.photo_url || sender.avatar_url,
+        tag: 'group',
+        url: link('/messages/group'),
+      };
+    }
   } else {
     return Response.json({ ok: false });
   }
