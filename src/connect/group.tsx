@@ -1040,17 +1040,17 @@ function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: Gro
             <h3 className="cx-info-h">
               Played <span>{plays.length}</span>
             </h3>
-            {plays.length ? list(plays.filter((x) => byId.has(x.user_id)).map((x) => ({ p: byId.get(x.user_id)!, at: x.played_at }))) : <p className="cx-fwd-note">No one yet</p>}
+            {plays.length ? list(plays.filter((x) => byId.has(x.user_id)).map((x) => ({ p: byId.get(x.user_id)!, at: x.played_at }))) : null}
           </>
         )}
         <h3 className="cx-info-h">
           Read by <span>{read.length}</span>
         </h3>
-        {read.length ? list(read) : <p className="cx-fwd-note">No one yet</p>}
+        {read.length ? list(read) : null}
         <h3 className="cx-info-h">
           Delivered to <span>{delivered.length}</span>
         </h3>
-        {delivered.length ? list(delivered) : <p className="cx-fwd-note">No one yet</p>}
+        {delivered.length ? list(delivered) : null}
         {remaining.length > 0 && (
           <>
             <h3 className="cx-info-h">
