@@ -83,6 +83,7 @@ export function YouTubePlayer({ id, className, style, watermark, onEnded }: { id
   const [full, setFull] = useState(false);
   const [needTap, setNeedTap] = useState(false);
   const [error, setError] = useState('');
+  const [jump, setJump] = useState('');
 
   useEffect(() => {
     let live = true;
@@ -135,13 +136,38 @@ export function YouTubePlayer({ id, className, style, watermark, onEnded }: { id
     hideTimer.current = window.setTimeout(() => setBar(false), 3000);
   };
   const playing = state === 1 || state === 3;
-  // a tap on the video shows or hides the controls (like YouTube); pausing is the button
-  const tapVideo = () => {
-    if (!playing) return toggle();
-    if (bar) {
-      setBar(false);
-      window.clearTimeout(hideTimer.current);
-    } else showBar();
+  const skip = (by: number) => {
+    const p = player.current;
+    if (!p) return;
+    const to = Math.max(0, Math.min((p.getDuration() || length) - 1, p.getCurrentTime() + by));
+    p.seekTo(to, true);
+    setTime(to);
+    setJump(by > 0 ? '+10s' : '−10s');
+    window.setTimeout(() => setJump(''), 600);
+    showBar();
+  };
+  // one tap shows or hides the controls; two quick taps on the left or right
+  // jump back or forward 10 seconds (like YouTube)
+  const lastTap = useRef(0);
+  const tapTimer = useRef<number | undefined>(undefined);
+  const tapVideo = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const now = Date.now();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const side = e.clientX - rect.left < rect.width / 2 ? -10 : 10;
+    if (now - lastTap.current < 300) {
+      window.clearTimeout(tapTimer.current);
+      lastTap.current = 0;
+      skip(side);
+      return;
+    }
+    lastTap.current = now;
+    tapTimer.current = window.setTimeout(() => {
+      if (!playing) return toggle();
+      if (bar) {
+        setBar(false);
+        window.clearTimeout(hideTimer.current);
+      } else showBar();
+    }, 260);
   };
   const toggle = () => {
     const p = player.current;
@@ -200,6 +226,7 @@ export function YouTubePlayer({ id, className, style, watermark, onEnded }: { id
         </div>
       )}
       {watermark}
+      {jump && <span className={`cx-yt-jump${jump.startsWith('+') ? ' is-fwd' : ''}`}>{jump}</span>}
       {error && <p className="cx-yt-error">{error}</p>}
       {!needTap && !error && state !== 0 && (bar || !playing) && (
         <button type="button" className="cx-player-play cx-yt-big" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
@@ -209,6 +236,12 @@ export function YouTubePlayer({ id, className, style, watermark, onEnded }: { id
       <div className={`cx-yt-bar${bar || !playing ? ' is-on' : ''}`}>
         <button type="button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
           <Icon name={playing ? 'pause' : 'play'} size={20} filled={!playing} />
+        </button>
+        <button type="button" onClick={() => skip(-10)} aria-label="Back 10 seconds">
+          <Icon name="rewind" size={18} />
+        </button>
+        <button type="button" onClick={() => skip(10)} aria-label="Forward 10 seconds">
+          <Icon name="ffwd" size={18} />
         </button>
         <span className="cx-yt-time">{clock(time)}</span>
         <input type="range" min={0} max={Math.max(1, length)} step={1} value={Math.min(time, length || time)} onChange={(e) => seek(Number(e.target.value))} aria-label="Seek" />

@@ -7177,3 +7177,22 @@ html[data-cx-theme='dark'] .cx-toast {
   height: calc(min(100vw, 100dvh * var(--ar, 1.78)) / var(--ar, 1.78) + 128px);
   translate: -50% -50%;
 }
+.cx-yt-jump {
+  position: absolute;
+  top: 50%;
+  left: 18%;
+  z-index: 4;
+  translate: -50% -50%;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-weight: 700;
+  pointer-events: none;
+}
+.cx-yt-jump.is-fwd {
+  left: 82%;
+}
+.cx-yt-bar {
+  gap: 4px;
+}
