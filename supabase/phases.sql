@@ -178,3 +178,31 @@ language sql stable security definer set search_path = public as $$
   order by o.phase, o.position, o.created_at, o.id
 $$;
 grant execute on function public.course_outline() to anon, authenticated;
+
+-- Portrait videos (made on a phone in Alight Motion) play tall; landscape wide.
+alter table public.lessons add column if not exists portrait boolean not null default true;
+
+drop function if exists public.get_lesson(uuid);
+create function public.get_lesson(lid uuid)
+returns table (id uuid, phase int, lesson_position int, title text, summary text, duration text,
+               video_url text, notes text, files jsonb, published boolean, done boolean, is_open boolean, size_mb int, portrait boolean)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  o record;
+begin
+  if not (public.is_student(auth.uid()) or public.is_team(auth.uid())) then
+    raise exception 'members_only';
+  end if;
+  select * into o from public.course_outline() c where c.id = lid;
+  if not found then
+    raise exception 'not_found';
+  end if;
+  if not o.is_open then
+    raise exception 'locked';
+  end if;
+  return query
+    select l.id, l.phase, l.position, l.title, l.summary, l.duration, l.video_url, l.notes, l.files,
+           l.published, o.done, true, l.size_mb, l.portrait
+    from public.lessons l where l.id = lid;
+end $$;
+grant execute on function public.get_lesson(uuid) to authenticated;

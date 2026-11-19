@@ -603,7 +603,7 @@ export function createDemoApi(): ConnectApi {
       const raw = lessons.find((l) => l.id === id);
       if (!o || !raw) throw new Error('not_found');
       if (!o.open) throw new Error('locked');
-      return wait({ ...o, video_url: raw.video_url, notes: raw.notes, files: raw.files });
+      return wait({ ...o, portrait: raw.portrait ?? true, video_url: raw.video_url, notes: raw.notes, files: raw.files });
     },
     async setLessonDone(id, done) {
       const me = needMe();

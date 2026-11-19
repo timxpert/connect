@@ -329,14 +329,15 @@ function Watermark({ text }: { text: string }) {
   );
 }
 
-function Player({ url, title, mark, size, autoload = false }: { url: string; title: string; mark: string; size?: number | null; autoload?: boolean }) {
+function Player({ url, title, mark, size, autoload = false, portrait = false }: { url: string; title: string; mark: string; size?: number | null; autoload?: boolean; portrait?: boolean }) {
   const e = embedSrc(url);
+  const shape = portrait ? ' is-portrait' : '';
   // Nothing loads until the student taps play, so opening a lesson to read
   // the notes costs almost no data
   const [on, setOn] = useState(autoload);
   if (!e) {
     return (
-      <div className="cx-player is-empty">
+      <div className={`cx-player is-empty${shape}`}>
         <Icon name="video" size={30} />
         <span>No video yet</span>
       </div>
@@ -344,7 +345,7 @@ function Player({ url, title, mark, size, autoload = false }: { url: string; tit
   }
   if (!on) {
     return (
-      <button type="button" className="cx-player cx-player-cover" onClick={() => setOn(true)}>
+      <button type="button" className={`cx-player cx-player-cover${shape}`} onClick={() => setOn(true)}>
         <span className="cx-player-play" aria-hidden="true">
           <Icon name="play" size={28} filled />
         </span>
@@ -354,7 +355,7 @@ function Player({ url, title, mark, size, autoload = false }: { url: string; tit
     );
   }
   return (
-    <div className="cx-player" onContextMenu={(ev) => ev.preventDefault()}>
+    <div className={`cx-player${shape}`} onContextMenu={(ev) => ev.preventDefault()}>
       <iframe src={e.src} title={title} allow="autoplay; encrypted-media; fullscreen" allowFullScreen loading="lazy" referrerPolicy="no-referrer" />
       {/* Drive's player has a pop-out button in the top right that opens the file itself: cover it */}
       {e.drive && <span className="cx-player-shield" aria-hidden="true" />}
@@ -446,9 +447,11 @@ export function LessonScreen({ id }: { id: string }) {
   const mark = me ? `${me.name} · @${me.handle}` : '';
 
   return (
-    <div className="cx-col cx-lesson">
+    <div className={`cx-col cx-lesson${lesson.portrait !== false ? ' is-portrait' : ''}`}>
       {back}
-      <Player url={lesson.video_url ?? ''} title={lesson.title} mark={mark} size={lesson.size_mb} />
+      <div className="cx-ln-split">
+      <Player url={lesson.video_url ?? ''} title={lesson.title} mark={mark} size={lesson.size_mb} portrait={lesson.portrait !== false} />
+      <div className="cx-ln-body">
 
       <div className="cx-ln-head">
         <p className="cx-ln-where">
@@ -526,12 +529,14 @@ export function LessonScreen({ id }: { id: string }) {
             </span>
           ))}
       </nav>
+      </div>
+      </div>
     </div>
   );
 }
 
 /* ================= Add / edit a lesson (team) ================= */
-const EMPTY: LessonInput = { phase: 1, title: '', summary: '', duration: '', video_url: '', size_mb: null, notes: '', files: [], published: true };
+const EMPTY: LessonInput = { phase: 1, title: '', summary: '', duration: '', video_url: '', size_mb: null, notes: '', files: [], published: true, portrait: true };
 
 export function LessonEditor({ id }: { id?: string }) {
   const { api, me } = useConnect();
@@ -545,7 +550,7 @@ export function LessonEditor({ id }: { id?: string }) {
     if (!id || !team) return;
     api
       .getLesson(id)
-      .then((l) => setF({ id: l.id, phase: l.phase, title: l.title, summary: l.summary, duration: l.duration, video_url: l.video_url ?? '', size_mb: l.size_mb ?? null, notes: l.notes ?? '', files: l.files ?? [], published: l.published }))
+      .then((l) => setF({ id: l.id, phase: l.phase, title: l.title, summary: l.summary, duration: l.duration, video_url: l.video_url ?? '', size_mb: l.size_mb ?? null, notes: l.notes ?? '', files: l.files ?? [], published: l.published, portrait: l.portrait ?? true }))
       .catch((e: Error) => setError(e.message));
   }, [api, id, team]);
 
@@ -622,9 +627,20 @@ export function LessonEditor({ id }: { id?: string }) {
         </label>
         {video && playable && (
           <div className="cx-ln-preview">
-            <Player url={video} title="Preview" mark={`${me?.name ?? ''} · preview`} size={f.size_mb} />
+            <Player url={video} title="Preview" mark={`${me?.name ?? ''} · preview`} size={f.size_mb} portrait={f.portrait} />
           </div>
         )}
+        <fieldset className="cx-fieldset">
+          <legend>Video shape</legend>
+          <div className="cx-chips" role="radiogroup" aria-label="Video shape">
+            <button type="button" role="radio" aria-checked={f.portrait} className={f.portrait ? 'cx-chip is-on' : 'cx-chip'} onClick={() => set('portrait', true)}>
+              Portrait (phone)
+            </button>
+            <button type="button" role="radio" aria-checked={!f.portrait} className={!f.portrait ? 'cx-chip is-on' : 'cx-chip'} onClick={() => set('portrait', false)}>
+              Landscape
+            </button>
+          </div>
+        </fieldset>
         <label className="field">
           <span>Video size (MB)</span>
           <input

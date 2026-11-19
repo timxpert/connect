@@ -6856,3 +6856,36 @@ html[data-cx-theme='dark'] .cx-toast {
   color: #ece6ff;
   box-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.7);
 }
+
+/* Portrait lessons (phone videos): tall player that fits the screen.
+   On computers the video sits on the left and the lesson on the right. */
+.cx-player.is-portrait {
+  aspect-ratio: 9 / 16;
+  width: min(100%, calc(64dvh * 9 / 16));
+  margin-inline: auto;
+}
+.cx-player-cover.is-portrait {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+}
+.cx-ln-preview .cx-player.is-portrait {
+  width: min(100%, 260px);
+}
+@media (min-width: 900px) {
+  .cx-lesson.is-portrait {
+    max-width: 980px;
+  }
+  .cx-lesson.is-portrait .cx-ln-split {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 36px;
+  }
+  .cx-lesson.is-portrait .cx-player.is-portrait {
+    position: sticky;
+    top: 84px;
+    width: calc(min(78dvh, 720px) * 9 / 16);
+    margin: 0;
+  }
+}

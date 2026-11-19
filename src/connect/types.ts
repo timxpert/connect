@@ -157,6 +157,8 @@ export type Lesson = {
   has_video: boolean;
   /** Video size in MB, so students know the data it uses */
   size_mb: number | null;
+  /** Tall phone video (most Alight Motion exports). Default true */
+  portrait?: boolean;
   done: boolean;
   /** Open to watch: the lesson before it is done (the team sees everything) */
   open: boolean;
@@ -194,6 +196,7 @@ export type LessonInput = {
   notes: string;
   files: { name: string; url: string }[];
   published: boolean;
+  portrait: boolean;
 };
 
 export type StudentFilter = { q?: string; skill?: string; phase?: number | null };
