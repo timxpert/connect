@@ -392,8 +392,7 @@ function Player({ url, title, mark, size, autoload = false, portrait = false, on
         <span className="cx-player-play" aria-hidden="true">
           <Icon name="play" size={28} filled />
         </span>
-        <b>{size ? `Play · about ${size} MB` : 'Play video'}</b>
-        {e.drive && <small>Pick 360p in settings to use less data.</small>}
+        <b className="cx-player-label">{size ? `About ${size} MB` : 'Play video'}</b>
       </button>
     );
   }

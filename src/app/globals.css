@@ -6965,3 +6965,36 @@ html[data-cx-theme='dark'] .cx-toast {
   font-size: 0.85rem;
   font-weight: 700;
 }
+
+/* Lesson cover: the first frame, the play button dead centre, the size at the bottom */
+.cx-player-cover {
+  display: block;
+  padding: 0;
+  background: #111;
+}
+.cx-player-poster {
+  opacity: 1;
+}
+.cx-player-cover .cx-player-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.cx-player-cover .cx-player-play svg {
+  translate: 2px 0;
+}
+.cx-player-label {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  translate: -50% 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
