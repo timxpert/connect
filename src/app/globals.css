@@ -7024,3 +7024,109 @@ html[data-cx-theme='dark'] .cx-toast {
   pointer-events: auto;
   touch-action: none;
 }
+
+/* YouTube lessons: Connect's own controls over a locked YouTube player */
+.cx-yt {
+  touch-action: manipulation;
+}
+.cx-yt-frame,
+.cx-yt-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.cx-yt-tap {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.cx-yt .cx-wm {
+  z-index: 3;
+}
+.cx-yt-big {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.cx-yt-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.cx-yt-bar.is-on {
+  opacity: 1;
+  pointer-events: auto;
+}
+.cx-yt-bar button {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.cx-yt-bar input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--lime);
+}
+.cx-yt-time {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.cx-yt-error {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  background: #111;
+  color: #fff;
+  text-align: center;
+}
+/* full screen: the whole player (video, controls, name) fills the screen */
+.cx-yt:fullscreen,
+.cx-yt.is-full {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  margin: 0;
+  aspect-ratio: auto;
+  background: #000;
+}
+.cx-yt:fullscreen .cx-yt-frame,
+.cx-yt.is-full .cx-yt-frame {
+  inset: 0;
+}

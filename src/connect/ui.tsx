@@ -29,6 +29,7 @@ const PATHS = {
   forward: <path d="M14 6.5 19.5 12 14 17.5M19.5 12H10a5.5 5.5 0 0 0-5.5 5.5v1" />,
   camera: <path d="M4 8h3l1.6-2.2h6.8L17 8h3v11H4zM12 16.5a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8z" />,
   pause: <path d="M8 5v14M16 5v14" />,
+  expand: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
   tick: <path d="m4.5 12.5 4.5 4.5 10-10" />,
   download: <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />,
   tiktok: (

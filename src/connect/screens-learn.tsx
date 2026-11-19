@@ -11,6 +11,7 @@ import { navigate } from './router';
 import { PHASES, type Assignment, type DeviceRow, type Lesson, type LessonInput, type PhaseRequest } from './types';
 import { A, Avatar, Empty, Icon, Loading, Media } from './ui';
 import { timeAgo, toEmbed } from './media';
+import { YouTubePlayer, isShort, youtubeId, ytRatio, ytThumb } from './youtube';
 
 const MAIN_SITE = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://joinmotiondojo.com';
 
@@ -23,10 +24,6 @@ export function driveId(url: string) {
   return m ? m[1] : null;
 }
 
-function youtubeId(url: string) {
-  const m = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/.exec(url);
-  return m ? m[1] : null;
-}
 
 /** The address the player loads, or null if the link isn't one we can play */
 export function embedSrc(url: string) {
@@ -346,9 +343,15 @@ function useVideoRatio(url: string) {
     setRatio(null);
     const d = driveId(url);
     if (!d) {
-      if (/youtube\.com\/shorts\//.test(url)) setRatio(9 / 16);
-      else if (youtubeId(url)) setRatio(16 / 9);
-      return;
+      const y = youtubeId(url);
+      if (!y) return;
+      if (isShort(url)) return setRatio(9 / 16);
+      // YouTube only tells us reliably when a video is tall; otherwise the lesson's shape setting decides
+      let live = true;
+      ytRatio(y).then((r) => live && r && r < 1 && setRatio(r));
+      return () => {
+        live = false;
+      };
     }
     const img = new Image();
     img.referrerPolicy = 'no-referrer';
@@ -374,6 +377,7 @@ function Player({ url, title, mark, size, autoload = false, portrait = false, on
   const shape = ratio < 1 ? ' is-portrait' : '';
   const style = { '--ar': String(ratio) } as React.CSSProperties;
   const d = driveId(url);
+  const y = d ? null : youtubeId(url);
   // Nothing loads until the student taps play, so opening a lesson to read
   // the notes costs almost no data
   const [on, setOn] = useState(autoload);
@@ -388,7 +392,7 @@ function Player({ url, title, mark, size, autoload = false, portrait = false, on
   if (!on) {
     return (
       <button type="button" className={`cx-player cx-player-cover${shape}`} style={style} onClick={() => setOn(true)}>
-        {d && <img className="cx-player-poster" src={driveThumb(d)} alt="" referrerPolicy="no-referrer" onError={(ev) => (ev.currentTarget.style.display = 'none')} />}
+        {(d || y) && <img className="cx-player-poster" src={d ? driveThumb(d) : ytThumb(y!)} alt="" referrerPolicy="no-referrer" onError={(ev) => (ev.currentTarget.style.display = 'none')} />}
         <span className="cx-player-play" aria-hidden="true">
           <Icon name="play" size={28} filled />
         </span>
@@ -396,6 +400,7 @@ function Player({ url, title, mark, size, autoload = false, portrait = false, on
       </button>
     );
   }
+  if (y) return <YouTubePlayer id={y} className={`cx-player is-on${shape}`} style={style} watermark={<Watermark text={mark} />} />;
   return (
     <div className={`cx-player is-on${shape}`} style={style} onContextMenu={(ev) => ev.preventDefault()}>
       {/* Drive and YouTube players need to know which site they are on, or they stay black */}
@@ -726,14 +731,29 @@ export function LessonEditor({ id }: { id?: string }) {
           <input value={f.title} maxLength={140} onChange={(e) => set('title', e.target.value)} placeholder="Keyframes and easing" />
         </label>
         <label className="field">
-          <span>Google Drive video link</span>
-          <input value={f.video_url} inputMode="url" onChange={(e) => set('video_url', e.target.value)} placeholder="https://drive.google.com/file/d/…/view" />
+          <span>Video link</span>
+          <input value={f.video_url} inputMode="url" onChange={(e) => set('video_url', e.target.value)} placeholder="YouTube or Google Drive link" />
           <small className={playable ? '' : 'cx-ln-bad'}>
-            {playable
-              ? 'Drive: Share → Anyone with the link (Viewer), untick “Viewers can download”, copy the link.'
-              : 'This isn’t a Google Drive file link yet.'}
+            {!playable
+              ? 'This isn’t a YouTube or Google Drive video link yet.'
+              : youtubeId(video)
+                ? 'YouTube: upload as Unlisted, then Share → Copy link.'
+                : 'Drive: Share → Anyone with the link (Viewer), copy the link.'}
           </small>
         </label>
+        {youtubeId(video) && !isShort(video) && (
+          <fieldset className="cx-fieldset">
+            <legend>Video shape</legend>
+            <div className="cx-chips" role="radiogroup" aria-label="Video shape">
+              <button type="button" role="radio" aria-checked={f.portrait} className={f.portrait ? 'cx-chip is-on' : 'cx-chip'} onClick={() => set('portrait', true)}>
+                Tall (phone)
+              </button>
+              <button type="button" role="radio" aria-checked={!f.portrait} className={!f.portrait ? 'cx-chip is-on' : 'cx-chip'} onClick={() => set('portrait', false)}>
+                Wide
+              </button>
+            </div>
+          </fieldset>
+        )}
         {video && playable && (
           <div className="cx-ln-preview">
             <Player url={video} title="Preview" mark={`${me?.name ?? ''} · preview`} size={f.size_mb} portrait={f.portrait} onRatio={(r) => setF((cur) => (cur ? { ...cur, portrait: r < 1 } : cur))} />
