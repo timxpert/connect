@@ -263,10 +263,16 @@ export function Learn() {
               </header>
               <ol className="cx-ln-list">
                 {items.map((l, n) => {
+                  // sections: a heading where a new one starts, and numbers restart inside it
+                  const sec = (l.section ?? '').trim();
+                  const newSec = sec && sec !== (items[n - 1]?.section ?? '').trim();
+                  let start = n;
+                  while (sec && start > 0 && (items[start - 1].section ?? '').trim() === sec) start--;
+                  const num = sec ? n - start + 1 : n + 1;
                   const body = (
                     <>
                       <span className={`cx-ln-mark${l.done ? ' is-done' : l.open ? ' is-open' : ''}`} aria-hidden="true">
-                        {l.done ? <Icon name="check" size={18} /> : l.open ? n + 1 : <Icon name="lock" size={16} />}
+                        {l.done ? <Icon name="check" size={18} /> : l.open ? num : <Icon name="lock" size={16} />}
                       </span>
                       <span className="cx-ln-text">
                         <b>{l.title}</b>
@@ -280,7 +286,9 @@ export function Learn() {
                     </>
                   );
                   return (
-                    <li key={l.id} className={l.open ? '' : 'is-locked'}>
+                    <React.Fragment key={l.id}>
+                    {newSec && <li className="cx-ln-section">{sec}</li>}
+                    <li className={l.open ? '' : 'is-locked'}>
                       {l.open ? (
                         <A path={`/learn/${l.id}`} className="cx-ln-row">
                           {body}
@@ -301,6 +309,7 @@ export function Learn() {
                         </span>
                       )}
                     </li>
+                    </React.Fragment>
                   );
                 })}
               </ol>
@@ -455,7 +464,7 @@ export function LessonScreen({ id }: { id: string }) {
 
       <div className="cx-ln-head">
         <p className="cx-ln-where">
-          {lesson.phase === 0 ? 'Orientation' : `Phase ${lesson.phase} · ${PHASES[lesson.phase - 1]}`}
+          {lesson.phase === 0 ? 'Orientation' : `Phase ${lesson.phase} · ${lesson.section?.trim() || PHASES[lesson.phase - 1]}`}
           {n > 0 && ` · Lesson ${n}`}
           {lesson.duration && ` · ${lesson.duration}`}
           {!lesson.published && <em className="cx-ln-tag">Draft</em>}
@@ -549,7 +558,7 @@ export function LessonScreen({ id }: { id: string }) {
 }
 
 /* ================= Add / edit a lesson (team) ================= */
-const EMPTY: LessonInput = { phase: 1, title: '', summary: '', duration: '', video_url: '', size_mb: null, notes: '', files: [], published: true, portrait: true, images: [] };
+const EMPTY: LessonInput = { phase: 1, title: '', summary: '', duration: '', video_url: '', size_mb: null, notes: '', files: [], published: true, portrait: true, images: [], section: '' };
 
 /** Team: pictures that are part of the lesson */
 function PicturesField({ images, onChange }: { images: string[]; onChange: (fn: (cur: string[]) => string[]) => void }) {
@@ -597,6 +606,7 @@ export function LessonEditor({ id }: { id?: string }) {
   const { api, me } = useConnect();
   const team = Boolean(me?.is_sensei || me?.is_moderator);
   const [f, setF] = useState<LessonInput | null>(id ? null : EMPTY);
+  const { list: lessonsAll } = useLessons();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
@@ -605,7 +615,7 @@ export function LessonEditor({ id }: { id?: string }) {
     if (!id || !team) return;
     api
       .getLesson(id)
-      .then((l) => setF({ id: l.id, phase: l.phase, title: l.title, summary: l.summary, duration: l.duration, video_url: l.video_url ?? '', size_mb: l.size_mb ?? null, notes: l.notes ?? '', files: l.files ?? [], published: l.published, portrait: l.portrait ?? true, images: l.images ?? [] }))
+      .then((l) => setF({ id: l.id, phase: l.phase, title: l.title, summary: l.summary, duration: l.duration, video_url: l.video_url ?? '', size_mb: l.size_mb ?? null, notes: l.notes ?? '', files: l.files ?? [], published: l.published, portrait: l.portrait ?? true, images: l.images ?? [], section: l.section ?? '' }))
       .catch((e: Error) => setError(e.message));
   }, [api, id, team]);
 
@@ -666,6 +676,16 @@ export function LessonEditor({ id }: { id?: string }) {
             ))}
           </select>
           {!f.id && <small>Added to the end of the phase.</small>}
+        </label>
+        <label className="field">
+          <span>Section</span>
+          <input value={f.section} maxLength={80} list="cx-sections" onChange={(e) => set('section', e.target.value)} placeholder="Background music" />
+          <datalist id="cx-sections">
+            {[...new Set((lessonsAll ?? []).filter((l) => l.phase === f.phase && l.section).map((l) => l.section!.trim()))].map((x) => (
+              <option key={x} value={x} />
+            ))}
+          </datalist>
+          <small>Optional</small>
         </label>
         <label className="field">
           <span>Title</span>

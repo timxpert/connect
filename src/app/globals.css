@@ -6942,3 +6942,12 @@ html[data-cx-theme='dark'] .cx-toast {
 .cx-ln-pic-add.is-busy {
   cursor: progress;
 }
+
+/* Sections inside a phase */
+.cx-ln-list li.cx-ln-section {
+  padding: 14px 16px 6px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}

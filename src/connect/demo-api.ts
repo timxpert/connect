@@ -123,6 +123,7 @@ let lessons: RawLesson[] = sampleTitles.flatMap((titles, ph) =>
     files: i === 0 ? [{ name: 'Sample project file', url: 'https://example.com' }] : [],
   })),
 );
+lessons.filter((l) => l.phase === 2).slice(1).forEach((l) => (l.section = 'Background music'));
 lessons.unshift({ id: 'l01', phase: 0, position: 1, title: 'Welcome to Black Belt', summary: 'Sample orientation video for the preview.', duration: '6 min', published: true, video_url: '', size_mb: 30, notes: '', files: [] });
 const progress = new Set<string>(['s1:l11', 's1:l12']);
 let assignments: Assignment[] = [];
@@ -603,7 +604,7 @@ export function createDemoApi(): ConnectApi {
       const raw = lessons.find((l) => l.id === id);
       if (!o || !raw) throw new Error('not_found');
       if (!o.open) throw new Error('locked');
-      return wait({ ...o, portrait: raw.portrait ?? true, images: raw.images ?? [], video_url: raw.video_url, notes: raw.notes, files: raw.files });
+      return wait({ ...o, portrait: raw.portrait ?? true, images: raw.images ?? [], section: raw.section ?? '', video_url: raw.video_url, notes: raw.notes, files: raw.files });
     },
     async setLessonDone(id, done) {
       const me = needMe();

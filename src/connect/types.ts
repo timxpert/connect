@@ -161,6 +161,8 @@ export type Lesson = {
   portrait?: boolean;
   /** Pictures that are part of the lesson */
   images?: string[];
+  /** A group inside the phase, like "Background music" (empty: none) */
+  section?: string;
   done: boolean;
   /** Open to watch: the lesson before it is done (the team sees everything) */
   open: boolean;
@@ -200,6 +202,7 @@ export type LessonInput = {
   published: boolean;
   portrait: boolean;
   images: string[];
+  section: string;
 };
 
 export type StudentFilter = { q?: string; skill?: string; phase?: number | null };
