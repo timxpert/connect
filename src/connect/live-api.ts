@@ -8,7 +8,7 @@ import { markPushOn, pushSubscription } from './alerts';
 import { plainText } from './format';
 import { specialLine } from './special';
 import { to } from './router';
-import type { CallSignal, TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { CallSignal, TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, LiveRecording, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -1295,6 +1295,23 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       if (error?.message.includes('too_late')) throw new Error('You can edit a message within 24 hours, or within 1 hour once it’s been seen.');
       if (error && /edit_group_message/.test(error.message)) throw new Error('Editing needs a database update: run edit-pin.sql in Supabase.');
       fail(error);
+    },
+    async addLiveRecording(mid, video, onLearn) {
+      const { error } = await sb.rpc('add_live_recording', { mid, video, on_learn: onLearn });
+      if (error && /add_live_recording|live_recordings/.test(error.message)) throw new Error('Recordings need a database update: run live-recordings.sql in Supabase.');
+      if (error?.message.includes('team_only')) throw new Error('Only the team can add recordings.');
+      if (error?.message.includes('bad_link')) throw new Error('Paste a YouTube link.');
+      fail(error);
+    },
+    async listLiveRecordings() {
+      const { data, error } = await sb.from('live_recordings').select('message_id, group_id, title, video, held_at, on_learn').eq('on_learn', true).order('held_at', { ascending: false }).limit(100);
+      if (error) return [];
+      return (data ?? []) as LiveRecording[];
+    },
+    async getLiveRecording(mid) {
+      const { data, error } = await sb.from('live_recordings').select('message_id, group_id, title, video, held_at, on_learn').eq('message_id', mid).maybeSingle();
+      if (error) return null;
+      return (data as LiveRecording | null) ?? null;
     },
     async deleteGroupMessage(id) {
       const { error } = await sb.rpc('delete_group_message', { mid: id });

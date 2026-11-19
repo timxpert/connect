@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useConnect } from './context';
 import { peek } from './cache';
 import { navigate } from './router';
-import { PHASES, type Assignment, type BriefItem, type DeviceRow, type Lesson, type LessonInput, type PhaseRequest } from './types';
+import { PHASES, type Assignment, type BriefItem, type DeviceRow, type Lesson, type LessonInput, type LiveRecording, type PhaseRequest } from './types';
 import { A, Avatar, Empty, Icon, Loading, Media } from './ui';
 import { timeAgo, toEmbed } from './media';
 import { YouTubePlayer, isShort, youtubeId, ytRatio, ytThumb } from './youtube';
@@ -315,6 +315,92 @@ export function Learn() {
           );
         })
       )}
+
+      {learner && <Recordings />}
+    </div>
+  );
+}
+
+const recDate = (iso: string) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** Live classes that were recorded, newest first */
+function Recordings() {
+  const { api } = useConnect();
+  const [list, setList] = useState<LiveRecording[] | null>(() => peek<LiveRecording[]>('listLiveRecordings') ?? null);
+  useEffect(() => {
+    let live = true;
+    api
+      .listLiveRecordings()
+      .then((r) => live && setList(r))
+      .catch(() => live && setList([]));
+    return () => {
+      live = false;
+    };
+  }, [api]);
+  if (!list || list.length === 0) return null;
+  return (
+    <section className="cx-ln-phase cx-ln-recs">
+      <header>
+        <h2>Live class recordings</h2>
+      </header>
+      <ol className="cx-ln-list">
+        {list.map((r) => (
+          <li key={r.message_id}>
+            <A path={`/learn/live/${r.message_id}`} className="cx-ln-row">
+              <img className="cx-ln-rec-thumb" src={ytThumb(r.video)} alt="" referrerPolicy="no-referrer" />
+              <span className="cx-ln-text">
+                <b>{r.title}</b>
+                <small>{recDate(r.held_at)}</small>
+              </span>
+            </A>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** One recording */
+export function RecordingScreen({ id }: { id: string }) {
+  const { api, me } = useConnect();
+  const [rec, setRec] = useState<LiveRecording | null | undefined>(() => peek<LiveRecording | null>('getLiveRecording', id));
+  useEffect(() => {
+    let live = true;
+    api
+      .getLiveRecording(id)
+      .then((r) => live && setRec(r))
+      .catch(() => live && setRec(null));
+    return () => {
+      live = false;
+    };
+  }, [api, id]);
+  const back = (
+    <A path="/learn" className="cx-back">
+      <Icon name="back" size={20} />
+      Learn
+    </A>
+  );
+  if (rec === undefined) return <Loading label="Loading recording" />;
+  if (!rec)
+    return (
+      <div className="cx-col">
+        {back}
+        <Empty title="Recording not found" />
+      </div>
+    );
+  const mark = me ? `${me.name} · @${me.handle}` : '';
+  return (
+    <div className="cx-col cx-lesson">
+      {back}
+      <div className="cx-ln-split">
+        <Player url={`https://youtu.be/${rec.video}`} title={rec.title} mark={mark} />
+        <div className="cx-ln-body">
+          <div className="cx-ln-head">
+            <p className="cx-ln-where">Live class · {recDate(rec.held_at)}</p>
+            <h1 className="cx-h1">{rec.title}</h1>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

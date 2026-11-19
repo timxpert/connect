@@ -3,10 +3,12 @@
    from the + menu; everyone votes or joins from the card in the chat. */
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useConnect } from './context';
 import { useDragToClose } from './drag';
 import type { GroupMessage, Profile } from './types';
-import { Avatar, Icon } from './ui';
+import { A, Avatar, Icon } from './ui';
+import { youtubeId, ytThumb } from './youtube';
 import { readLive, readPoll, type Live } from './special';
 
 /* ---------- Showing a poll ---------- */
@@ -109,7 +111,8 @@ const gcal = (l: Live) => {
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`Motion Dojo: ${l.t}`)}&dates=${z(a)}/${z(b)}&details=${encodeURIComponent(`Join on Google Meet: ${l.link}`)}&location=${encodeURIComponent(l.link)}`;
 };
 
-export function LiveCard({ m }: { m: GroupMessage }) {
+export function LiveCard({ m, team = false, onRecording }: { m: GroupMessage; team?: boolean; onRecording?: (video: string, onLearn: boolean) => Promise<void> }) {
+  const [adding, setAdding] = useState(false);
   const live = readLive(m.body);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -121,6 +124,35 @@ export function LiveCard({ m }: { m: GroupMessage }) {
   const end = start + live.mins * 60000;
   const state = now >= end ? 'ended' : now >= start ? 'live' : 'soon';
   const canJoin = now >= start - 15 * 60000 && now < end;
+  const day = `${fmtDay(new Date(start))} · ${fmtTime(new Date(start))}`;
+  if (state === 'ended' && live.rec) {
+    return (
+      <div className="cx-live" onClick={(e) => e.stopPropagation()}>
+        <A path={`/learn/live/${m.id}`} className="cx-live-rec" aria-label={`Watch the recording of ${live.t}`}>
+          <img src={ytThumb(live.rec)} alt="" referrerPolicy="no-referrer" />
+          <span className="cx-live-rec-play" aria-hidden="true">
+            <Icon name="play" size={22} filled />
+          </span>
+        </A>
+        <span className="cx-live-tag">Recording</span>
+        <p className="cx-live-title">{live.t}</p>
+        <p className="cx-live-when">
+          <Icon name="clock" size={15} /> {day}
+        </p>
+        <div className="cx-live-btns">
+          <A path={`/learn/live/${m.id}`} className="btn btn-primary btn-sm">
+            Watch recording
+          </A>
+          {team && onRecording && (
+            <button type="button" className="btn btn-light btn-sm" onClick={() => setAdding(true)}>
+              Change
+            </button>
+          )}
+        </div>
+        {adding && onRecording && <RecordingSheet title={live.t} onClose={() => setAdding(false)} onSave={onRecording} />}
+      </div>
+    );
+  }
   return (
     <div className="cx-live" onClick={(e) => e.stopPropagation()}>
       <span className={`cx-live-tag is-${state}`}>{state === 'live' ? 'Live now' : state === 'ended' ? 'Ended' : `Starts in ${until(start - now)}`}</span>
@@ -149,7 +181,64 @@ export function LiveCard({ m }: { m: GroupMessage }) {
           )}
         </div>
       )}
+      {state === 'ended' && !live.call && team && onRecording && (
+        <div className="cx-live-btns">
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>
+            Add the recording
+          </button>
+        </div>
+      )}
+      {adding && onRecording && <RecordingSheet title={live.t} onClose={() => setAdding(false)} onSave={onRecording} />}
     </div>
+  );
+}
+
+/** After the class: paste the YouTube link */
+function RecordingSheet({ title, onClose, onSave }: { title: string; onClose: () => void; onSave: (video: string, onLearn: boolean) => Promise<void> }) {
+  const sheet = useDragToClose<HTMLDivElement>(onClose);
+  const [link, setLink] = useState('');
+  const [learn, setLearn] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const video = youtubeId(link.trim());
+  const save = async () => {
+    if (!video) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await onSave(video, learn);
+      onClose();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return createPortal(
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-drag cx-invite cx-make" role="dialog" aria-label="Add the recording" ref={sheet} onClick={(e) => e.stopPropagation()}>
+        <span className="cx-grab" aria-hidden="true" />
+        <h2 className="cx-fwd-title">Add the recording</h2>
+        <div className="cx-make-body" data-scroll>
+          <p className="cx-fwd-note">{title}</p>
+          <label className="cx-invite-label" htmlFor="rec-link">
+            YouTube link
+          </label>
+          <input id="rec-link" className="cx-invite-name" inputMode="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://youtu.be/…" autoFocus />
+          <p className="cx-fwd-note">Upload the class to YouTube as Unlisted, then paste the link here. Unlisted videos don’t show up in YouTube search.</p>
+          {link.trim() && !video && <p className="cx-fwd-note cx-make-err">Paste a YouTube link.</p>}
+          {err && <p className="cx-fwd-note cx-make-err">{err}</p>}
+          <label className="cx-make-check">
+            <input type="checkbox" checked={learn} onChange={(e) => setLearn(e.target.checked)} />
+            Also add it to Learn
+          </label>
+        </div>
+        <button type="button" className="btn btn-primary cx-addp-go" disabled={!video || busy} onClick={save}>
+          {busy ? 'Saving…' : 'Share recording'}
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

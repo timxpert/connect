@@ -669,7 +669,14 @@ function GroupChatInner() {
                     (m.kind as string) === 'poll' ? (
                       <PollCard m={m} people={people} onVote={(o) => vote(m, o)} />
                     ) : (m.kind as string) === 'live' ? (
-                      <LiveCard m={m} />
+                      <LiveCard
+                        m={m}
+                        team={team}
+                        onRecording={async (video, onLearn) => {
+                          await api.addLiveRecording(m.id, video, onLearn);
+                          setMsgs((ms) => ms.map((x) => (x.id === m.id ? { ...x, body: JSON.stringify({ ...JSON.parse(x.body), rec: video }) } : x)));
+                        }}
+                      />
                     ) : undefined
                   }
                   onReply={

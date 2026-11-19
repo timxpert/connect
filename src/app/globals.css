@@ -9605,3 +9605,41 @@ html.cx-in-chat body {
 .cx-chat-head .cx-person-name {
   overflow: hidden;
 }
+
+/* Live class recording: the class card after the recording is added */
+.cx-live-rec {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  margin: 0 0 4px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #1b1726;
+}
+.cx-live-rec img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cx-live-rec-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+}
+.cx-ln-rec-thumb {
+  flex: none;
+  width: 88px;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #1b1726;
+}

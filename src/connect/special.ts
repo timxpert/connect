@@ -2,7 +2,8 @@
 
 export type Poll = { q: string; o: string[]; multi?: boolean };
 /** call: a group call starting now (not a class) */
-export type Live = { t: string; at: string; mins: number; link: string; call?: boolean };
+/** rec: the YouTube id of the recording, added after the class */
+export type Live = { t: string; at: string; mins: number; link: string; call?: boolean; rec?: string };
 
 export function readPoll(body: string): Poll | null {
   try {

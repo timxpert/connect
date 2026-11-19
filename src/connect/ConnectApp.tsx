@@ -28,7 +28,7 @@ import { addWatched, left, startFocus, useFocus, watchingNow } from './focus';
 import { useTypingRoom } from './typing';
 import { ChallengeScreen } from './challenge';
 import { Connections, Notifications, Saved } from './screens-social';
-import { AssignmentScreen, Devices, Learn, LessonEditor, LessonScreen, Reviews } from './screens-learn';
+import { AssignmentScreen, Devices, Learn, LessonEditor, LessonScreen, RecordingScreen, Reviews } from './screens-learn';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -91,7 +91,7 @@ class ScreenGuard extends React.Component<{ children: React.ReactNode }, { error
 
 const TABS = [
   { path: '/', label: 'Feed', icon: 'home' as const, match: ['feed', 'post'] },
-  { path: '/learn', label: 'Learn', icon: 'learn' as const, match: ['learn', 'lesson', 'lesson-edit', 'assignment'] },
+  { path: '/learn', label: 'Learn', icon: 'learn' as const, match: ['learn', 'lesson', 'lesson-edit', 'assignment', 'live-rec'] },
   { path: '/students', label: 'Members', icon: 'people' as const, match: ['students', 'profile', 'challenge'] },
   // On phones Connections lives in the account menu, to keep the bottom bar to five
   { path: '/connections', label: 'Connections', icon: 'link2' as const, match: ['connections'], desktopOnly: true },
@@ -189,7 +189,7 @@ function Shell({ route }: { route: Route }) {
   const strict = useFocus();
   const team = Boolean(me?.is_sensei || me?.is_moderator);
   const [askFocus, setAskFocus] = useState(false);
-  const FOCUS_ROUTES = ['learn', 'lesson', 'assignment'];
+  const FOCUS_ROUTES = ['learn', 'lesson', 'assignment', 'live-rec'];
   useEffect(() => {
     if (!strict) return;
     if (!FOCUS_ROUTES.includes(route.name)) {
@@ -428,6 +428,8 @@ function Shell({ route }: { route: Route }) {
         return <Learn />;
       case 'lesson':
         return <LessonScreen key={route.id} id={route.id} />;
+      case 'live-rec':
+        return <RecordingScreen key={route.id} id={route.id} />;
       case 'assignment':
         return <AssignmentScreen key={route.phase} phase={route.phase} />;
       case 'reviews':

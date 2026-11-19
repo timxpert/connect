@@ -190,6 +190,9 @@ export type ProfileInput = Partial<
 >;
 
 /** A Black Belt lesson. The video, notes and files only come with getLesson(). */
+/** A live class recording (YouTube, Unlisted) */
+export type LiveRecording = { message_id: string; group_id: string | null; title: string; video: string; held_at: string; on_learn: boolean };
+
 export type Lesson = {
   id: string;
   phase: number;
@@ -417,6 +420,10 @@ export interface ConnectApi {
   deleteGroupMessage(id: string): Promise<void>;
   /** Your own text, within the delete-for-everyone time */
   editGroupMessage(id: string, body: string): Promise<void>;
+  /** video: the YouTube id. onLearn: also list it on Learn */
+  addLiveRecording(messageId: string, video: string, onLearn: boolean): Promise<void>;
+  listLiveRecordings(): Promise<LiveRecording[]>;
+  getLiveRecording(messageId: string): Promise<LiveRecording | null>;
   /** Team: a poll or a live class (body is JSON, see special.ts) */
   sendGroupSpecial(kind: 'poll' | 'live', body: string, gid?: string | null): Promise<GroupMessage>;
   /** My answers to a poll (replaces any earlier ones; [] takes my vote back) */

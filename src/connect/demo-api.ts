@@ -3,7 +3,7 @@
    be clicked through before Supabase is connected. Every sample profile is
    flagged `sample: true` and the UI labels it. Nothing here is real. */
 
-import type { Assignment, BriefItem, Challenge, ChallengeEntry, Comment, ConnectApi, GroupMessage, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
+import type { Assignment, BriefItem, Challenge, ChallengeEntry, Comment, ConnectApi, GroupMessage, ConnectionStatus, Conversation, Lesson, LessonInput, LiveRecording, Message, Notice, Post, Profile } from './types';
 
 const now = Date.now();
 const ago = (h: number) => new Date(now - h * 3600_000).toISOString();
@@ -162,6 +162,7 @@ const ownGroups: OwnGroup[] = [];
 let pins: string[] = [];
 const plays: { message_id: string; user_id: string; played_at: string }[] = [];
 const pollVotes = new Map<string, { option: number; user_id: string }[]>();
+const recordings = new Map<string, LiveRecording>();
 const invites = new Map<string, { gid: string; message: string; expires: number }>();
 const og = (gid: string) => {
   const g = ownGroups.find((x) => x.id === gid);
@@ -629,6 +630,23 @@ export function createDemoApi(): ConnectApi {
       const edit = (m: RawGroup) => (m.id === id ? { ...m, body, edited_at: new Date().toISOString() } : m);
       group = group.map(edit);
       for (const g of ownGroups) g.msgs = g.msgs.map(edit);
+    },
+    async addLiveRecording(mid, video, onLearn) {
+      const all = [...group, ...ownGroups.flatMap((g) => g.msgs)];
+      const m = all.find((x) => x.id === mid);
+      if (!m) throw new Error('Class not found.');
+      const body = JSON.parse(m.body) as { t?: string; at?: string };
+      const next = JSON.stringify({ ...body, rec: video });
+      const edit = (x: RawGroup) => (x.id === mid ? { ...x, body: next } : x);
+      group = group.map(edit);
+      for (const g of ownGroups) g.msgs = g.msgs.map(edit);
+      recordings.set(mid, { message_id: mid, group_id: null, title: body.t ?? 'Live class', video, held_at: body.at ?? new Date().toISOString(), on_learn: onLearn });
+    },
+    async listLiveRecordings() {
+      return wait([...recordings.values()].filter((r) => r.on_learn).sort((a, b) => b.held_at.localeCompare(a.held_at)));
+    },
+    async getLiveRecording(mid) {
+      return wait(recordings.get(mid) ?? null);
     },
     async deleteGroupMessage(id) {
       for (const g of ownGroups) g.msgs = g.msgs.map((m) => (m.id === id ? { ...m, deleted_at: new Date().toISOString(), body: '', media_url: null } : m));

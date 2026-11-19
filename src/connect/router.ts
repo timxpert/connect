@@ -24,6 +24,7 @@ export type Route =
   | { name: 'lesson'; id: string }
   | { name: 'lesson-edit'; id?: string }
   | { name: 'assignment'; phase: number }
+  | { name: 'live-rec'; id: string }
   | { name: 'reviews' }
   | { name: 'devices' }
   | { name: 'group'; gid?: string }
@@ -68,6 +69,7 @@ export function parse(path: string): Route {
   if (a === 'learn') {
     if (!b) return { name: 'learn' };
     if (b === 'new') return { name: 'lesson-edit' };
+    if (b === 'live' && parts[2]) return { name: 'live-rec', id: parts[2] };
     if (b === 'assignment' && /^[1-4]$/.test(parts[2] ?? '')) return { name: 'assignment', phase: Number(parts[2]) };
     if (parts[2] === 'edit') return { name: 'lesson-edit', id: b };
     return { name: 'lesson', id: b };
