@@ -397,7 +397,7 @@ function Player({ url, title, mark, size, autoload = false, portrait = false, on
     );
   }
   return (
-    <div className={`cx-player${shape}`} style={style} onContextMenu={(ev) => ev.preventDefault()}>
+    <div className={`cx-player is-on${shape}`} style={style} onContextMenu={(ev) => ev.preventDefault()}>
       {/* Drive and YouTube players need to know which site they are on, or they stay black */}
       <iframe src={e.src} title={title} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
       {/* Drive's player has a pop-out button in the top right that opens the file itself: cover it */}

@@ -7006,3 +7006,10 @@ html[data-cx-theme='dark'] .cx-toast {
   width: calc(100% + 2px);
   height: calc(100% + 2px);
 }
+
+/* While a lesson plays: no rounded clipping. On Android, Chrome draws a video
+   inside a rounded, clipped box as a black picture (sound only). */
+.cx-player.is-on {
+  border-radius: 0;
+  overflow: visible;
+}
