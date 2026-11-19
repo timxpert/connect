@@ -221,6 +221,28 @@ export function createDemoApi(): ConnectApi {
       throw new Error('Student ID sign-in works once Supabase is connected. In this preview, use the sample accounts below.');
     },
     subscribe: () => () => {},
+    // preview: calls between two tabs of the preview (BroadcastChannel)
+    callListen(cb) {
+      if (typeof BroadcastChannel === 'undefined') return () => {};
+      const bc = new BroadcastChannel('cx-demo-call');
+      bc.onmessage = (e) => {
+        const d = e.data as { to: string; sig: import('./types').CallSignal };
+        if (d.to === current) cb(d.sig);
+      };
+      return () => bc.close();
+    },
+    callSend(to, sig) {
+      if (typeof BroadcastChannel === 'undefined') return;
+      const bc = new BroadcastChannel('cx-demo-call');
+      bc.postMessage({ to, sig });
+      bc.close();
+    },
+    iceServers: async () => [{ urls: 'stun:stun.l.google.com:19302' }],
+    async ringPhone() {},
+    async logCall(conv, call) {
+      const me = needMe();
+      messages = [...messages, { id: nid(), conversation_id: conv, sender_id: me, kind: 'call', body: JSON.stringify(call), created_at: new Date().toISOString() } as Message];
+    },
     typingListen(room, cb) {
       // sample: someone types for a few seconds after you open the group or a chat
       const sample = room === 'g:main' ? { chat: 'group', id: 's2', name: who('s2').name } : null;

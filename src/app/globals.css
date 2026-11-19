@@ -9149,3 +9149,145 @@ html.cx-in-chat body {
   border-radius: 0;
   box-shadow: none;
 }
+
+/* Calls */
+.cx-call-start {
+  flex: none;
+}
+.cx-call {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(48px + env(safe-area-inset-top)) 24px calc(40px + env(safe-area-inset-bottom));
+  background: #1d1726;
+  color: #fff;
+}
+.cx-call-who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  z-index: 1;
+}
+.cx-call-who b {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.cx-call-who span {
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+}
+.cx-call.is-video .cx-call-who {
+  align-self: flex-start;
+  align-items: flex-start;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+.cx-call.is-video .cx-call-who b {
+  font-size: 1.15rem;
+}
+.cx-call-remote {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+.cx-call:not(.is-video) .cx-call-remote,
+.cx-call:not(.is-video) .cx-call-self {
+  display: none;
+}
+.cx-call-self {
+  position: absolute;
+  right: 16px;
+  bottom: calc(130px + env(safe-area-inset-bottom));
+  width: 104px;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 14px;
+  background: #000;
+  transform: scaleX(-1);
+  z-index: 1;
+}
+.cx-call-self.is-off {
+  opacity: 0.25;
+}
+.cx-call-btns {
+  display: flex;
+  gap: 28px;
+  z-index: 1;
+}
+.cx-call-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  cursor: pointer;
+}
+.cx-call-btn.is-on {
+  background: #fff;
+  color: #1d1726;
+}
+.cx-call-btn.is-end {
+  background: #e03131;
+}
+.cx-call-btn.is-end svg {
+  transform: rotate(135deg);
+}
+.cx-call-btn.is-answer {
+  background: #2f9e44;
+}
+.cx-call-slash {
+  position: absolute;
+  width: 30px;
+  height: 2px;
+  background: currentColor;
+  transform: rotate(-45deg);
+}
+/* the call line in the chat */
+.cx-callline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 2px;
+}
+.cx-callline > span:nth-child(2) {
+  flex: 1;
+  font-weight: 600;
+}
+.cx-callline-ico {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(109, 50, 232, 0.12);
+}
+.cx-msg.is-mine .cx-callline-ico {
+  background: rgba(255, 255, 255, 0.2);
+}
+.cx-callline.is-missed .cx-callline-ico {
+  background: #ffe3e3;
+  color: #c92a2a;
+}
+.cx-callline button {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}

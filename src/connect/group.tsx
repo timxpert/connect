@@ -140,7 +140,7 @@ function GroupChatInner() {
   // who reacted to a message
   const [rxOf, setRxOf] = useState<GroupMessage | null>(null);
   // the team making a poll or a live class
-  const [making, setMaking] = useState<'poll' | 'live' | null>(null);
+  const [making, setMaking] = useState<'poll' | 'live' | 'call' | null>(null);
   const [caret, setCaret] = useState(0);
   const placeCaret = useRef<number | null>(null);
   const end = useRef<HTMLLIElement>(null);
@@ -779,6 +779,7 @@ function GroupChatInner() {
                   ? [
                       { label: 'Poll', icon: 'poll', color: '#0f9d76', onClick: () => setMaking('poll') },
                       { label: 'Live class', icon: 'video', color: '#e8590c', onClick: () => setMaking('live') },
+                      { label: 'Group call', icon: 'phone', color: '#1c7ed6', onClick: () => setMaking('call') },
                     ]
                   : undefined
               }
@@ -820,6 +821,7 @@ function GroupChatInner() {
 
       {making === 'poll' && <PollSheet onClose={() => setMaking(null)} onSend={sendSpecial('poll')} />}
       {making === 'live' && <LiveSheet onClose={() => setMaking(null)} onSend={sendSpecial('live')} />}
+      {making === 'call' && <LiveSheet now onClose={() => setMaking(null)} onSend={sendSpecial('live')} />}
       {rxOf && (() => {
         const m = all.find((x) => x.id === rxOf.id) ?? rxOf;
         const rows = (m.reactions ?? []).flatMap((r) => (r.who ?? []).map((uid) => ({ uid, emoji: r.emoji })));

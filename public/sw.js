@@ -84,7 +84,7 @@ self.addEventListener('push', (e) => {
       if (!d.force && wins.some((c) => c.visibilityState === 'visible' && c.focused)) return;
       const tag = d.tag || 'connect';
       const earlier = await self.registration.getNotifications({ tag });
-      const lines = [...((earlier[0] && earlier[0].data && earlier[0].data.lines) || []), d.body || ''].slice(-6);
+      const lines = d.call ? [d.body || ''] : [...((earlier[0] && earlier[0].data && earlier[0].data.lines) || []), d.body || ''].slice(-6);
       const body = lines.length > 1 ? lines.join('\n') : lines[0];
       const title = lines.length > 1 ? `${d.title} (${lines.length} messages)` : d.title || 'Motion Dojo Connect';
       await self.registration.showNotification(title, {
@@ -92,7 +92,8 @@ self.addEventListener('push', (e) => {
         tag,
         renotify: true,
         silent: false,
-        vibrate: [120, 60, 120],
+        vibrate: d.call ? [400, 200, 400, 200, 400, 200, 400] : [120, 60, 120],
+        requireInteraction: Boolean(d.call),
         icon: d.icon || '/assets/icon-192.png',
         // Android shows this small one in white: the Motion Dojo mark
         badge: '/assets/badge-96.png',

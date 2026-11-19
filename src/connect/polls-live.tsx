@@ -213,17 +213,18 @@ export function PollSheet({ onClose, onSend }: { onClose: () => void; onSend: (b
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
-export function LiveSheet({ onClose, onSend }: { onClose: () => void; onSend: (body: string) => Promise<void> }) {
+/** now: a group call starting straight away (no day or time to pick) */
+export function LiveSheet({ onClose, onSend, now = false }: { onClose: () => void; onSend: (body: string) => Promise<void>; now?: boolean }) {
   const sheet = useDragToClose<HTMLDivElement>(onClose);
   const soon = new Date(Date.now() + 2 * 3600000);
   soon.setMinutes(0, 0, 0);
-  const [t, setT] = useState('');
+  const [t, setT] = useState(now ? 'Group call' : '');
   const [day, setDay] = useState(`${soon.getFullYear()}-${pad(soon.getMonth() + 1)}-${pad(soon.getDate())}`);
   const [time, setTime] = useState(`${pad(soon.getHours())}:00`);
   const [mins, setMins] = useState(60);
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
-  const at = new Date(`${day}T${time}`);
+  const at = now ? new Date() : new Date(`${day}T${time}`);
   const goodLink = /^https:\/\/meet\.google\.com\/[a-z0-9-]+/i.test(link.trim());
   const ok = t.trim() && !Number.isNaN(at.getTime()) && goodLink;
   const send = async () => {
@@ -239,12 +240,13 @@ export function LiveSheet({ onClose, onSend }: { onClose: () => void; onSend: (b
     <div className="cx-sheet-wrap" onClick={onClose}>
       <div className="cx-sheet cx-drag cx-invite cx-make" role="dialog" aria-label="New live class" ref={sheet} onClick={(e) => e.stopPropagation()}>
         <span className="cx-grab" aria-hidden="true" />
-        <h2 className="cx-fwd-title">Live class</h2>
+        <h2 className="cx-fwd-title">{now ? 'Group call' : 'Live class'}</h2>
         <div className="cx-make-body" data-scroll>
           <label className="cx-invite-label" htmlFor="live-t">
             Title
           </label>
           <input id="live-t" className="cx-invite-name" maxLength={120} value={t} onChange={(e) => setT(e.target.value)} placeholder="Phase 2: easing Q&A" autoFocus />
+          {!now && (
           <span className="cx-make-row">
             <label>
               <span className="cx-invite-label">Day</span>
@@ -255,6 +257,7 @@ export function LiveSheet({ onClose, onSend }: { onClose: () => void; onSend: (b
               <input type="time" className="cx-invite-name" value={time} onChange={(e) => setTime(e.target.value)} />
             </label>
           </span>
+          )}
           <label className="cx-invite-label" htmlFor="live-len">
             How long
           </label>
@@ -279,7 +282,7 @@ export function LiveSheet({ onClose, onSend }: { onClose: () => void; onSend: (b
           {link.trim() && !goodLink && <p className="cx-fwd-note cx-make-err">Paste a meet.google.com link.</p>}
         </div>
         <button type="button" className="btn btn-primary cx-addp-go" disabled={!ok || busy} onClick={send}>
-          {busy ? 'Sending…' : 'Send to the group'}
+          {busy ? 'Sending…' : now ? 'Start the call' : 'Send to the group'}
         </button>
       </div>
     </div>

@@ -96,7 +96,7 @@ export type Conversation = {
   last_deleted?: boolean;
 };
 
-export type MessageKind = 'text' | 'voice' | 'image' | 'video' | 'file' | 'poll' | 'live';
+export type MessageKind = 'text' | 'voice' | 'image' | 'video' | 'file' | 'poll' | 'live' | 'call';
 
 export type Message = {
   id: string;
@@ -168,6 +168,15 @@ export type BriefItem = { kind: 'image' | 'file' | 'link' | 'video'; url: string
 
 export type PhaseRequest = { id: string; name: string; handle: string; avatar_url: string | null; phase_request: number; phase_request_at: string };
 
+export type CallSignal = {
+  type: 'ring' | 'accept' | 'decline' | 'busy' | 'offer' | 'answer' | 'ice' | 'hangup';
+  call: string;
+  from: { id: string; name: string; avatar_url: string | null };
+  conv: string;
+  video?: boolean;
+  sdp?: RTCSessionDescriptionInit;
+  ice?: RTCIceCandidateInit;
+};
 export type TypingSignal = { chat: string; id: string; name: string; on: boolean };
 export type GroupRow = { id: string; name: string; photo_url: string | null; text: string; at: string; unread: number };
 export type GroupInvite = { gid: string; name: string; photo_url: string | null; message: string; expires_at: string; members: number; sender: string | null; expired: boolean; joined: boolean };
@@ -251,6 +260,15 @@ export interface ConnectApi {
   /** Live updates from the database; returns a function that stops them */
   /** Who's online right now: calls back with their ids whenever it changes */
   presence(cb: (online: Set<string>) => void): () => void;
+  /** Calls: signals to and from one person (ringing, answering, connection details) */
+  callListen(cb: (s: CallSignal) => void): () => void;
+  callSend(to: string, s: CallSignal): void;
+  /** Where calls connect through (phone to phone, or Cloudflare's relay) */
+  iceServers(): Promise<RTCIceServer[]>;
+  /** Rings the other person's phone through a notification */
+  ringPhone(conversationId: string, video: boolean): Promise<void>;
+  /** "Missed voice call", "Video call · 12 min" in the chat */
+  logCall(conversationId: string, call: { video: boolean; status: 'missed' | 'declined' | 'ended'; secs: number }): Promise<void>;
   /** Live "typing…" signals in a room ('u:<id>', 'g:main', 'g:<group id>') */
   typingListen(room: string, cb: (t: TypingSignal) => void): () => void;
   typingSend(room: string, t: TypingSignal): void;

@@ -8,7 +8,7 @@ import { markPushOn, pushSubscription } from './alerts';
 import { plainText } from './format';
 import { specialLine } from './special';
 import { to } from './router';
-import type { TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { CallSignal, TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -98,6 +98,8 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     markPushOn(!error);
     return !error;
   }
+
+  const callOut = new Map<string, { ch: ReturnType<typeof sb.channel>; ready: Promise<void>; idle: number }>();
 
   /* "typing…": live signals only (Realtime broadcast), nothing saved */
   type TypingRoom = { ch: ReturnType<typeof sb.channel>; ready: Promise<void>; cbs: Set<(t: TypingSignal) => void>; idle: number };
@@ -325,6 +327,62 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       return () => {
         sb.removeChannel(channel);
       };
+    },
+    callListen(cb) {
+      let ch: ReturnType<typeof sb.channel> | null = null;
+      let stopped = false;
+      uid().then((me) => {
+        if (!me || stopped) return;
+        ch = sb.channel(`cx-call-${me}`, { config: { broadcast: { self: false } } });
+        ch.on('broadcast', { event: 'call' }, (m: { payload: CallSignal }) => cb(m.payload)).subscribe();
+      });
+      return () => {
+        stopped = true;
+        if (ch) sb.removeChannel(ch);
+      };
+    },
+    callSend(to, sig) {
+      // a short-lived channel to the other person's call line
+      const name = `cx-call-${to}`;
+      let t = callOut.get(name);
+      if (!t) {
+        const ch = sb.channel(name, { config: { broadcast: { self: false } } });
+        t = { ch, ready: new Promise<void>((res) => ch.subscribe((st: string) => st === 'SUBSCRIBED' && res())), idle: 0 };
+        callOut.set(name, t);
+      }
+      const r = t;
+      r.ready.then(() => r.ch.send({ type: 'broadcast', event: 'call', payload: sig })).catch(() => {});
+      window.clearTimeout(r.idle);
+      r.idle = window.setTimeout(() => {
+        callOut.delete(name);
+        sb.removeChannel(r.ch);
+      }, 5 * 60000);
+    },
+    async iceServers() {
+      const fallback = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
+      try {
+        const token = (await sb.auth.getSession()).data.session?.access_token;
+        const res = await fetch('/api/turn', { headers: { Authorization: `Bearer ${token ?? ''}` } });
+        const body = (await res.json()) as { iceServers?: RTCIceServer[] };
+        return body.iceServers?.length ? body.iceServers : fallback;
+      } catch {
+        return fallback;
+      }
+    },
+    async ringPhone(conversationId, video) {
+      const token = (await sb.auth.getSession()).data.session?.access_token;
+      if (!token) return;
+      await fetch('/api/push/send', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'call', conv: conversationId, video, url: new URL(to(`/messages/${conversationId}`), window.location.href).href }),
+      }).catch(() => {});
+    },
+    async logCall(conversationId, call) {
+      const me = await needUid();
+      const { data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, kind: 'call', body: JSON.stringify(call) }).select('id').single();
+      if (error) return; // calls.sql not run yet: no line in the chat
+      if (call.status === 'missed') ping('dm', (data as { id: string }).id, `/messages/${conversationId}`);
     },
     typingListen(room, cb) {
       const t = typingRoom(room);

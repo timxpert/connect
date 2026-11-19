@@ -15,6 +15,8 @@ import { ForwardSheet } from './forward';
 import { CameraScreen } from './camera';
 import { MessageField, Rich, loadDraft, smartChange, useDraft } from './format';
 import { EmojiButton } from './emoji';
+import { startCall } from './calls';
+import { callLine, readCall } from './special';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import { NewGroupSheet } from './group';
 
@@ -224,6 +226,23 @@ function Status({ m }: { m: Message }) {
     <span className="cx-tick" aria-label="Sent">
       <Icon name="tick" size={15} />
     </span>
+  );
+}
+
+/** "Missed voice call · Call back" in the chat */
+function CallLine({ m, mine, onCall }: { m: Message; mine: boolean; onCall: (video: boolean) => void }) {
+  const c = readCall(m.body);
+  const missed = c?.status !== 'ended';
+  return (
+    <div className={missed && !mine ? 'cx-callline is-missed' : 'cx-callline'}>
+      <span className="cx-callline-ico" aria-hidden="true">
+        <Icon name={c?.video ? 'video' : 'phone'} size={18} />
+      </span>
+      <span>{callLine(c, mine)}</span>
+      <button type="button" onClick={(e) => (e.stopPropagation(), onCall(Boolean(c?.video)))}>
+        Call back
+      </button>
+    </div>
   );
 }
 
@@ -1343,6 +1362,16 @@ export function Chat({ id }: { id: string }) {
             )}
           </span>
         </A>
+        {!blocked && (
+          <>
+            <button type="button" className="cx-icon-btn cx-icon-flat cx-call-start" aria-label={`Video call ${other.name}`} onClick={() => startCall(other, id, true)}>
+              <Icon name="video" />
+            </button>
+            <button type="button" className="cx-icon-btn cx-icon-flat cx-call-start" aria-label={`Call ${other.name}`} onClick={() => startCall(other, id, false)}>
+              <Icon name="phone" />
+            </button>
+          </>
+        )}
         <div className="cx-menu cx-chat-more">
           <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Chat options" aria-expanded={menu} onClick={() => setMenu((x) => !x)}>
             <Icon name="more" />
@@ -1407,6 +1436,11 @@ export function Chat({ id }: { id: string }) {
                 onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && setHeld(x)}
                 reactions={m.reactions}
                 onReact={(e) => react(m, e)}
+                content={
+                  m.kind === 'call' ? (
+                    <CallLine m={m} mine={m.sender_id === me.id} onCall={(video) => startCall(other, id, video)} />
+                  ) : undefined
+                }
                 onPlayed={(x) => api.markPlayed(x.id).catch(() => {})}
                 onRetry={retry}
                 onDownload={download}

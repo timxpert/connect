@@ -23,6 +23,7 @@ import { GroupChat, GroupInfoScreen, JoinGroupScreen } from './group';
 import { PhasePrompt } from './phase-prompt';
 import { InstallPrompt } from './install';
 import { lessonOpened } from './learning';
+import { CallLayer } from './calls';
 import { useTypingRoom } from './typing';
 import { ChallengeScreen } from './challenge';
 import { Connections, Notifications, Saved } from './screens-social';
@@ -557,6 +558,7 @@ function Shell({ route }: { route: Route }) {
       )}
       <Composer />
       {route.name !== 'settings' && route.name !== 'login' && <PhasePrompt />}
+      {me && member && <CallLayer />}
       {alertsOpen && me && (
         <AlertsSheet
           level={alertLevel}

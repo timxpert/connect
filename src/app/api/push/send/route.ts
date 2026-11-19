@@ -20,7 +20,9 @@ const json = (b: string) => {
   }
 };
 const what = (m: Row) =>
-  m.kind === 'poll'
+  m.kind === 'call'
+    ? `Missed ${(json(m.body) as { video?: boolean }).video ? 'video' : 'voice'} call`
+    : m.kind === 'poll'
     ? `📊 Poll: ${json(m.body).q ?? ''}`
     : m.kind === 'live'
       ? `🎥 Live class: ${json(m.body).t ?? ''}`
@@ -83,7 +85,15 @@ export async function POST(req: Request) {
   let gmsg: GroupMsg | null = null;
   let data: Record<string, unknown> = {};
 
-  if (body.kind === 'dm') {
+  if (body.kind === 'call') {
+    // ringing: tell the other person's phone, even with Connect closed
+    const b2 = body as { to?: string; conv?: string; video?: boolean };
+    const { data: c } = await admin.from('conversations').select('id, user_a, user_b').eq('id', String(b2.conv)).maybeSingle();
+    const conv = c as { id: string; user_a: string; user_b: string } | null;
+    if (!conv || ![conv.user_a, conv.user_b].includes(uid)) return Response.json({ ok: false });
+    to = [conv.user_a === uid ? conv.user_b : conv.user_a];
+    data = { title: sender.name, body: b2.video ? 'Incoming video call' : 'Incoming voice call', icon: sender.avatar_url, tag: `call-${conv.id}`, url: link(`/messages/${conv.id}`), call: true };
+  } else if (body.kind === 'dm') {
     const { data: m } = await admin.from('messages').select('id, sender_id, body, kind, file_name, created_at, conversation_id').eq('id', String(body.id)).maybeSingle();
     const msg = m as (Row & { conversation_id: string }) | null;
     if (!msg || msg.sender_id !== uid) return Response.json({ ok: false });
