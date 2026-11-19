@@ -166,7 +166,10 @@ export function Students({ tab = 'challenge' }: { tab?: 'challenge' | 'members' 
 
 function MembersList() {
   const { api, me } = useConnect();
-  const member = isMember(me);
+  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  const [q, setQ] = useState('');
+  const [phase, setPhase] = useState<number | null>(null);
+  const [list, setList] = useState<Profile[] | null>(() => peek<Profile[]>('listStudents', { q: '', skill: '', phase: null }) ?? null);
   // who handed in the open challenge, and streaks
   const [stats, setStats] = useState<Record<string, ChallengeStat>>({});
   useEffect(() => {
@@ -175,133 +178,80 @@ function MembersList() {
       .then((l) => setStats(Object.fromEntries(l.map((x) => [x.user_id, x]))))
       .catch(() => {});
   }, [api]);
-  const [q, setQ] = useState('');
-  const [skill, setSkill] = useState('');
-  const [phase, setPhase] = useState<number | null>(null);
-  const [list, setList] = useState<Profile[] | null>(() => peek<Profile[]>('listStudents', { q: '', skill: '', phase: null }) ?? null);
-  // each member's latest pictures and videos, to show on their card like a portfolio
-  const [work, setWork] = useState<Record<string, { shots: Post[]; count: number }>>(() => workBy(peek<Post[]>('listPosts', { feed: 'everyone', limit: 150 }) ?? []));
   useEffect(() => {
     let live = true;
-    api
-      .listPosts({ feed: 'everyone', limit: 150 })
-      .then((posts) => {
-        if (live) setWork(workBy(posts));
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [api]);
-
-  useEffect(() => {
-    let live = true;
-    const seen = peek<Profile[]>('listStudents', { q, skill, phase });
+    const seen = peek<Profile[]>('listStudents', { q, skill: '', phase });
     if (seen) setList(seen);
     const t = window.setTimeout(() => {
-      api.listStudents({ q, skill, phase }).then((r) => live && setList(r)).catch(() => live && setList([]));
+      api.listStudents({ q, skill: '', phase }).then((r) => live && setList(r)).catch(() => live && setList([]));
     }, 200);
     return () => {
       live = false;
       window.clearTimeout(t);
     };
-  }, [api, q, skill, phase]);
+  }, [api, q, phase]);
+
+  // active students first: longest streak, then who handed in
+  const rows = [...(list ?? [])].sort((a, b) => {
+    const sa = stats[a.id];
+    const sb = stats[b.id];
+    return (sb?.streak ?? 0) - (sa?.streak ?? 0) || Number(Boolean(sb?.entered_current)) - Number(Boolean(sa?.entered_current)) || a.name.localeCompare(b.name);
+  });
+  const handed = rows.filter((p) => stats[p.id]?.entered_current).length;
+  const hasChallenge = rows.some((p) => stats[p.id]?.entered_current !== null && stats[p.id]?.entered_current !== undefined);
 
   return (
-    <>
-
-      {member && (
-      <div className="cx-filters">
-        <label className="cx-search">
-          <Icon name="search" size={20} />
-          <span className="sr-only">Search members</span>
-          <input type="search" placeholder="Search by name or country" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
-        <div className="cx-chips" role="group" aria-label="Filter by skill">
-          <button type="button" className={!skill ? 'cx-chip is-on' : 'cx-chip'} onClick={() => setSkill('')} aria-pressed={!skill}>
-            All skills
+    <div className="cx-mlist">
+      <label className="cx-search">
+        <Icon name="search" size={20} />
+        <span className="sr-only">Search members</span>
+        <input type="search" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+      </label>
+      <div className="cx-chips" role="group" aria-label="Filter by phase">
+        <button type="button" className={!phase ? 'cx-chip is-on' : 'cx-chip'} aria-pressed={!phase} onClick={() => setPhase(null)}>
+          All
+        </button>
+        {PHASES.map((_, i) => (
+          <button key={i} type="button" className={phase === i + 1 ? 'cx-chip is-on' : 'cx-chip'} aria-pressed={phase === i + 1} onClick={() => setPhase(phase === i + 1 ? null : i + 1)}>
+            Phase {i + 1}
           </button>
-          {SKILLS.map((s) => (
-            <button key={s} type="button" className={skill === s ? 'cx-chip is-on' : 'cx-chip'} onClick={() => setSkill(skill === s ? '' : s)} aria-pressed={skill === s}>
-              {s}
-            </button>
-          ))}
-        </div>
-        <label className="cx-select">
-          <span>Phase</span>
-          <select value={phase ?? ''} onChange={(e) => setPhase(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">Any phase</option>
-            {PHASES.map((t, i) => (
-              <option key={t} value={i + 1}>
-                {BELTS[i]} · {t}
-              </option>
-            ))}
-          </select>
-        </label>
+        ))}
       </div>
-      )}
+      {list && <p className="cx-mlist-sum">{`${rows.length} ${rows.length === 1 ? 'member' : 'members'}${hasChallenge ? ` · ${handed} handed in this challenge` : ''}`}</p>}
 
       {list === null ? (
         <Loading label="Loading members" />
-      ) : list.length === 0 ? (
-        <Empty title={member ? 'No one matches' : 'No members yet'}>
-          {member && <p>Try another name, skill or phase.</p>}
-        </Empty>
+      ) : rows.length === 0 ? (
+        <Empty title="No one matches" />
       ) : (
-        <ul className="cx-talent">
-          {list.map((p) => {
-            const w = work[p.id];
-            const first = p.name.split(' ')[0];
-            const headline = shortBio(p.bio).split(/(?<=[.!?])\s|\n/)[0].trim() || 'Motion designer';
+        <ul className="cx-mlist-rows">
+          {rows.map((p) => {
+            const st = stats[p.id];
             return (
               <li key={p.id}>
-                <A path={`/u/${p.handle}`} className="cx-talent-card">
-                  <span className="cx-talent-head">
-                    <Avatar p={p} size={56} />
-                    <span className="cx-talent-who">
-                      <span className="cx-talent-name">
-                        {p.name}
-                        <BeltBadge p={p} small />
-                        {p.sample && <SampleTag />}
-                      </span>
-                      <span className="cx-talent-line">{headline}</span>
-                      <span className="cx-talent-meta">
-                        {p.country && (
-                          <span>
-                            <PinIcon /> {p.country}
-                          </span>
-                        )}
-                        <span>{w?.count ? `${w.count} ${w.count === 1 ? 'post' : 'posts'}` : 'New member'}</span>
-                      </span>
-                      {stats[p.id] && (
-                        <span className="cx-talent-ch">
-                          {stats[p.id].entered_current !== null && (
-                            <span className={stats[p.id].entered_current ? 'is-in' : ''}>{stats[p.id].entered_current ? 'Handed in' : 'Not handed in yet'}</span>
-                          )}
-                          {stats[p.id].streak > 0 && <span>{stats[p.id].streak} in a row</span>}
-                        </span>
-                      )}
+                <A path={`/u/${p.handle}`} className="cx-mlist-row">
+                  <Avatar p={p} size={44} />
+                  <span className="cx-mlist-who">
+                    <span className="cx-mlist-name">
+                      {p.name}
+                      <BeltBadge p={p} small />
+                      {p.sample && <SampleTag />}
                     </span>
+                    <span className="cx-mlist-sub">{p.country || 'Motion designer'}</span>
                   </span>
-                  {w?.shots.length ? (
-                    <span className="cx-talent-work" data-count={w.shots.length}>
-                      {w.shots.map((x) =>
-                        x.kind === 'image' ? (
-                          <img key={x.id} src={x.media_url!} alt="" loading="lazy" />
-                        ) : (
-                          <video key={x.id} src={`${x.media_url}#t=0.1`} muted playsInline preload="metadata" />
-                        ),
-                      )}
+                  {st && (
+                    <span className="cx-mlist-ch">
+                      {st.entered_current !== null && <span className={st.entered_current ? 'is-in' : ''}>{st.entered_current ? 'Handed in' : 'Not yet'}</span>}
+                      <span>{st.streak ? `${st.streak} in a row` : team ? 'No streak' : ''}</span>
                     </span>
-                  ) : null}
-                  <span className="cx-talent-go">See {first}’s work</span>
+                  )}
                 </A>
               </li>
             );
           })}
         </ul>
       )}
-    </>
+    </div>
   );
 }
 

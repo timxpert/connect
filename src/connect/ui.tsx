@@ -243,7 +243,7 @@ export async function shareLink(path: string, title: string, toast: (m: string) 
 }
 
 /* ---------- People ---------- */
-const TINTS = ['#6d32e8', '#140a2e', '#a77bff', '#2b1a5c'];
+const TINTS = ['#6d32e8', '#a77bff', '#8452f0', '#5a24cf'];
 export function Avatar({ p, size = 44 }: { p: Pick<Profile, 'name' | 'avatar_url' | 'handle'>; size?: number }) {
   const initials = p.name
     .replace(/\(.*?\)/g, '')

@@ -492,6 +492,16 @@ export function GroupChat() {
           const showDay = day !== lastDay;
           if (showDay) lastSender = '';
           lastDay = day;
+          // "Ada Okafor joined the group" (sent automatically when a student joins)
+          if ((m.kind as string) === 'join') {
+            lastSender = '';
+            return (
+              <React.Fragment key={m.id}>
+                {showDay && <li className="cx-day">{day}</li>}
+                <li className="cx-day cx-joined">{m.sender_id === me.id ? 'You joined the group' : `${m.sender?.name ?? 'Someone'} joined the group`}</li>
+              </React.Fragment>
+            );
+          }
           const mine = m.sender_id === me.id;
           const showWho = !mine && m.sender_id !== lastSender;
           lastSender = m.sender_id;

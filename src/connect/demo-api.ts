@@ -145,6 +145,7 @@ let assignments: Assignment[] = [];
 type RawGroup = Omit<GroupMessage, 'sender' | 'reactions'>;
 let group: RawGroup[] = [
   { id: 'g1m', conversation_id: 'group', sender_id: 'g1', body: 'Sample message: welcome to the Dojo group. Say hi and share what you’re working on.', kind: 'text', created_at: ago(30) },
+  { id: 'gjn', conversation_id: 'group', sender_id: 's3', body: '', kind: 'join' as RawGroup['kind'], created_at: ago(20) },
   { id: 'g2m', conversation_id: 'group', sender_id: 's2', body: 'Sample message: anyone tried the new easing presets?', kind: 'text', created_at: ago(5) },
   { id: 'g3m', conversation_id: 'group', sender_id: 's4', body: 'Sample message: yes, the bounce one is great for logo reveals.', kind: 'text', reply_to: 'g2m', created_at: ago(4) },
 ];

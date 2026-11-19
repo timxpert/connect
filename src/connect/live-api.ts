@@ -970,7 +970,8 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const r = ((data ?? []) as unknown as { body: string; kind: string; deleted_at: string | null; created_at: string; sender: { name: string } | null }[])[0];
       const [{ data: n }, { name, photo_url }] = await Promise.all([sb.rpc('group_unread'), look()]);
       if (!r) return { name, photo_url, text: 'No messages yet', at: '', unread: 0 };
-      return { name, photo_url, text: `${r.sender?.name ?? 'Someone'}: ${preview(r)}`, at: r.created_at, unread: Number(n ?? 0) };
+      const text = r.kind === 'join' ? `${r.sender?.name ?? 'Someone'} joined the group` : `${r.sender?.name ?? 'Someone'}: ${preview(r)}`;
+      return { name, photo_url, text, at: r.created_at, unread: Number(n ?? 0) };
     },
     async sendGroupMessage(body, replyTo, forwarded) {
       const me = await needUid();
