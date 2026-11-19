@@ -14,6 +14,7 @@ import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
 import { ForwardSheet } from './forward';
+import { FormatBar, plainText, smartChange } from './format';
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
 
@@ -76,7 +77,7 @@ function useGroup(): Scope {
 }
 
 const snippet = (m: GroupMessage) =>
-  m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.kind === 'file' ? m.body || m.file_name || 'Document' : m.body;
+  m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.kind === 'file' ? m.body || m.file_name || 'Document' : plainText(m.body);
 
 /** "Ada, Tunde, Kemi, You": the people in the group, for the header */
 function memberNames(people: Profile[], me: string) {
@@ -643,6 +644,7 @@ function GroupChatInner() {
               </button>
             </div>
           )}
+          <FormatBar box={box} value={draft} onChange={setDraft} />
           <form
             className="cx-compose cx-chat-compose"
             onSubmit={(e) => {
@@ -676,7 +678,7 @@ function GroupChatInner() {
               placeholder="Message the group"
               value={draft}
               onChange={(e) => {
-                setDraft(e.target.value);
+                smartChange(draft, e.target, setDraft);
                 setCaret(e.target.selectionStart ?? e.target.value.length);
               }}
               onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}

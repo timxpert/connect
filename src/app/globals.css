@@ -8308,3 +8308,79 @@ html[data-cx-theme='dark'] .cx-role-tag {
   color: var(--muted);
   transform: rotate(35deg);
 }
+
+/* Formatted messages: lists and bold/italic/underline/strike */
+.cx-rich > * {
+  margin: 0;
+}
+.cx-rich > * + * {
+  margin-top: 4px;
+}
+.cx-rich p {
+  white-space: pre-wrap;
+}
+.cx-rich-ol,
+.cx-rich-ul {
+  padding-left: 1.5em;
+}
+.cx-rich-ol {
+  list-style: decimal;
+}
+.cx-rich-ol li,
+.cx-rich-ul li {
+  padding-left: 0.15em;
+  white-space: pre-wrap;
+}
+.cx-rich-ul {
+  list-style: none;
+}
+.cx-rich-ul li {
+  position: relative;
+}
+.cx-rich-ul li::before {
+  content: '\2022';
+  position: absolute;
+  left: -1em;
+}
+.cx-rich-ol li::marker {
+  font-variant-numeric: tabular-nums;
+}
+.cx-rich strong {
+  font-weight: 700;
+}
+/* Format buttons above the message box while text is selected */
+.cx-fmt {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px 0;
+}
+.cx-fmt button {
+  min-width: 40px;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: #f1ebff;
+  color: var(--violet);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.cx-fmt .cx-fmt-b {
+  font-weight: 800;
+}
+.cx-fmt .cx-fmt-i {
+  font-style: italic;
+  font-family: Georgia, serif;
+}
+.cx-fmt .cx-fmt-u {
+  text-decoration: underline;
+}
+.cx-fmt .cx-fmt-s {
+  text-decoration: line-through;
+}
+
+.cx ::selection {
+  background: #dccbff;
+  color: inherit;
+}

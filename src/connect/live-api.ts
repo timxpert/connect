@@ -5,6 +5,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { prepareImage } from './resize';
 import { markPushOn, pushSubscription } from './alerts';
+import { plainText } from './format';
 import { to } from './router';
 import type { Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
@@ -228,7 +229,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
             ? m.body || 'Video'
             : m.kind === 'file'
               ? m.file_name || 'File'
-              : m.body;
+              : plainText(m.body);
 
   // Faster single-request reads, used once the database has the speed update
   let fastFeed = true;

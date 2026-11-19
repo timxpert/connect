@@ -13,6 +13,7 @@ import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
 import { CameraScreen } from './camera';
+import { FormatBar, Rich, smartChange } from './format';
 import { NewGroupSheet } from './group';
 
 /* ------------------------------------------------------------------
@@ -751,7 +752,7 @@ export function Bubble({
         </span>
       )}
       {m.pending && kind === 'video' && (m.progress ?? 0) < 0.5 && <small className="cx-msg-prep">Making the video smaller…</small>}
-      {m.body && <p>{withMentions(m.body)}</p>}
+      {m.body && <Rich text={m.body} mention={withMentions} />}
       <span className="cx-msg-meta">
         <time dateTime={m.created_at}>{hhmm(m.created_at)}</time>
         {mine && !noTicks && <Status m={m} />}
@@ -1274,6 +1275,7 @@ export function Chat({ id }: { id: string }) {
             </button>
           </div>
         )}
+        <FormatBar box={box} value={draft} onChange={setDraft} />
         <form
           className="cx-compose cx-chat-compose"
           onSubmit={(e) => {
@@ -1300,7 +1302,7 @@ export function Chat({ id }: { id: string }) {
             Message
           </label>
           {/* Enter adds a new line; only the send button sends */}
-          <textarea ref={box} id="msg-box" rows={1} maxLength={4000} placeholder="Message" value={draft} onChange={(e) => setDraft(e.target.value)} enterKeyHint="enter" />
+          <textarea ref={box} id="msg-box" rows={1} maxLength={4000} placeholder="Message" value={draft} onChange={(e) => smartChange(draft, e.target, setDraft)} enterKeyHint="enter" />
           {typing ? (
             <button type="submit" className="cx-send" aria-label="Send">
               <Icon name="send" size={20} />

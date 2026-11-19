@@ -9,6 +9,9 @@ export const dynamic = 'force-dynamic';
 
 type Row = { id: string; sender_id: string; body: string; kind: string; file_name?: string | null; created_at: string };
 
+// *bold* _italic_ __underline__ ~strike~ shown without the marks
+const plain = (t: string) => t.replace(/(__|[*_~])(?=\S)([^\n]*?\S)\1/g, '$2');
+
 const what = (m: Row) =>
   m.kind === 'voice'
     ? 'Voice message'
@@ -18,7 +21,7 @@ const what = (m: Row) =>
         ? `Video${m.body ? `: ${m.body}` : ''}`
         : m.kind === 'file'
           ? `Document: ${m.file_name || 'file'}`
-          : m.body;
+          : plain(m.body);
 
 export async function POST(req: Request) {
   const admin = adminClient();
