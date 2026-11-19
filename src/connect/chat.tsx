@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useConnect } from './context';
 import { navigate } from './router';
 import { play } from './sounds';
@@ -813,7 +813,12 @@ export function Chat({ id }: { id: string }) {
   }, [id]);
 
   // the first message from them I hadn't read when I opened the chat
-  const [unreadFrom, setUnreadFrom] = useState<string | null | undefined>(undefined);
+  // (worked out from last time's messages when we have them, so the chat opens in place at once)
+  const [unreadFrom, setUnreadFrom] = useState<string | null | undefined>(() => {
+    const cached = peek<Message[]>('listMessages', id);
+    if (!cached || !me) return undefined;
+    return cached.find((m) => m.sender_id !== me.id && !m.read_at && !m.deleted_at)?.id ?? null;
+  });
   const load = useCallback(async () => {
     const list = await api.listMessages(id);
     if (me) setUnreadFrom((u) => (u !== undefined ? u : (list.find((m) => m.sender_id !== me.id && !m.read_at && !m.deleted_at)?.id ?? null)));
@@ -844,7 +849,9 @@ export function Chat({ id }: { id: string }) {
   // "Unread messages" line), or at the newest one if you've read everything.
   // New messages after that glide into view. Only the message list moves.
   const opened = useRef(false);
-  useEffect(() => {
+  // Hidden until it's scrolled into place, so it never shows old messages and then jumps
+  const [placed, setPlaced] = useState(false);
+  useLayoutEffect(() => {
     const el = end.current;
     const list = el?.parentElement;
     if (!el || !list) return;
@@ -856,6 +863,7 @@ export function Chat({ id }: { id: string }) {
         list.scrollTop = mark ? mark.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - 8 : list.scrollHeight;
       };
       place();
+      setPlaced(true);
       // Photos and videos load after this and push things down: keep the same
       // spot for a few seconds, unless the person starts scrolling themselves.
       let touched = false;
@@ -1182,7 +1190,7 @@ export function Chat({ id }: { id: string }) {
         </div>
       </header>
 
-      <ol className="cx-msgs">
+      <ol className={placed ? 'cx-msgs' : 'cx-msgs is-placing'}>
         {all.map((m) => {
           const day = dayLabel(m.created_at);
           const showDay = day !== lastDay;
@@ -1374,8 +1382,9 @@ export function Chat({ id }: { id: string }) {
 }
 
 /* ================= Inbox ================= */
-function GroupInboxRow() {
+function GroupInboxRow({ p: pinp }: { p: PinProps }) {
   const { api } = useConnect();
+  const hold = useHold(pinp.onHold);
   // Shown straight away (last known, or just the name) so the group never blinks out while it loads
   // the group's name and picture from last time, so the old default name never flashes
   // Name and last message appear together: from last time straight away, or both when they arrive
@@ -1402,8 +1411,7 @@ function GroupInboxRow() {
   }, [api]);
   if (!p)
     return (
-      <ul className="cx-inbox cx-inbox-group" aria-busy="true">
-        <li>
+        <li style={{ order: pinp.order }} aria-busy="true">
           <span className="cx-inbox-row">
             <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true" />
             <span className="cx-inbox-text">
@@ -1412,12 +1420,10 @@ function GroupInboxRow() {
             </span>
           </span>
         </li>
-      </ul>
     );
   return (
-    <ul className="cx-inbox cx-inbox-group">
-      <li>
-        <A path="/messages/group" className={p.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
+      <li style={{ order: pinp.order }}>
+        <A path="/messages/group" className={p.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'} {...hold}>
           <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true">
             <img src={p.photo_url || '/assets/favicon-128.png'} alt="" width={56} height={56} />
           </span>
@@ -1430,17 +1436,66 @@ function GroupInboxRow() {
               <span className="cx-inbox-last">
                 <span className="cx-inbox-snippet">{p.text}</span>
               </span>
+              <PinMark on={pinp.pinned} />
               {p.unread > 0 && <span className="cx-inbox-count">{p.unread > 99 ? '99+' : p.unread}</span>}
             </span>
           </span>
         </A>
       </li>
-    </ul>
   );
 }
 
+/* ---------- Pinned chats ---------- */
+type PinProps = { order: number; pinned: boolean; onHold: () => void };
+/** Hold a row (or right-click it) to pin or unpin; a hold doesn't open the chat */
+function useHold(onHold: () => void) {
+  const timer = useRef(0);
+  const held = useRef(false);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const cancel = () => {
+    window.clearTimeout(timer.current);
+    start.current = null;
+  };
+  return {
+    onPointerDown: (e: React.PointerEvent) => {
+      held.current = false;
+      start.current = { x: e.clientX, y: e.clientY };
+      timer.current = window.setTimeout(() => {
+        held.current = true;
+        navigator.vibrate?.(15);
+        onHold();
+      }, 500);
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      if (start.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 10) cancel();
+    },
+    onPointerUp: cancel,
+    onPointerCancel: cancel,
+    onContextMenu: (e: React.MouseEvent) => {
+      e.preventDefault();
+      cancel();
+      held.current = true;
+      onHold();
+    },
+    onClickCapture: (e: React.MouseEvent) => {
+      if (held.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        held.current = false;
+      }
+    },
+  };
+}
+function PinMark({ on }: { on: boolean }) {
+  return on ? (
+    <span className="cx-pin-mark" aria-label="Pinned">
+      <Icon name="pin" size={14} />
+    </span>
+  ) : null;
+}
+
 /** The Grand Sensei's own groups I'm in */
-function OwnGroupRows() {
+function OwnGroupRows({ pin }: { pin: (chat: string) => PinProps }) {
   const { api } = useConnect();
   const [rows, setRows] = useState<GroupRow[]>(() => peek<GroupRow[]>('myGroups') ?? []);
   useEffect(() => {
@@ -1455,29 +1510,77 @@ function OwnGroupRows() {
   }, [api]);
   if (!rows.length) return null;
   return (
-    <ul className="cx-inbox cx-inbox-group">
+    <>
       {rows.map((g) => (
-        <li key={g.id}>
-          <A path={`/messages/g/${g.id}`} className={g.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
-            <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true">
-              {g.photo_url ? <img src={g.photo_url} alt="" width={56} height={56} /> : <span className="cx-group-initial">{g.name.trim().charAt(0).toUpperCase()}</span>}
-            </span>
-            <span className="cx-inbox-text">
-              <span className="cx-inbox-top">
-                <span className="cx-person-name">{g.name}</span>
-                {g.at && <span className="cx-inbox-time">{shortTime(g.at)}</span>}
-              </span>
-              <span className="cx-inbox-bottom">
-                <span className="cx-inbox-last">
-                  <span className="cx-inbox-snippet">{g.text}</span>
-                </span>
-                {g.unread > 0 && <span className="cx-inbox-count">{g.unread > 99 ? '99+' : g.unread}</span>}
-              </span>
-            </span>
-          </A>
-        </li>
+        <OwnGroupRow key={g.id} g={g} p={pin(`g:${g.id}`)} />
       ))}
-    </ul>
+    </>
+  );
+}
+
+function OwnGroupRow({ g, p }: { g: GroupRow; p: PinProps }) {
+  const hold = useHold(p.onHold);
+  return (
+  <li style={{ order: p.order }}>
+    <A path={`/messages/g/${g.id}`} className={g.unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'} {...hold}>
+      <span className="cx-group-ico cx-group-ico-lg" aria-hidden="true">
+        {g.photo_url ? <img src={g.photo_url} alt="" width={56} height={56} /> : <span className="cx-group-initial">{g.name.trim().charAt(0).toUpperCase()}</span>}
+      </span>
+      <span className="cx-inbox-text">
+        <span className="cx-inbox-top">
+          <span className="cx-person-name">{g.name}</span>
+          {g.at && <span className="cx-inbox-time">{shortTime(g.at)}</span>}
+        </span>
+        <span className="cx-inbox-bottom">
+          <span className="cx-inbox-last">
+            <span className="cx-inbox-snippet">{g.text}</span>
+          </span>
+          <PinMark on={p.pinned} />
+          {g.unread > 0 && <span className="cx-inbox-count">{g.unread > 99 ? '99+' : g.unread}</span>}
+        </span>
+      </span>
+    </A>
+  </li>
+  );
+}
+
+function ChatRow({ c, p }: { c: Conversation; p: PinProps }) {
+  const hold = useHold(p.onHold);
+  const unread = c.unread ?? 0;
+  const joined = (c.last_kind as string) === 'join';
+  const kind = c.last_kind && c.last_kind !== 'text' && !joined && !c.last_deleted ? (c.last_kind as keyof typeof KIND_ICON) : null;
+  return (
+    <li style={{ order: p.order }}>
+      <A path={`/messages/${c.id}`} className={unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'} {...hold}>
+        <span className="cx-av-wrap">
+          <Avatar p={c.other} size={56} />
+          <OnlineDot id={c.other.id} />
+        </span>
+        <span className="cx-inbox-text">
+          <span className="cx-inbox-top">
+            <span className="cx-person-name">
+              {c.other.name}
+              {c.other.is_sensei ? null : c.other.is_student && <BeltBadge p={c.other} small />}
+              {joined && unread > 0 && <span className="cx-new-tag">New</span>}
+            </span>
+            <span className="cx-inbox-time">{shortTime(c.last_message_at)}</span>
+          </span>
+          <span className="cx-inbox-bottom">
+            <span className="cx-inbox-last">
+              {c.last_mine && !c.last_deleted && !joined && (
+                <span className={c.last_read ? 'cx-tick is-seen' : 'cx-tick'} aria-label={c.last_read ? 'Seen' : c.last_delivered ? 'Delivered' : 'Sent'}>
+                  <Icon name={c.last_read || c.last_delivered ? 'ticks' : 'tick'} size={16} />
+                </span>
+              )}
+              {kind && <Icon name={KIND_ICON[kind]} size={16} />}
+              <span className={joined && unread > 0 ? 'cx-inbox-snippet is-joined' : 'cx-inbox-snippet'}>{c.last_body || 'Say hello'}</span>
+            </span>
+            <PinMark on={p.pinned} />
+            {unread > 0 && <span className="cx-inbox-count">{unread > 99 ? '99+' : unread}</span>}
+          </span>
+        </span>
+      </A>
+    </li>
   );
 }
 
@@ -1503,6 +1606,29 @@ export function Inbox() {
   const [opening, setOpening] = useState('');
   const [askAlerts, setAskAlerts] = useState(false);
   const [newGroup, setNewGroup] = useState(false);
+  // Pinned chats sit at the top, in the order they were pinned
+  const [pins, setPins] = useState<string[]>(() => peek<string[]>('listPins') ?? []);
+  const [holding, setHolding] = useState<string | null>(null);
+  useEffect(() => {
+    if (me) api.listPins().then(setPins).catch(() => {});
+  }, [api, me?.id]);
+  const pinOf = (chat: string): PinProps => {
+    const i = pins.indexOf(chat);
+    return { order: i < 0 ? 0 : i - 1000, pinned: i >= 0, onHold: () => setHolding(chat) };
+  };
+  const togglePin = async (chat: string) => {
+    setHolding(null);
+    const on = !pins.includes(chat);
+    if (on && pins.length >= 5 && !me?.is_sensei) return toast('You can pin up to 5 chats.');
+    const before = pins;
+    setPins(on ? [...pins, chat] : pins.filter((c) => c !== chat));
+    try {
+      await api.setPin(chat, on);
+    } catch (e) {
+      setPins(before);
+      toast((e as Error).message);
+    }
+  };
   useEffect(() => {
     let dismissed = false;
     try {
@@ -1614,8 +1740,13 @@ export function Inbox() {
         </ul>
       )}
 
-      {(me.is_student || me.is_sensei || me.is_moderator) && !term && <GroupInboxRow />}
-      {!term && <OwnGroupRows />}
+      <ul className="cx-inbox cx-inbox-all">
+        {(me.is_student || me.is_sensei || me.is_moderator) && !term && <GroupInboxRow p={pinOf('group')} />}
+        {!term && <OwnGroupRows pin={pinOf} />}
+        {chats.map((c) => (
+          <ChatRow key={c.id} c={c} p={pinOf(c.id)} />
+        ))}
+      </ul>
 
       {list!.length === 0 ? (
         <div className="cx-inbox-empty">
@@ -1632,46 +1763,20 @@ export function Inbox() {
         </div>
       ) : chats.length === 0 ? (
         <p className="cx-inbox-none">No chats match “{q}”.</p>
-      ) : (
-        <ul className="cx-inbox">
-          {chats.map((c) => {
-            const unread = c.unread ?? 0;
-            const joined = (c.last_kind as string) === 'join';
-            const kind = c.last_kind && c.last_kind !== 'text' && !joined && !c.last_deleted ? (c.last_kind as keyof typeof KIND_ICON) : null;
-            return (
-              <li key={c.id}>
-                <A path={`/messages/${c.id}`} className={unread ? 'cx-inbox-row is-unread' : 'cx-inbox-row'}>
-                  <span className="cx-av-wrap">
-                    <Avatar p={c.other} size={56} />
-                    <OnlineDot id={c.other.id} />
-                  </span>
-                  <span className="cx-inbox-text">
-                    <span className="cx-inbox-top">
-                      <span className="cx-person-name">
-                        {c.other.name}
-                        {c.other.is_sensei ? null : c.other.is_student && <BeltBadge p={c.other} small />}
-                        {joined && unread > 0 && <span className="cx-new-tag">New</span>}
-                      </span>
-                      <span className="cx-inbox-time">{shortTime(c.last_message_at)}</span>
-                    </span>
-                    <span className="cx-inbox-bottom">
-                      <span className="cx-inbox-last">
-                        {c.last_mine && !c.last_deleted && !joined && (
-                          <span className={c.last_read ? 'cx-tick is-seen' : 'cx-tick'} aria-label={c.last_read ? 'Seen' : c.last_delivered ? 'Delivered' : 'Sent'}>
-                            <Icon name={c.last_read || c.last_delivered ? 'ticks' : 'tick'} size={16} />
-                          </span>
-                        )}
-                        {kind && <Icon name={KIND_ICON[kind]} size={16} />}
-                        <span className={joined && unread > 0 ? 'cx-inbox-snippet is-joined' : 'cx-inbox-snippet'}>{c.last_body || 'Say hello'}</span>
-                      </span>
-                      {unread > 0 && <span className="cx-inbox-count">{unread > 99 ? '99+' : unread}</span>}
-                    </span>
-                  </span>
-                </A>
-              </li>
-            );
-          })}
-        </ul>
+      ) : null}
+
+      {holding && (
+        <div className="cx-sheet-wrap" onClick={() => setHolding(null)}>
+          <div className="cx-sheet" role="menu" onClick={(e) => e.stopPropagation()}>
+            <span className="cx-grab" aria-hidden="true" />
+            <button type="button" role="menuitem" onClick={() => togglePin(holding)}>
+              <Icon name="pin" /> {pins.includes(holding) ? 'Unpin chat' : 'Pin chat'}
+            </button>
+            <button type="button" role="menuitem" onClick={() => setHolding(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

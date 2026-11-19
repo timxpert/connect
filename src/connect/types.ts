@@ -387,6 +387,10 @@ export interface ConnectApi {
   /** Team only. hours = 0 unmutes */
   muteInGroup(userId: string, hours: number, gid?: string | null): Promise<void>;
 
+  /** Chats pinned to the top of Messages, in the order they were pinned ('group', 'g:<id>' or a chat id) */
+  listPins(): Promise<string[]>;
+  /** Up to 5 (the Grand Sensei: any number) */
+  setPin(chat: string, on: boolean): Promise<void>;
   /** The Grand Sensei's own groups I'm in, for Messages */
   myGroups(): Promise<GroupRow[]>;
   /** Grand Sensei only; returns the new group's id */

@@ -1210,6 +1210,39 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
     },
 
+    /* Pinned chats (pins.sql); on this phone only until that's run */
+    async listPins() {
+      const me = await uid();
+      if (!me) return [];
+      const { data, error } = await sb.from('chat_pins').select('chat').eq('user_id', me).order('pinned_at');
+      if (!error) return ((data ?? []) as { chat: string }[]).map((r) => r.chat);
+      try {
+        return JSON.parse(localStorage.getItem(`cx-pins-${me}`) || '[]') as string[];
+      } catch {
+        return [];
+      }
+    },
+    async setPin(chat, on) {
+      const me = await needUid();
+      const { error } = on ? await sb.from('chat_pins').insert({ user_id: me, chat }) : await sb.from('chat_pins').delete().eq('user_id', me).eq('chat', chat);
+      if (error?.message.includes('pin_limit')) throw new Error('You can pin up to 5 chats.');
+      if (error && /duplicate/i.test(error.message)) return;
+      if (error && /chat_pins/.test(error.message)) {
+        // database without pins yet: keep them on this phone
+        const key = `cx-pins-${me}`;
+        let list: string[] = [];
+        try {
+          list = JSON.parse(localStorage.getItem(key) || '[]') as string[];
+        } catch {
+          /* none */
+        }
+        list = list.filter((c) => c !== chat);
+        if (on) list.push(chat);
+        localStorage.setItem(key, JSON.stringify(list));
+        return;
+      }
+      fail(error);
+    },
     /* Your own groups (groups.sql) */
     async myGroups() {
       const { data, error } = await sb.rpc('my_groups');

@@ -159,6 +159,7 @@ let groupReadAt = ago(6);
 // The Grand Sensei's own groups (demo)
 type OwnGroup = { id: string; name: string; photo_url: string | null; announce_only: boolean; pinned_id: string | null; history: 'all' | '14d' | '100' | 'none'; people: Map<string, { added: string; read: string | null; muted: number }>; msgs: RawGroup[]; created_at: string };
 const ownGroups: OwnGroup[] = [];
+let pins: string[] = [];
 const invites = new Map<string, { gid: string; message: string; expires: number }>();
 const og = (gid: string) => {
   const g = ownGroups.find((x) => x.id === gid);
@@ -622,6 +623,14 @@ export function createDemoApi(): ConnectApi {
       }
       if (hours > 0) groupMutes.set(userId, Date.now() + hours * 3600_000);
       else groupMutes.delete(userId);
+    },
+    listPins: () => wait([...pins]),
+    async setPin(chat, on) {
+      if (on && !pins.includes(chat)) {
+        if (pins.length >= 5 && !who(needMe()).is_sensei) throw new Error('You can pin up to 5 chats.');
+        pins.push(chat);
+      }
+      if (!on) pins = pins.filter((c) => c !== chat);
     },
     myGroups: () =>
       wait(

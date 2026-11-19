@@ -4,7 +4,7 @@
    and reactions. The team can pin a message, remove any message, mute a
    student for a while and switch the group to announcements only. */
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useConnect } from './context';
 import { peek } from './cache';
 import { useDragToClose } from './drag';
@@ -148,13 +148,19 @@ function GroupChatInner() {
   }, [api, me]);
 
   // the first message I hadn't read when I opened the group
-  const [unreadFrom, setUnreadFrom] = useState<string | null | undefined>(undefined);
+  // (worked out from last time when we have it, so the group opens in place at once)
+  const [unreadFrom, setUnreadFrom] = useState<string | null | undefined>(() => {
+    const cached = last<GroupMessage[]>('listGroupMessages');
+    const lastRead = last<string | null>('groupLastRead');
+    if (!cached || lastRead === undefined || !me) return undefined;
+    return cached.find((m) => m.sender_id !== me.id && !m.deleted_at && (m.kind as string) !== 'join' && (!lastRead || m.created_at > lastRead))?.id ?? null;
+  });
   const firstLoad = useRef(true);
   const load = useCallback(async () => {
     const [list, i, lastRead] = await Promise.all([api.listGroupMessages(), api.groupInfo(), firstLoad.current ? api.groupLastRead().catch(() => null) : Promise.resolve(null)]);
     if (firstLoad.current && me) {
       firstLoad.current = false;
-      setUnreadFrom(list.find((m) => m.sender_id !== me.id && !m.deleted_at && (!lastRead || m.created_at > lastRead))?.id ?? null);
+      setUnreadFrom((u) => (u !== undefined ? u : (list.find((m) => m.sender_id !== me.id && !m.deleted_at && (m.kind as string) !== 'join' && (!lastRead || m.created_at > lastRead))?.id ?? null)));
     }
     setMsgs(list);
     setInfo(i);
@@ -192,7 +198,9 @@ function GroupChatInner() {
   // "Unread messages" line), or at the newest one if you've read everything.
   // New messages after that glide into view. Only the message list moves.
   const opened = useRef(false);
-  useEffect(() => {
+  // Hidden until it's scrolled into place, so it never shows old messages and then jumps
+  const [placed, setPlaced] = useState(false);
+  useLayoutEffect(() => {
     const el = end.current;
     const list = el?.parentElement;
     if (!el || !list) return;
@@ -204,6 +212,7 @@ function GroupChatInner() {
         list.scrollTop = mark ? mark.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - 8 : list.scrollHeight;
       };
       place();
+      setPlaced(true);
       // Photos and videos load after this and push things down: keep the same
       // spot for a few seconds, unless the person starts scrolling themselves.
       let touched = false;
@@ -543,7 +552,7 @@ function GroupChatInner() {
         </button>
       )}
 
-      <ol className="cx-msgs">
+      <ol className={placed ? 'cx-msgs' : 'cx-msgs is-placing'}>
         {all.length === 0 && <li className="cx-day">No messages yet</li>}
         {all.map((m) => {
           const day = dayLabel(m.created_at);

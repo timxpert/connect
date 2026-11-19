@@ -8280,3 +8280,31 @@ html[data-cx-theme='dark'] .cx-role-tag {
   height: 12px;
   margin-top: 8px;
 }
+.cx-msgs.is-placing {
+  visibility: hidden;
+}
+
+/* Messages: one list so pinned chats can sit on top */
+.cx-inbox-all {
+  display: flex;
+  flex-direction: column;
+}
+.cx-inbox-all:empty {
+  display: none;
+}
+.cx-inbox.cx-inbox-all li + li {
+  border-top: 0;
+}
+.cx-inbox-all li {
+  border-bottom: 1px solid var(--line);
+}
+.cx-inbox-all .cx-inbox-row {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.cx-pin-mark {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  transform: rotate(35deg);
+}
