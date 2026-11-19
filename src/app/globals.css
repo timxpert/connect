@@ -7953,3 +7953,15 @@ html[data-cx-theme='dark'] .cx-joincard {
   font-weight: 700;
   cursor: pointer;
 }
+/* white text on the violet button, also when it's a link */
+a.cx-ch-cta,
+a.cx-ch-cta:visited,
+a.cx-ch-cta:hover,
+.cx a.cx-ch-cta {
+  color: #fff;
+  text-decoration: none;
+}
+.cx-ch-quiet a {
+  color: var(--violet);
+  font-weight: 700;
+}
