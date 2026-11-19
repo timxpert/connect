@@ -5,6 +5,8 @@ import { adminClient, caller } from '@/lib/server-auth';
 /**
  * Hands the app a one-time link to upload one file straight to Cloudflare R2.
  *  - purpose "video": a post video, into the public bucket (anyone can watch)
+ *  - purpose "brief": a picture or document for a phase assignment brief
+ *                     (team only), into the public bucket
  *  - purpose "chat":  a chat file or voice note, into the private bucket,
  *                     only for someone in that conversation
  * Answers 503 when R2 isn't configured, and the app falls back to Supabase.
@@ -12,7 +14,7 @@ import { adminClient, caller } from '@/lib/server-auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const LIMIT = { video: 100 * 1024 * 1024, chat: 50 * 1024 * 1024, group: 50 * 1024 * 1024 };
+const LIMIT = { video: 100 * 1024 * 1024, chat: 50 * 1024 * 1024, group: 50 * 1024 * 1024, brief: 50 * 1024 * 1024 };
 
 const ext = (name: string, type: string) => {
   const fromName = (name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
@@ -29,7 +31,7 @@ export async function POST(req: Request) {
   if (!uid) return Response.json({ error: 'Sign in first.' }, { status: 401 });
 
   const body = (await req.json().catch(() => ({}))) as { purpose?: string; conversationId?: string; name?: string; type?: string; size?: number };
-  const purpose = body.purpose === 'chat' ? 'chat' : body.purpose === 'video' ? 'video' : body.purpose === 'group' ? 'group' : null;
+  const purpose = body.purpose === 'chat' ? 'chat' : body.purpose === 'video' ? 'video' : body.purpose === 'group' ? 'group' : body.purpose === 'brief' ? 'brief' : null;
   const size = Number(body.size) || 0;
   const type = String(body.type || 'application/octet-stream');
   if (!purpose) return Response.json({ error: 'Unknown upload.' }, { status: 400 });
@@ -45,6 +47,12 @@ export async function POST(req: Request) {
     if (!type.startsWith('video/')) return Response.json({ error: 'That isn’t a video.' }, { status: 400 });
     bucket = cfg.publicBucket;
     key = `videos/${uid}/${Date.now()}-${rand}.${ext(String(body.name || ''), type)}`;
+  } else if (purpose === 'brief') {
+    const { data: meRow } = await admin.from('profiles').select('is_sensei, is_moderator').eq('id', uid).maybeSingle();
+    const me = meRow as { is_sensei: boolean; is_moderator: boolean } | null;
+    if (!me || !(me.is_sensei || me.is_moderator)) return Response.json({ error: 'Only the team can add assignment files.' }, { status: 403 });
+    bucket = cfg.publicBucket;
+    key = `briefs/${Date.now()}-${rand}.${ext(String(body.name || ''), type)}`;
   } else if (purpose === 'group') {
     const { data: meRow } = await admin.from('profiles').select('is_student, is_sensei, is_moderator').eq('id', uid).maybeSingle();
     const me = meRow as { is_student: boolean; is_sensei: boolean; is_moderator: boolean } | null;
@@ -61,5 +69,5 @@ export async function POST(req: Request) {
   }
 
   const uploadUrl = presign({ method: 'PUT', host: cfg.host, bucket, key, accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, expires: 900 });
-  return Response.json({ uploadUrl, key, publicUrl: purpose === 'video' ? `${cfg.publicUrl}/${key}` : null });
+  return Response.json({ uploadUrl, key, publicUrl: purpose === 'video' || purpose === 'brief' ? `${cfg.publicUrl}/${key}` : null });
 }

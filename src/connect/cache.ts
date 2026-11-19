@@ -21,6 +21,7 @@ const CACHED = new Set<keyof ConnectApi>([
   'listLessons',
   'getLesson',
   'getBriefs',
+  'getBriefItems',
 ]);
 // Reads that must always be fresh (polling, auth)
 const LIVE = new Set<keyof ConnectApi>([

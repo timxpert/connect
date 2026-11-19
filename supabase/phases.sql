@@ -213,3 +213,6 @@ begin
     from public.lessons l where l.id = lid;
 end $$;
 grant execute on function public.get_lesson(uuid) to authenticated;
+
+-- Pictures, documents and links attached to each phase's assignment brief
+alter table public.phase_briefs add column if not exists attachments jsonb not null default '[]'::jsonb;

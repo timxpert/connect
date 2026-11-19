@@ -135,6 +135,8 @@ export type GroupMessage = Message & {
 export type GroupHistory = 'all' | '14d' | '100' | 'none';
 export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string; photo_url?: string | null };
 
+export type BriefItem = { kind: 'image' | 'file' | 'link'; url: string; name: string };
+
 export type PhaseRequest = { id: string; name: string; handle: string; avatar_url: string | null; phase_request: number; phase_request_at: string };
 
 export type GroupReader = { id: string; name: string; avatar_url: string | null; read_at: string };
@@ -292,7 +294,11 @@ export interface ConnectApi {
   submitAssignment(phase: number, kind: 'image' | 'video', mediaUrl: string, caption: string): Promise<void>;
   getBriefs(): Promise<Record<number, string>>;
   /** Team only */
-  saveBrief(phase: number, brief: string): Promise<void>;
+  saveBrief(phase: number, brief: string, items?: BriefItem[]): Promise<void>;
+  /** Pictures, documents and links attached to each phase's brief */
+  getBriefItems(): Promise<Record<number, BriefItem[]>>;
+  /** Team: upload a picture or document for a brief; returns its public link */
+  uploadBriefFile(file: File, onProgress?: (share: number) => void): Promise<string>;
   reviewQueue(): Promise<Assignment[]>;
   reviewAssignment(id: string, approve: boolean, note: string): Promise<void>;
   /** Phase check: a student says which phase they're in; the team confirms */

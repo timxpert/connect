@@ -3,7 +3,7 @@
    be clicked through before Supabase is connected. Every sample profile is
    flagged `sample: true` and the UI labels it. Nothing here is real. */
 
-import type { Assignment, Comment, ConnectApi, GroupMessage, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
+import type { Assignment, BriefItem, Comment, ConnectApi, GroupMessage, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
 
 const now = Date.now();
 const ago = (h: number) => new Date(now - h * 3600_000).toISOString();
@@ -139,6 +139,7 @@ const groupMutes = new Map<string, number>();
 /** removed from the group: id -> banned */
 const groupOut = new Map<string, boolean>();
 let groupReadAt = ago(6);
+const briefItems: Record<number, BriefItem[]> = {};
 const briefs: Record<number, string> = { 1: 'Sample brief: animate a 5-second logo reveal using what you learned in phase 1.' };
 
 function outline(): Lesson[] {
@@ -546,8 +547,14 @@ export function createDemoApi(): ConnectApi {
       assignments.unshift({ id: nid(), user_id: me, phase, kind, media_url: mediaUrl, caption, status: 'pending', feedback: '', reviewed_at: null, post_id: null, created_at: new Date().toISOString() });
     },
     getBriefs: () => wait({ ...briefs }),
-    async saveBrief(phase, brief) {
+    async saveBrief(phase, brief, items) {
       briefs[phase] = brief;
+      if (items) briefItems[phase] = items;
+    },
+    getBriefItems: () => wait({ ...briefItems }),
+    async uploadBriefFile(file, onProgress) {
+      onProgress?.(1);
+      return URL.createObjectURL(file);
     },
     async requestPhase(phase) {
       const me = who(needMe());

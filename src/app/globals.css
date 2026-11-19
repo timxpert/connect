@@ -7216,3 +7216,61 @@ html[data-cx-theme='dark'] .cx-toast {
 @keyframes wm-in {
   from { opacity: 0; }
 }
+
+/* Assignment brief attachments */
+.cx-brief-pics {
+  margin: 14px 0;
+}
+.cx-brief-edit {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.cx-brief-edit li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--tint);
+}
+.cx-brief-edit img {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.cx-brief-edit span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+.cx-brief-edit button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.cx-brief-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.cx-brief-btns label.btn {
+  cursor: pointer;
+}
+.cx-brief-link {
+  display: grid;
+  gap: 8px;
+}

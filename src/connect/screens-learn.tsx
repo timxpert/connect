@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useConnect } from './context';
 import { peek } from './cache';
 import { navigate } from './router';
-import { PHASES, type Assignment, type DeviceRow, type Lesson, type LessonInput, type PhaseRequest } from './types';
+import { PHASES, type Assignment, type BriefItem, type DeviceRow, type Lesson, type LessonInput, type PhaseRequest } from './types';
 import { A, Avatar, Empty, Icon, Loading, Media } from './ui';
 import { timeAgo, toEmbed } from './media';
 import { YouTubePlayer, isShort, youtubeId, ytRatio, ytThumb } from './youtube';
@@ -886,6 +886,116 @@ function Submission({ a, showStudent = false }: { a: Assignment; showStudent?: b
   );
 }
 
+/* ---------- Brief attachments: pictures, documents and links ---------- */
+function BriefItemsView({ items }: { items: BriefItem[] }) {
+  const pics = items.filter((i) => i.kind === 'image');
+  const rest = items.filter((i) => i.kind !== 'image');
+  if (!items.length) return null;
+  return (
+    <>
+      {pics.length > 0 && (
+        <div className="cx-ln-pics cx-brief-pics">
+          {pics.map((p) => (
+            <a key={p.url} href={p.url} target="_blank" rel="noopener noreferrer">
+              <img src={p.url} alt={p.name} loading="lazy" decoding="async" />
+            </a>
+          ))}
+        </div>
+      )}
+      {rest.length > 0 && (
+        <ul className="cx-ln-files">
+          {rest.map((i) => (
+            <li key={i.url}>
+              <a href={i.url} target="_blank" rel="noopener noreferrer">
+                <Icon name={i.kind === 'link' ? 'link' : 'download'} size={18} />
+                {i.name || (i.kind === 'link' ? i.url.replace(/^https?:\/\//, '') : 'Document')}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function BriefItemsEditor({ items, onChange }: { items: BriefItem[]; onChange: (fn: (cur: BriefItem[]) => BriefItem[]) => void }) {
+  const { api, toast } = useConnect();
+  const [busy, setBusy] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [url, setUrl] = useState('');
+  const [name, setName] = useState('');
+  const upload = async (files: FileList | null, kind: 'image' | 'file') => {
+    if (!files?.length) return;
+    try {
+      for (const file of Array.from(files)) {
+        setBusy(0);
+        const link = await api.uploadBriefFile(file, (p) => setBusy(p));
+        onChange((cur) => [...cur, { kind, url: link, name: file.name.slice(0, 120) }]);
+      }
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const addLink = () => {
+    let u = url.trim();
+    if (!u) return;
+    if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
+    onChange((cur) => [...cur, { kind: 'link', url: u, name: name.trim().slice(0, 120) }]);
+    setUrl('');
+    setName('');
+    setAdding(false);
+  };
+  return (
+    <div className="field">
+      <span>Attachments</span>
+      {items.length > 0 && (
+        <ul className="cx-brief-edit">
+          {items.map((i, n) => (
+            <li key={i.url + n}>
+              {i.kind === 'image' ? <img src={i.url} alt="" /> : <Icon name={i.kind === 'link' ? 'link' : 'file'} size={20} />}
+              <span>{i.name || i.url}</span>
+              <button type="button" aria-label="Remove" onClick={() => onChange((cur) => cur.filter((_, k) => k !== n))}>
+                <Icon name="close" size={16} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {adding ? (
+        <div className="cx-brief-link">
+          <input value={url} inputMode="url" placeholder="https://" onChange={(e) => setUrl(e.target.value)} autoFocus />
+          <input value={name} placeholder="Name (optional)" maxLength={120} onChange={(e) => setName(e.target.value)} />
+          <div className="cx-brief-btns">
+            <button type="button" className="btn btn-primary btn-sm" onClick={addLink}>
+              Add link
+            </button>
+            <button type="button" className="btn btn-light btn-sm" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="cx-brief-btns">
+          <label className="btn btn-light btn-sm">
+            <input type="file" accept="image/*" multiple className="sr-only" disabled={busy !== null} onChange={(e) => (upload(e.target.files, 'image'), (e.target.value = ''))} />
+            <Icon name="image" size={18} /> Picture
+          </label>
+          <label className="btn btn-light btn-sm">
+            <input type="file" multiple className="sr-only" disabled={busy !== null} onChange={(e) => (upload(e.target.files, 'file'), (e.target.value = ''))} />
+            <Icon name="file" size={18} /> Document
+          </label>
+          <button type="button" className="btn btn-light btn-sm" onClick={() => setAdding(true)}>
+            <Icon name="link" size={18} /> Link
+          </button>
+          {busy !== null && <small>Uploading {Math.round(busy * 100)}%</small>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AssignmentScreen({ phase }: { phase: number }) {
   const { api, me } = useConnect();
   const team = Boolean(me?.is_sensei || me?.is_moderator);
@@ -894,6 +1004,7 @@ export function AssignmentScreen({ phase }: { phase: number }) {
   const [mine, setMine] = useState<Assignment[] | null>(null);
   const [brief, setBrief] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [items, setItems] = useState<BriefItem[]>([]);
   const [link, setLink] = useState('');
   const [caption, setCaption] = useState('');
   const [busy, setBusy] = useState(false);
@@ -905,6 +1016,7 @@ export function AssignmentScreen({ phase }: { phase: number }) {
       setBrief(b[phase] ?? '');
       setDraft(b[phase] ?? '');
     }).catch(() => setBrief(''));
+    api.getBriefItems().then((b) => setItems(b[phase] ?? [])).catch(() => {});
     if (learner) api.myAssignments().then(setMine).catch(() => setMine([]));
     else setMine([]);
   }, [api, phase, learner]);
@@ -962,14 +1074,20 @@ export function AssignmentScreen({ phase }: { phase: number }) {
           className="cx-form"
           onSubmit={async (e) => {
             e.preventDefault();
-            await api.saveBrief(phase, draft.trim()).then(() => setSaved(true)).catch((err: Error) => setError(err.message));
+            await api.saveBrief(phase, draft.trim(), items).then(() => setSaved(true)).catch((err: Error) => setError(err.message));
           }}
         >
           <label className="field">
             <span>What students should hand in</span>
             <textarea rows={6} maxLength={4000} value={draft} onChange={(e) => (setDraft(e.target.value), setSaved(false))} />
-            <small>Students see this above the link box.</small>
           </label>
+          <BriefItemsEditor
+            items={items}
+            onChange={(fn) => {
+              setItems(fn);
+              setSaved(false);
+            }}
+          />
           {error && <p className="cx-error">{error}</p>}
           <div className="cx-ln-form-actions">
             <button type="submit" className="btn btn-primary">
@@ -983,6 +1101,7 @@ export function AssignmentScreen({ phase }: { phase: number }) {
       ) : (
         <>
           {brief ? <Notes text={brief} /> : <p className="cx-ln-summary">Hand in the project you made in this phase.</p>}
+          <BriefItemsView items={items} />
 
           {status === 'locked' && <p className="cx-ln-note">Finish every lesson in phase {phase} to hand it in.</p>}
           {status === 'pending' && <p className="cx-ln-note">Handed in. The next phase opens when it’s approved.</p>}

@@ -4,7 +4,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { prepareImage } from './resize';
-import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { Assignment, BriefItem, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -114,7 +114,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     if (!token) throw new Error('Sign in first.');
     return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   };
-  async function r2Upload(purpose: 'video' | 'chat' | 'group', file: File, onProgress?: (share: number) => void, conversationId?: string) {
+  async function r2Upload(purpose: 'video' | 'chat' | 'group' | 'brief', file: File, onProgress?: (share: number) => void, conversationId?: string) {
     if (r2Off) return null;
     const res = await fetch('/api/r2/upload', {
       method: 'POST',
@@ -772,9 +772,29 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const { data } = await sb.from('phase_briefs').select('phase, brief');
       return Object.fromEntries(((data ?? []) as { phase: number; brief: string }[]).map((b) => [b.phase, b.brief]));
     },
-    async saveBrief(phase, brief) {
-      const { error } = await sb.from('phase_briefs').upsert({ phase, brief });
+    async saveBrief(phase, brief, items) {
+      let { error } = await sb.from('phase_briefs').upsert({ phase, brief, ...(items ? { attachments: items } : {}) });
+      if (error && items && /attachments/.test(error.message)) {
+        ({ error } = await sb.from('phase_briefs').upsert({ phase, brief }));
+        fail(error);
+        throw new Error('Saved the text. Attachments need a database update: run supabase/phases.sql in Supabase.');
+      }
       fail(error);
+    },
+    async getBriefItems() {
+      const { data, error } = await sb.from('phase_briefs').select('phase, attachments');
+      if (error) return {};
+      return Object.fromEntries(((data ?? []) as { phase: number; attachments: BriefItem[] | null }[]).map((b) => [b.phase, b.attachments ?? []]));
+    },
+    async uploadBriefFile(file, onProgress) {
+      const r = await r2Upload('brief', file, onProgress);
+      if (r?.publicUrl) return r.publicUrl;
+      // no R2: the public Supabase bucket
+      const id = await needUid();
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+      const path = `${id}/briefs/${Date.now()}.${ext}`;
+      await xhrUpload('media', path, file, onProgress);
+      return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
     },
     async requestPhase(phase) {
       const { error } = await sb.rpc('request_phase', { ph: phase });
