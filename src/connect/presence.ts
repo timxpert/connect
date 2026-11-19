@@ -49,3 +49,16 @@ export function presenceLabel(isOnline: boolean, id: string, lastSeen?: string |
   if (mins < 7 * 24 * 60) return `Last seen ${d.toLocaleDateString([], { weekday: 'long' })} at ${time}`;
   return `Last seen ${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}`;
 }
+
+/** Everyone online right now */
+export function useOnlineSet(): Set<string> {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const f = () => tick((n) => n + 1);
+    listeners.add(f);
+    return () => {
+      listeners.delete(f);
+    };
+  }, []);
+  return online;
+}

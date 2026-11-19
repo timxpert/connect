@@ -8991,3 +8991,28 @@ html.cx-in-chat body {
   border-radius: 14px;
   background: #fff;
 }
+.cx-info-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 4px 8px 6px;
+}
+.cx-info-stats span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px;
+  border-radius: 14px;
+  background: #f1ebff;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.cx-info-stats b {
+  font-size: 1.25rem;
+  color: var(--violet);
+}
+.cx-sheet.cx-seen {
+  max-height: 86dvh;
+  overflow-y: auto;
+}

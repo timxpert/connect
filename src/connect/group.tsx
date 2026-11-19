@@ -9,7 +9,7 @@ import { useConnect } from './context';
 import { peek } from './cache';
 import { useDragToClose } from './drag';
 import { navigate, to } from './router';
-import { useOnline } from './presence';
+import { useOnline, useOnlineSet } from './presence';
 import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { TypingBubble, AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
@@ -994,6 +994,15 @@ function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: Gro
     if (m.kind === 'voice') api.listPlays(m.id).then((l) => setPlays(l.filter((p) => p.user_id !== m.sender_id))).catch(() => {});
   }, [api, m.id, m.kind, m.sender_id]);
   const at = (iso: string) => (dayLabel(iso) === 'Today' ? clock2(iso) : `${dayLabel(iso)}, ${clock2(iso)}`);
+  // Delivered: they've had Connect open since it was sent (so it reached their phone)
+  const online = useOnlineSet();
+  const others = people.filter((p) => p.id !== m.sender_id);
+  const seenIds = new Set(readers.map((r) => r.id));
+  const reached = (p: Profile) => seenIds.has(p.id) || online.has(p.id) || (!!p.last_seen_at && p.last_seen_at >= m.created_at);
+  const delivered = others.filter((p) => !seenIds.has(p.id) && reached(p));
+  const waiting = others.filter((p) => !reached(p));
+  const deliveredCount = others.filter(reached).length;
+  const yetToSee = Math.max(0, others.length - readers.length);
   return (
     <div className="cx-sheet-wrap" onClick={onClose}>
       <div className="cx-sheet cx-drag cx-seen" role="dialog" aria-label="Seen by" ref={sheet} onClick={(e) => e.stopPropagation()}>
@@ -1024,6 +1033,17 @@ function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: Gro
             )}
           </>
         )}
+        <div className="cx-info-stats">
+          <span>
+            <b>{deliveredCount}</b> Delivered
+          </span>
+          <span>
+            <b>{readers.length}</b> Seen
+          </span>
+          <span>
+            <b>{yetToSee}</b> Yet to see
+          </span>
+        </div>
         <h3 className="cx-info-h">Seen by {readers.length}</h3>
         {sorted.length ? (
           <ul className="cx-fwd-list" data-scroll>
@@ -1037,6 +1057,32 @@ function SeenBy({ m, readers, people, onClose }: { m: GroupMessage; readers: Gro
           </ul>
         ) : (
           <p className="cx-fwd-note">No one has seen it yet.</p>
+        )}
+        {delivered.length > 0 && (
+          <>
+            <h3 className="cx-info-h">Delivered, not seen yet {delivered.length}</h3>
+            <ul className="cx-fwd-list">
+              {delivered.map((p) => (
+                <li key={p.id} className="cx-fwd-row">
+                  <Avatar p={p} size={38} />
+                  <span className="cx-fwd-name">{p.name}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {waiting.length > 0 && (
+          <>
+            <h3 className="cx-info-h">Not delivered yet {waiting.length}</h3>
+            <ul className="cx-fwd-list">
+              {waiting.map((p) => (
+                <li key={p.id} className="cx-fwd-row">
+                  <Avatar p={p} size={38} />
+                  <span className="cx-fwd-name">{p.name}</span>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </div>
