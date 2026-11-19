@@ -138,10 +138,8 @@ grant execute on function public.phase_requests() to authenticated;
 alter table public.lessons drop constraint if exists lessons_phase_check;
 alter table public.lessons add constraint lessons_phase_check check (phase between 0 and 4);
 
--- A preview for each lesson: a picture or short clip of what students will
--- make. Everyone sees it, even before the lesson opens.
-alter table public.lessons add column if not exists preview_url text;
-alter table public.lessons add column if not exists preview_kind text check (preview_kind in ('image', 'video'));
+-- Pictures inside a lesson (shown with the video and notes)
+alter table public.lessons add column if not exists images jsonb not null default '[]'::jsonb;
 
 -- Lessons: nothing opens until the phase is confirmed (except the orientation). Then every phase before
 -- it is open, and inside it lessons open one by one. Approving a phase's
@@ -149,8 +147,7 @@ alter table public.lessons add column if not exists preview_kind text check (pre
 drop function if exists public.course_outline();
 create function public.course_outline()
 returns table (id uuid, phase int, lesson_position int, title text, summary text, duration text,
-               published boolean, has_video boolean, done boolean, is_open boolean, size_mb int,
-               preview_url text, preview_kind text)
+               published boolean, has_video boolean, done boolean, is_open boolean, size_mb int)
 language sql stable security definer set search_path = public as $$
   with me as (
     select auth.uid() as uid,
@@ -179,7 +176,7 @@ language sql stable security definer set search_path = public as $$
            and (o.phase < me.cur
                 or (o.phase = me.cur and (o.prev_phase is distinct from o.phase or o.prev_done)))
          ),
-         o.size_mb, o.preview_url, o.preview_kind
+         o.size_mb
   from o, me
   order by o.phase, o.position, o.created_at, o.id
 $$;
@@ -192,7 +189,7 @@ drop function if exists public.get_lesson(uuid);
 create function public.get_lesson(lid uuid)
 returns table (id uuid, phase int, lesson_position int, title text, summary text, duration text,
                video_url text, notes text, files jsonb, published boolean, done boolean, is_open boolean, size_mb int, portrait boolean,
-               preview_url text, preview_kind text)
+               images jsonb)
 language plpgsql stable security definer set search_path = public as $$
 declare
   o record;
@@ -209,7 +206,7 @@ begin
   end if;
   return query
     select l.id, l.phase, l.position, l.title, l.summary, l.duration, l.video_url, l.notes, l.files,
-           l.published, o.done, true, l.size_mb, l.portrait, l.preview_url, l.preview_kind
+           l.published, o.done, true, l.size_mb, l.portrait, l.images
     from public.lessons l where l.id = lid;
 end $$;
 grant execute on function public.get_lesson(uuid) to authenticated;
