@@ -9039,3 +9039,113 @@ html.cx-in-chat body {
   text-align: left;
   padding: 8px;
 }
+
+/* Continue learning (top of the Feed) */
+.cx-continue {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+}
+.cx-continue-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cx-continue-text small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.cx-continue-text b {
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cx-continue .cx-ln-bar {
+  margin: 4px 0 2px;
+}
+.cx-continue-go {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+}
+/* "No lesson in 3 days" in the group */
+.cx-nudge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 16px;
+  background: #f1ebff;
+}
+.cx-nudge > span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cx-nudge small {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cx-nudge .btn {
+  box-shadow: none;
+}
+/* Notifications choices */
+.cx-alert-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cx-alert-opt > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cx-alert-opt small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.cx-alert-opt .cx-poll-dot {
+  margin-top: 2px;
+  color: var(--muted);
+}
+.cx-alert-opt .cx-poll-dot.is-on {
+  background: var(--violet);
+  border-color: var(--violet);
+  box-shadow: inset 0 0 0 3px #fff;
+  opacity: 1;
+}
+.cx-alerts .cx-fwd-note {
+  text-align: left;
+  padding: 10px 8px 0;
+}
+.cx-sheet .cx-alert-opt,
+.cx-sheet .cx-alert-opt:hover {
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+}

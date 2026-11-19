@@ -31,9 +31,13 @@ export type Profile = {
   created_at: string;
   /** When they last had Connect open (for "last seen") */
   last_seen_at?: string | null;
+  /** Group notifications: important only (default), all, or off */
+  alert_level?: AlertLevel | null;
   /** Preview only: marks invented sample data */
   sample?: boolean;
 };
+
+export type AlertLevel = 'important' | 'all' | 'off';
 
 export type Post = {
   id: string;
@@ -363,6 +367,8 @@ export interface ConnectApi {
   setTeamRole(userId: string, role: string | null): Promise<void>;
   /** Phone notifications when Connect is closed; false if not possible */
   enablePush(): Promise<boolean>;
+  /** Which group messages notify me */
+  setAlertLevel(level: AlertLevel): Promise<void>;
   /** Sends this person a test notification; why says what went wrong */
   testPush(): Promise<{ ok: boolean; why: string }>;
   /** Everyone on the team who is also a student: id → role */

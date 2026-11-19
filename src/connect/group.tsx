@@ -17,6 +17,7 @@ import { ForwardSheet } from './forward';
 import { MessageField, plainText, smartChange, useDraft } from './format';
 import { EmojiButton } from './emoji';
 import { specialLine } from './special';
+import { StudyNudge } from './learning';
 import { LiveCard, LiveSheet, PollCard, PollSheet } from './polls-live';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
@@ -612,6 +613,7 @@ function GroupChatInner() {
         </button>
       )}
 
+      <StudyNudge />
       <ol className={placed ? 'cx-msgs' : 'cx-msgs is-placing'}>
         {all.length === 0 && <li className="cx-day">No messages yet</li>}
         {all.map((m) => {

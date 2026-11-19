@@ -763,6 +763,12 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       return rows.map((m) => ({ ...m, ...(m.media_path ? { media_url: link(m.media_path) } : {}), reactions: by.get(m.id) ?? [] }));
     },
     enablePush: () => enablePushNow(),
+    async setAlertLevel(level) {
+      const me = await needUid();
+      const { error } = await sb.from('profiles').update({ alert_level: level }).eq('id', me);
+      if (error && /alert_level/.test(error.message)) throw new Error('This needs a database update: run alerts.sql in Supabase.');
+      fail(error);
+    },
     async testPush() {
       const on = await enablePushNow();
       const token = (await sb.auth.getSession()).data.session?.access_token;

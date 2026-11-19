@@ -34,6 +34,29 @@ const what = (m: Row) =>
           ? `Document: ${m.file_name || 'file'}`
           : plain(m.body);
 
+type Admin = NonNullable<ReturnType<typeof adminClient>>;
+type GroupMsg = { kind: string; body: string; reply_to?: string | null; group_id?: string | null };
+async function byAlertLevel(admin: Admin, ids: string[], msg: GroupMsg | null, sender: { is_sensei?: boolean; is_moderator?: boolean }) {
+  if (!msg) return ids;
+  const { data: people, error } = await admin.from('profiles').select('id, handle, alert_level').in('id', ids);
+  if (error) return ids; // alerts.sql not run yet: everyone, as before
+  const team = msg.group_id ? Boolean(sender.is_sensei) : Boolean(sender.is_sensei || sender.is_moderator);
+  let repliedTo = '';
+  if (msg.reply_to) {
+    const { data: r } = await admin.from('group_messages').select('sender_id').eq('id', msg.reply_to).maybeSingle();
+    repliedTo = (r as { sender_id: string } | null)?.sender_id ?? '';
+  }
+  const text = (msg.body || '').toLowerCase();
+  return ((people ?? []) as { id: string; handle: string; alert_level: string | null }[])
+    .filter((p) => {
+      const level = p.alert_level || 'important';
+      if (level === 'off') return false;
+      if (level === 'all') return true;
+      return team || msg.kind === 'poll' || msg.kind === 'live' || p.id === repliedTo || (!!p.handle && text.includes(`@${p.handle.toLowerCase()}`));
+    })
+    .map((p) => p.id);
+}
+
 export async function POST(req: Request) {
   const admin = adminClient();
   if (!admin) return Response.json({ ok: false }, { status: 503 });
@@ -53,10 +76,11 @@ export async function POST(req: Request) {
       return `${origin}${fallback}`;
     }
   };
-  const { data: me } = await admin.from('profiles').select('name, avatar_url').eq('id', uid).maybeSingle();
-  const sender = (me as { name: string; avatar_url: string | null } | null) ?? { name: 'Someone', avatar_url: null };
+  const { data: me } = await admin.from('profiles').select('name, avatar_url, is_sensei, is_moderator').eq('id', uid).maybeSingle();
+  const sender = (me as { name: string; avatar_url: string | null; is_sensei?: boolean; is_moderator?: boolean } | null) ?? { name: 'Someone', avatar_url: null };
 
   let to: string[] = [];
+  let gmsg: GroupMsg | null = null;
   let data: Record<string, unknown> = {};
 
   if (body.kind === 'dm') {
@@ -69,10 +93,11 @@ export async function POST(req: Request) {
     to = [conv.user_a === uid ? conv.user_b : conv.user_a];
     data = { title: sender.name, body: what(msg).slice(0, 300), icon: sender.avatar_url, tag: msg.conversation_id, url: link(`/messages/${msg.conversation_id}`) };
   } else if (body.kind === 'group') {
-    let { data: m, error: e1 } = await admin.from('group_messages').select('id, sender_id, body, kind, file_name, created_at, group_id').eq('id', String(body.id)).maybeSingle();
+    let { data: m, error: e1 } = await admin.from('group_messages').select('id, sender_id, body, kind, file_name, created_at, group_id, reply_to').eq('id', String(body.id)).maybeSingle();
     if (e1) ({ data: m } = await admin.from('group_messages').select('id, sender_id, body, kind, file_name, created_at').eq('id', String(body.id)).maybeSingle());
-    const msg = m as (Row & { group_id?: string | null }) | null;
+    const msg = m as (Row & { group_id?: string | null; reply_to?: string | null }) | null;
     if (!msg || msg.sender_id !== uid) return Response.json({ ok: false });
+    gmsg = msg;
     if (msg.group_id) {
       // one of the Grand Sensei's own groups: everyone in it
       const [{ data: ppl }, { data: g }] = await Promise.all([
@@ -108,6 +133,8 @@ export async function POST(req: Request) {
   } else {
     return Response.json({ ok: false });
   }
+  // Group messages: each student chooses all, important only (the default) or off
+  if (body.kind === 'group' && to.length) to = await byAlertLevel(admin, to, gmsg, sender);
   if (!to.length) return Response.json({ ok: true, sent: 0 });
 
   const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('user_id', to);

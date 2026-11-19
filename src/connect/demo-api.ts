@@ -772,6 +772,10 @@ export function createDemoApi(): ConnectApi {
     async enablePush() {
       return false;
     },
+    async setAlertLevel(level) {
+      const me = needMe();
+      Object.assign(who(me), { alert_level: level });
+    },
     async testPush() {
       return { ok: false, why: 'Notifications work on the real site, not in this preview.' };
     },

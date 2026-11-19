@@ -11,9 +11,10 @@ import { guardDevice } from './device';
 import { CHAT_COLORS, useAppearance } from './appearance';
 import { Appearance as AppearanceScreen } from './screens-appearance';
 import { createDemoApi } from './demo-api';
-import { withCache } from './cache';
+import { peek, withCache } from './cache';
+import { useDragToClose } from './drag';
 import { navigate, to, useRoute, type Route } from './router';
-import type { ConnectApi } from './types';
+import type { AlertLevel, ConnectApi, Profile } from './types';
 import { A, Avatar, Icon, Loading } from './ui';
 import { Feed, PostScreen, ProfileScreen, Students } from './screens-browse';
 import { Login, Settings, Welcome } from './screens-me';
@@ -21,6 +22,7 @@ import { Chat, Inbox } from './chat';
 import { GroupChat, GroupInfoScreen, JoinGroupScreen } from './group';
 import { PhasePrompt } from './phase-prompt';
 import { InstallPrompt } from './install';
+import { lessonOpened } from './learning';
 import { useTypingRoom } from './typing';
 import { ChallengeScreen } from './challenge';
 import { Connections, Notifications, Saved } from './screens-social';
@@ -97,7 +99,7 @@ const TABS = [
 /** Unread notifications and waiting connection requests, refreshed every 30 seconds */
 type IncomingMessage = { conversation_id: string; sender_id: string; body?: string; kind?: string };
 
-function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind: string; snippet?: string }) => void, onGroupMessage: (row: { group_id?: string | null; kind?: string }) => void) {
+function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind: string; snippet?: string }) => void, onGroupMessage: (row: { group_id?: string | null; kind?: string; sender_id?: string }) => void) {
   const { api, me } = useConnect();
   const [c, setC] = useState({ unread: 0, requests: 0, messages: 0 });
   const onMessageRef = React.useRef(onMessage);
@@ -139,7 +141,7 @@ function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind:
     const stopGroup = api.subscribe('group_messages', '', ({ event, row }) => {
       window.clearTimeout(pending);
       pending = window.setTimeout(on, 250);
-      if (event === 'INSERT' && row.sender_id && row.sender_id !== me.id) onGroupMessageRef.current(row as { group_id?: string | null; kind?: string });
+      if (event === 'INSERT' && row.sender_id && row.sender_id !== me.id) onGroupMessageRef.current(row as { group_id?: string | null; kind?: string; sender_id?: string });
     });
     return () => {
       live = false;
@@ -157,7 +159,7 @@ function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind:
 const Dot = ({ n }: { n: number }) => (n > 0 ? <span className="cx-dot">{n > 9 ? '9+' : n}</span> : null);
 
 function Shell({ route }: { route: Route }) {
-  const { api, me, signedIn, toast } = useConnect();
+  const { api, me, signedIn, toast, refreshMe } = useConnect();
   const [menu, setMenu] = useState(false);
   const [sound, setSound] = useState(true);
   useEffect(() => setSound(soundOn()), []);
@@ -180,11 +182,34 @@ function Shell({ route }: { route: Route }) {
     if (!signedIn) return;
     return guardDevice(api, () => navigate('/login'));
   }, [api, signedIn]);
+  // Focus mode: while learning, nothing pings, pops up or shows a count.
+  // When you leave Learn, one note says what came in.
+  const focusing = route.name === 'learn' || route.name === 'lesson';
+  const held = React.useRef(0);
+  const wasFocusing = React.useRef(focusing);
+  useEffect(() => {
+    if (wasFocusing.current && !focusing && held.current > 0) {
+      const n = held.current;
+      toast(n === 1 ? 'While you were learning: 1 new message' : `While you were learning: ${n} new messages`);
+    }
+    if (!focusing) held.current = 0;
+    wasFocusing.current = focusing;
+  }, [focusing]);
+  // for the "no lesson in 3 days" note in the group
+  useEffect(() => {
+    if (route.name === 'lesson') lessonOpened();
+  }, [route]);
+  // Group sounds follow the person's choice: important only (default), all, or off
+  const alertLevel = me?.alert_level ?? 'important';
   // A message from someone else: sound + a short note, or a phone notification
   // when Connect is in the background. Not when you're already in that chat.
   const onMessage = (m: IncomingMessage) => {
     const here = route.name === 'chat' && (route as { id?: string }).id === m.conversation_id && document.visibilityState === 'visible';
     if (here) return play('incoming');
+    if (focusing) {
+      held.current += 1;
+      return;
+    }
     const what = m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? 'Photo' : m.kind === 'video' ? 'Video' : m.kind === 'file' ? 'File' : (m.body || '').slice(0, 120);
     api
       .getConversation(m.conversation_id)
@@ -201,8 +226,17 @@ function Shell({ route }: { route: Route }) {
   };
   // Any new group message: a sound (a soft pop if you're reading that group)
   const groupSound = React.useRef(0);
-  const onGroupMessage = (row: { group_id?: string | null; kind?: string }) => {
+  const onGroupMessage = (row: { group_id?: string | null; kind?: string; sender_id?: string }) => {
     if (document.visibilityState !== 'visible' || row.kind === 'join' || row.kind === 'pin') return;
+    if (focusing) {
+      held.current += 1;
+      return;
+    }
+    if (alertLevel === 'off') return;
+    if (alertLevel === 'important' && row.kind !== 'poll' && row.kind !== 'live') {
+      const sender = (peek<Profile[]>('groupMembers') ?? []).find((p) => p.id === row.sender_id);
+      if (!sender?.is_sensei && !sender?.is_moderator) return;
+    }
     const gid = (route as { gid?: string }).gid ?? null;
     const here = route.name === 'group' && gid === (row.group_id ?? null);
     const now = Date.now();
@@ -212,6 +246,7 @@ function Shell({ route }: { route: Route }) {
   };
   const onGroup = (n: { kind: string; snippet?: string }) => {
     if (route.name === 'group' && document.visibilityState === 'visible') return;
+    if (focusing || alertLevel === 'off') return;
     const title = n.kind === 'group_reply' ? 'New reply in the group' : 'You were mentioned in the group';
     const body = n.snippet ?? '';
     if (document.visibilityState === 'visible') {
@@ -221,7 +256,8 @@ function Shell({ route }: { route: Route }) {
       notify(title, body, new URL(to('/messages/group'), window.location.href).href, `group-${n.kind}`);
     }
   };
-  const counts = useCounts(onMessage, onGroup, onGroupMessage);
+  const allCounts = useCounts(onMessage, onGroup, onGroupMessage);
+  const counts = focusing ? { unread: 0, requests: 0, messages: 0 } : allCounts;
   useEffect(() => {
     registerAlerts();
   }, []);
@@ -256,6 +292,7 @@ function Shell({ route }: { route: Route }) {
   useEffect(() => {
     if (me?.id && alertsAllowed()) api.enablePush().catch(() => {});
   }, [api, me?.id]);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   // Account menu: check this phone gets notifications, and say what's wrong if not
   const testAlerts = async () => {
     setMenu(false);
@@ -460,8 +497,8 @@ function Shell({ route }: { route: Route }) {
                     >
                       Sounds: {sound ? 'on' : 'off'}
                     </button>
-                    <button type="button" role="menuitem" onClick={testAlerts}>
-                      Test notifications
+                    <button type="button" role="menuitem" onClick={() => (setMenu(false), setAlertsOpen(true))}>
+                      Notifications
                     </button>
                     <a href={MAIN_SITE} role="menuitem">
                       Motion Dojo website
@@ -520,7 +557,66 @@ function Shell({ route }: { route: Route }) {
       )}
       <Composer />
       {route.name !== 'settings' && route.name !== 'login' && <PhasePrompt />}
+      {alertsOpen && me && (
+        <AlertsSheet
+          level={alertLevel}
+          onClose={() => setAlertsOpen(false)}
+          onPick={async (lv) => {
+            try {
+              await api.setAlertLevel(lv);
+              await refreshMe();
+            } catch (e) {
+              toast((e as Error).message);
+            }
+          }}
+          onTest={testAlerts}
+        />
+      )}
       <InstallPrompt when={Boolean(signedIn && member && !['chat', 'group', 'login', 'join'].includes(route.name))} />
+    </div>
+  );
+}
+
+/** Account menu > Notifications: which group messages notify you, and a test */
+const LEVELS: { v: AlertLevel; t: string; d: string }[] = [
+  { v: 'important', t: 'Important only', d: 'The Grand Sensei and the team, polls, live classes, and replies or @mentions to you.' },
+  { v: 'all', t: 'All messages', d: 'Every message in your groups.' },
+  { v: 'off', t: 'Off', d: 'No group notifications. Private chats still notify you.' },
+];
+function AlertsSheet({ level, onClose, onPick, onTest }: { level: AlertLevel; onClose: () => void; onPick: (l: AlertLevel) => Promise<void>; onTest: () => void }) {
+  const sheet = useDragToClose<HTMLDivElement>(onClose);
+  const [v, setV] = useState(level);
+  return (
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-drag cx-alerts" role="dialog" aria-label="Notifications" ref={sheet} onClick={(e) => e.stopPropagation()}>
+        <span className="cx-grab" aria-hidden="true" />
+        <h2 className="cx-fwd-title">Group notifications</h2>
+        <div role="radiogroup" aria-label="Group notifications">
+          {LEVELS.map((x) => (
+            <button
+              key={x.v}
+              type="button"
+              role="radio"
+              aria-checked={v === x.v}
+              className="cx-alert-opt"
+              onClick={() => {
+                setV(x.v);
+                onPick(x.v);
+              }}
+            >
+              <span className={v === x.v ? 'cx-poll-dot is-on' : 'cx-poll-dot'} aria-hidden="true" />
+              <span>
+                <b>{x.t}</b>
+                <small>{x.d}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="cx-fwd-note">While you’re in Learn, nothing pings. You’ll see what came in when you leave.</p>
+        <button type="button" className="btn btn-light cx-addp-go" onClick={() => (onClose(), onTest())}>
+          Send me a test notification
+        </button>
+      </div>
     </div>
   );
 }

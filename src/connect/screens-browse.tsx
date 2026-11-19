@@ -8,6 +8,7 @@ import { play } from './sounds';
 import { timeAgo } from './media';
 import { profileLinks } from './links';
 import { peek } from './cache';
+import { ContinueLearning } from './learning';
 import { ChallengeStats, ChallengeTab, MembersTabs, ProjectsTab } from './challenge';
 import { PHASES, SKILLS, type ChallengeStat, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
 
@@ -79,6 +80,7 @@ export function Feed() {
         ))}
       </div>
 
+      <ContinueLearning />
       {canShare && me && (
         <button type="button" className="cx-composer" onClick={openComposer}>
           <Avatar p={me} size={40} />
