@@ -866,10 +866,11 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       }
       const { data, error } = await sb
         .from('group_messages')
-        .insert({ sender_id: me, body: caption, kind: a.kind === 'file' ? 'image' : a.kind, media_path: path, file_size: file.size, duration: a.duration ?? null, thumb: a.thumb ?? null, reply_to: replyTo ?? null })
+        .insert({ sender_id: me, body: caption, kind: a.kind, media_path: path, file_size: file.size, duration: a.duration ?? null, thumb: a.thumb ?? null, reply_to: replyTo ?? null, ...(a.kind === 'file' ? { file_name: a.file.name.slice(0, 200) } : {}) })
         .select('*, sender:profiles!group_messages_sender_id_fkey(*)')
         .single();
       if (error && /row-level|policy/i.test(error.message)) throw new Error('You can’t send messages in the group right now.');
+      if (error && /file_name|kind_check/.test(error.message)) throw new Error('Documents need a database update: run supabase/group-files.sql in Supabase.');
       fail(error);
       const link = await sign([path]);
       return { ...(data as GroupMessage), conversation_id: 'group', media_url: link(path), reactions: [] };

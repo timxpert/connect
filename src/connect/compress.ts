@@ -66,7 +66,8 @@ export async function compressVideo(file: File, onProgress?: (share: number) => 
     if (!ctx) return file;
 
     const stream = canvas.captureStream(30);
-    // sound: route the video's audio into the recording only
+    // Start the video quietly. Some phones only allow playing sound right after
+    // a tap; then it plays muted and the sound is taken from the video itself.
     let audioCtx: AudioContext | null = null;
     try {
       const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -76,8 +77,27 @@ export async function compressVideo(file: File, onProgress?: (share: number) => 
       source.connect(dest);
       dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
     } catch {
-      v.muted = true; // no sound track, but the picture still works
+      audioCtx = null;
     }
+    try {
+      await audioCtx?.resume();
+      await v.play();
+      if (audioCtx && audioCtx.state !== 'running') throw new Error('audio blocked');
+    } catch {
+      // play muted; take the sound straight from the video if the browser can
+      v.pause();
+      v.currentTime = 0;
+      v.muted = true;
+      audioCtx?.close().catch(() => {});
+      audioCtx = null;
+      stream.getAudioTracks().forEach((t) => stream.removeTrack(t));
+      const cap = (v as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.();
+      cap?.getAudioTracks().forEach((t) => stream.addTrack(t));
+      await v.play();
+    }
+    // back to the start; the recording begins from frame one
+    v.pause();
+    v.currentTime = 0;
 
     const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: VIDEO_BPS, audioBitsPerSecond: AUDIO_BPS });
     const chunks: Blob[] = [];
@@ -92,7 +112,6 @@ export async function compressVideo(file: File, onProgress?: (share: number) => 
     };
 
     rec.start(1000);
-    await audioCtx?.resume().catch(() => {});
     await v.play();
     draw();
     await new Promise<void>((ok) => {

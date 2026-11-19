@@ -12,7 +12,7 @@ import { navigate } from './router';
 import { useOnline } from './presence';
 import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
-import { Bubble, clock, dayLabel, kindOf, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
+import { Bubble, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
 import type { Attachment, GroupHistory, GroupInfo, GroupMessage, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
 
@@ -26,7 +26,7 @@ const HISTORY: [GroupHistory, string][] = [
 ];
 
 const snippet = (m: GroupMessage) =>
-  m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.body;
+  m.deleted_at ? 'Deleted message' : m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? m.body || 'Photo' : m.kind === 'video' ? m.body || 'Video' : m.kind === 'file' ? m.body || m.file_name || 'Document' : m.body;
 
 /** "Ada, Tunde, Kemi, You": the people in the group, for the header */
 function memberNames(people: Profile[], me: string) {
@@ -255,9 +255,11 @@ export function GroupChat() {
       setCaption(draft.trim());
       setDraft('');
     }
-    const add = Array.from(files)
-      .filter((f) => ['image', 'video'].includes(kindOf(f)))
-      .map((f, n) => ({ key: `${Date.now()}-${n}-${f.name}`, file: f, kind: kindOf(f), url: URL.createObjectURL(f) }));
+    // photos and videos as themselves; anything else (PDFs, project files, audio files) as a document
+    const add = Array.from(files).map((f, n) => {
+      const k = kindOf(f);
+      return { key: `${Date.now()}-${n}-${f.name}`, file: f, kind: k === 'voice' ? ('file' as const) : k, url: URL.createObjectURL(f) };
+    });
     setPicked((p) => [...p, ...add].slice(0, 10));
   };
   const closePicked = () => {
@@ -493,7 +495,7 @@ export function GroupChat() {
                   noTicks
                   onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && !x.deleted_at && setHeld(x as GroupMessage)}
                   onDownload={(x) => download(x as GroupMessage)}
-                  onOpen={(x) => setViewing(x as GroupMessage)}
+                  onOpen={(x) => (x.kind === 'file' ? openFile(x, toast) : setViewing(x as GroupMessage))}
                 />
             </React.Fragment>
           );
@@ -552,15 +554,15 @@ export function GroupChat() {
               sendText();
             }}
           >
-            <button type="button" className="cx-icon-btn cx-icon-flat cx-attach" onClick={() => fileInput.current?.click()} aria-label="Send a photo or video">
-              <Icon name="image" />
+            <button type="button" className="cx-icon-btn cx-icon-flat cx-attach" onClick={() => fileInput.current?.click()} aria-label="Send a photo, video or document">
+              <Icon name="clip" />
             </button>
             <input
               ref={fileInput}
               type="file"
               multiple
               className="sr-only"
-              accept="image/*,video/*"
+              accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.aep,.prproj,.psd,.ai,.xml"
               onChange={(e) => {
                 pickFiles(e.target.files);
                 e.target.value = '';

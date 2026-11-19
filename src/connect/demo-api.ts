@@ -482,7 +482,7 @@ export function createDemoApi(): ConnectApi {
     async sendGroupAttachment(a, caption, replyTo, onProgress) {
       const me = needMe();
       onProgress?.(1);
-      const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body: caption, kind: a.kind, media_url: URL.createObjectURL(a.file), file_size: a.file.size, duration: a.duration, thumb: a.thumb, reply_to: replyTo ?? null, created_at: new Date().toISOString() };
+      const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body: caption, kind: a.kind, file_name: a.kind === 'file' ? a.file.name : null, media_url: URL.createObjectURL(a.file), file_size: a.file.size, duration: a.duration, thumb: a.thumb, reply_to: replyTo ?? null, created_at: new Date().toISOString() };
       group.push(m);
       return wait({ ...m, sender: who(me), reactions: [] });
     },

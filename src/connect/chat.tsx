@@ -43,9 +43,13 @@ export const dayLabel = (iso: string) => {
   return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
 };
 
+const VIDEO_EXT = /\.(mp4|m4v|mov|webm|mkv|3gp|3g2|avi|wmv|mpe?g|ts)$/i;
+
+/** What a picked file is. A video is always sent as a video (made smaller first),
+    never as a document, even when the phone doesn't label it as one. */
 export function kindOf(file: File): Attachment['kind'] {
   if (file.type.startsWith('image/') && file.type !== 'image/svg+xml') return 'image';
-  if (file.type.startsWith('video/')) return 'video';
+  if (file.type.startsWith('video/') || VIDEO_EXT.test(file.name)) return 'video';
   if (file.type.startsWith('audio/')) return 'voice';
   return 'file';
 }
@@ -197,7 +201,7 @@ async function downloadFile(m: Message): Promise<boolean> {
 
 /** Later taps: opens the copy on this device. The tab is opened first, inside the tap,
     so phones don't block it; it never shows where the file is stored. */
-async function openFile(m: Message, toast: (t: string) => void) {
+export async function openFile(m: Message, toast: (t: string) => void) {
   const win = window.open('', '_blank');
   try {
     let blob = await keptFile(m.id);
