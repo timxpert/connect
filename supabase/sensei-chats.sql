@@ -7,6 +7,13 @@
 alter table public.messages drop constraint if exists messages_kind_check;
 alter table public.messages add constraint messages_kind_check
   check (kind in ('text', 'voice', 'image', 'video', 'file', 'join'));
+alter table public.messages drop constraint if exists messages_content_check;
+alter table public.messages add constraint messages_content_check check (
+  char_length(body) <= 4000
+  and (deleted_at is not null
+       or kind = 'join'
+       or (kind = 'text' and char_length(btrim(body)) > 0)
+       or (kind not in ('text', 'join') and media_path is not null)));
 
 -- the Grand Sensei can always message students, and students the Grand Sensei
 create or replace function public.can_message(x uuid, y uuid) returns boolean
