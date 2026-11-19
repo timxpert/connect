@@ -636,9 +636,13 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const link = paths.length ? await sign(paths) : () => null;
       return rows.map((m) => (m.media_path ? { ...m, media_url: link(m.media_path) } : m));
     },
-    async sendMessage(conversationId, body, quote) {
+    async sendMessage(conversationId, body, quote, forwarded) {
       const me = await needUid();
-      let { data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body, ...(quote ? { quote } : {}) }).select().single();
+      let { data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body, ...(quote ? { quote } : {}), ...(forwarded ? { forwarded: true } : {}) }).select().single();
+      if (error && forwarded && /forwarded/.test(error.message)) {
+        // database without forwarding yet (forward-and-reads.sql): send it plain
+        ({ data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body }).select().single());
+      }
       if (error && quote && /quote/.test(error.message)) {
         // database without private replies yet: send it without the quote
         ({ data, error } = await sb.from('messages').insert({ conversation_id: conversationId, sender_id: me, body }).select().single());
@@ -646,7 +650,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       fail(error);
       return data as unknown as Message;
     },
-    async sendAttachment(conversationId, a, caption, onProgress) {
+    async sendAttachment(conversationId, a, caption, onProgress, forwarded) {
       const me = await needUid();
       const file = a.kind === 'image' ? await prepareImage(a.file, 'posts') : a.file;
       const ext = (file.name.split('.').pop() || (a.kind === 'voice' ? 'webm' : 'bin')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
@@ -669,8 +673,13 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         file_size: file.size,
         duration: a.duration ?? null,
         ...(a.thumb ? { thumb: a.thumb } : {}),
+        ...(forwarded ? { forwarded: true } : {}),
       };
       let { data, error } = await sb.from('messages').insert(row).select().single();
+      if (error && /forwarded/.test(error.message) && row.forwarded) {
+        delete row.forwarded;
+        ({ data, error } = await sb.from('messages').insert(row).select().single());
+      }
       if (error && /thumb/i.test(error.message) && row.thumb) {
         // Database without previews yet: save the message without one (the file is already uploaded)
         delete row.thumb;
@@ -684,6 +693,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async deleteMessage(id) {
       const { error } = await sb.rpc('delete_message', { mid: id });
       if (error?.message.includes('not_your_message')) throw new Error('You can only delete your own messages.');
+      if (error?.message.includes('too_late')) throw new Error('It’s too late to delete this for everyone.');
       fail(error);
     },
     async markRead(conversationId) {
@@ -845,14 +855,16 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       if (!r) return { name, photo_url, text: 'No messages yet', at: '', unread: 0 };
       return { name, photo_url, text: `${r.sender?.name ?? 'Someone'}: ${preview(r)}`, at: r.created_at, unread: Number(n ?? 0) };
     },
-    async sendGroupMessage(body, replyTo) {
+    async sendGroupMessage(body, replyTo, forwarded) {
       const me = await needUid();
-      const { data, error } = await sb.from('group_messages').insert({ sender_id: me, body, kind: 'text', reply_to: replyTo ?? null }).select('*, sender:profiles!group_messages_sender_id_fkey(*)').single();
+      const sel = '*, sender:profiles!group_messages_sender_id_fkey(*)';
+      let { data, error } = await sb.from('group_messages').insert({ sender_id: me, body, kind: 'text', reply_to: replyTo ?? null, ...(forwarded ? { forwarded: true } : {}) }).select(sel).single();
+      if (error && forwarded && /forwarded/.test(error.message)) ({ data, error } = await sb.from('group_messages').insert({ sender_id: me, body, kind: 'text', reply_to: replyTo ?? null }).select(sel).single());
       if (error && /row-level|policy/i.test(error.message)) throw new Error('You can’t send messages in the group right now.');
       fail(error);
       return { ...(data as GroupMessage), conversation_id: 'group', reactions: [] };
     },
-    async sendGroupAttachment(a, caption, replyTo, onProgress) {
+    async sendGroupAttachment(a, caption, replyTo, onProgress, forwarded) {
       const me = await needUid();
       const file = a.kind === 'image' ? await prepareImage(a.file, 'posts') : a.file;
       const ext = (file.name.split('.').pop() || (a.kind === 'voice' ? 'webm' : 'bin')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
@@ -864,11 +876,13 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         path = `group/${me}-${Date.now()}.${ext}`;
         await xhrUpload('chat', path, file, onProgress);
       }
-      const { data, error } = await sb
-        .from('group_messages')
-        .insert({ sender_id: me, body: caption, kind: a.kind, media_path: path, file_size: file.size, duration: a.duration ?? null, thumb: a.thumb ?? null, reply_to: replyTo ?? null, ...(a.kind === 'file' ? { file_name: a.file.name.slice(0, 200) } : {}) })
-        .select('*, sender:profiles!group_messages_sender_id_fkey(*)')
-        .single();
+      const row: Record<string, unknown> = { sender_id: me, body: caption, kind: a.kind, media_path: path, file_size: file.size, duration: a.duration ?? null, thumb: a.thumb ?? null, reply_to: replyTo ?? null, ...(a.kind === 'file' ? { file_name: a.file.name.slice(0, 200) } : {}), ...(forwarded ? { forwarded: true } : {}) };
+      const sel = '*, sender:profiles!group_messages_sender_id_fkey(*)';
+      let { data, error } = await sb.from('group_messages').insert(row).select(sel).single();
+      if (error && /forwarded/.test(error.message) && row.forwarded) {
+        delete row.forwarded;
+        ({ data, error } = await sb.from('group_messages').insert(row).select(sel).single());
+      }
       if (error && /row-level|policy/i.test(error.message)) throw new Error('You can’t send messages in the group right now.');
       if (error && /file_name|kind_check/.test(error.message)) throw new Error('Documents need a database update: run supabase/group-files.sql in Supabase.');
       fail(error);
@@ -878,6 +892,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async deleteGroupMessage(id) {
       const { error } = await sb.rpc('delete_group_message', { mid: id });
       if (error?.message.includes('not_your_message')) throw new Error('You can only delete your own messages.');
+      if (error?.message.includes('too_late')) throw new Error('It’s too late to delete this for everyone.');
       fail(error);
     },
     async reactGroup(id, emoji) {
@@ -893,10 +908,18 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const { data } = await sb.from('group_reads').select('last_read_at').eq('user_id', me).maybeSingle();
       return (data as { last_read_at: string } | null)?.last_read_at ?? null;
     },
+    async groupReaders() {
+      const { data, error } = await sb.rpc('group_readers');
+      // not set up yet (group-reads.sql): no counts, nothing breaks
+      if (error) return [];
+      return ((data ?? []) as { user_id: string; name: string; avatar_url: string | null; last_read_at: string }[]).map((r) => ({ id: r.user_id, name: r.name, avatar_url: r.avatar_url, read_at: r.last_read_at }));
+    },
     async markGroupRead() {
       const me = await uid();
       if (!me) return;
-      await sb.from('group_reads').upsert({ user_id: me, last_read_at: new Date().toISOString() });
+      // also marks when other people's messages were first seen (group-update.sql)
+      const { error } = await sb.rpc('mark_group_read');
+      if (error) await sb.from('group_reads').upsert({ user_id: me, last_read_at: new Date().toISOString() });
     },
     async setGroupSettings(s) {
       const { error } = await sb.from('group_settings').update(s).eq('id', 1);

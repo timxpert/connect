@@ -6504,3 +6504,264 @@ html[data-cx-theme='dark'] .cx-look-seg button.is-on {
   border-radius: 50%;
   color: #fff;
 }
+
+/* Pull up for the gallery */
+.cx-attach-sheet {
+  touch-action: none;
+}
+.cx-attach-hint {
+  margin: 0 0 4px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Forwarded label */
+.cx-msg-fwd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 4px;
+  padding: 2px 4px 0;
+  font-size: 0.76rem;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Group read count on my messages */
+.cx-seen-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.cx-seen-count span {
+  font-weight: 700;
+}
+
+/* Forward to / Seen by sheets */
+.cx-fwd {
+  max-height: 86dvh;
+  grid-template-rows: auto auto auto 1fr auto;
+}
+.cx-seen {
+  max-height: 70dvh;
+}
+.cx-fwd-title {
+  margin: 2px 8px 8px;
+  font-size: 1.05rem;
+}
+.cx-fwd .cx-search {
+  margin: 0 4px 6px;
+}
+.cx-fwd-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  min-height: 120px;
+}
+.cx-fwd-list li {
+  list-style: none;
+}
+.cx-sheet .cx-fwd-row,
+.cx-fwd-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 12px;
+}
+.cx-fwd-row.is-on {
+  background: var(--tint);
+}
+.cx-fwd-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-weight: 600;
+}
+.cx-fwd-row small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.cx-fwd-check {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  flex: none;
+}
+.cx-fwd-row.is-on .cx-fwd-check {
+  border-color: var(--violet);
+  background: var(--violet);
+  color: #fff;
+}
+.cx-fwd-note {
+  padding: 18px 8px;
+  color: var(--muted);
+  text-align: center;
+}
+.cx-fwd-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 6px 2px;
+  border-top: 1px solid var(--line);
+}
+.cx-fwd-bar span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.cx-sheet .cx-fwd-bar .cx-send {
+  flex: none;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+}
+.cx-sheet .cx-fwd-bar .cx-send:disabled {
+  opacity: 0.4;
+}
+.cx-seen-msg {
+  margin: -4px 8px 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+/* In-app camera */
+.cx-cam {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: #000;
+  color: #fff;
+}
+.cx-cam video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cx-cam video.is-front {
+  transform: scaleX(-1);
+}
+.cx-cam-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0.7;
+}
+.cx-cam-top,
+.cx-cam-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+.cx-cam-top {
+  top: env(safe-area-inset-top);
+}
+.cx-cam-bottom {
+  bottom: calc(34px + env(safe-area-inset-bottom));
+  padding: 0 34px;
+}
+.cx-cam-btn {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+}
+.cx-cam-btn:disabled {
+  opacity: 0.3;
+}
+.cx-cam-shutter {
+  width: 76px;
+  height: 76px;
+  border: 5px solid #fff;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.cx-cam-shutter:active {
+  transform: scale(0.94);
+}
+.cx-cam-shutter.is-rec {
+  transform: scale(1.18);
+  background: #e5484d;
+}
+.cx-cam-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cx-cam-time i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e5484d;
+}
+.cx-cam-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  margin: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+.cx-cam-failed {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 40%;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.cx-sheet-note {
+  margin: 4px 16px 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}

@@ -12,8 +12,9 @@ import { navigate } from './router';
 import { useOnline } from './presence';
 import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
-import { AttachSheet, Bubble, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
-import type { Attachment, GroupHistory, GroupInfo, GroupMessage, Profile } from './types';
+import { AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
+import { ForwardSheet } from './forward';
+import type { Attachment, GroupHistory, GroupInfo, GroupMessage, GroupReader, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
 
 const MAX_FILE = 50 * 1024 * 1024;
@@ -52,6 +53,9 @@ export function GroupChat() {
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [held, setHeld] = useState<GroupMessage | null>(null);
+  const [forwarding, setForwarding] = useState<GroupMessage | null>(null);
+  const [readers, setReaders] = useState<GroupReader[]>([]);
+  const [seenOf, setSeenOf] = useState<GroupMessage | null>(null);
   const [menu, setMenu] = useState(false);
   const [rec, setRec] = useState<{ start: number; secs: number } | null>(null);
   const [picked, setPicked] = useState<Picked[]>([]);
@@ -97,6 +101,7 @@ export function GroupChat() {
     }
     setMsgs(list);
     setInfo(i);
+    api.groupReaders().then(setReaders).catch(() => {});
     api
       .markGroupRead()
       .then(() => window.dispatchEvent(new Event('cx:counts')))
@@ -112,11 +117,17 @@ export function GroupChat() {
       api.subscribe('group_settings', '', () => load().catch(() => {})),
     ];
     const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 30000);
+    // read counts change when other people open the group
+    const r = window.setInterval(() => document.visibilityState === 'visible' && api.groupReaders().then(setReaders).catch(() => {}), 12000);
     return () => {
       stops.forEach((s) => s());
       window.clearInterval(t);
+      window.clearInterval(r);
     };
   }, [api, me, load]);
+
+  /** Members (not me) who opened the group after this message arrived */
+  const seenBy = (m: GroupMessage) => readers.filter((r) => r.id !== m.sender_id && r.read_at >= m.created_at);
 
   const all = [...msgs, ...local];
   // Open where you left off: at the first message you haven't read (under an
@@ -255,7 +266,7 @@ export function GroupChat() {
     }
   };
 
-  const pickFiles = (files: FileList | null, asDocument = false) => {
+  const pickFiles = (files: FileList | File[] | null, asDocument = false) => {
     if (!files?.length) return;
     if (!picked.length) {
       setCaption(draft.trim());
@@ -499,6 +510,8 @@ export function GroupChat() {
                   reactions={m.reactions}
                   onReact={(e) => react(m, e)}
                   noTicks
+                  seen={mine ? seenBy(m).length : undefined}
+                  onSeen={() => setSeenOf(m)}
                   onHold={(x) => !x.pending && !x.id.startsWith('tmp-') && !x.deleted_at && setHeld(x as GroupMessage)}
                   onDownload={(x) => download(x as GroupMessage)}
                   onOpen={(x) => (x.kind === 'file' ? openFile(x, toast) : setViewing(x as GroupMessage))}
@@ -605,6 +618,10 @@ export function GroupChat() {
         </div>
       )}
 
+      {forwarding && <ForwardSheet m={forwarding} onClose={() => setForwarding(null)} />}
+
+      {seenOf && <SeenBy m={seenOf} readers={seenBy(seenOf)} onClose={() => setSeenOf(null)} />}
+
       {held && (
         <div className="cx-sheet-wrap" onClick={() => setHeld(null)}>
           <div className="cx-sheet cx-drag" role="menu" ref={heldSheet} onClick={(e) => e.stopPropagation()}>
@@ -627,6 +644,16 @@ export function GroupChat() {
                 }}
               >
                 <Icon name="back" /> Reply
+              </button>
+            )}
+            {!held.pending && !held.deleted_at && (held.body || held.media_url) && (
+              <button type="button" role="menuitem" onClick={() => (setForwarding(held), setHeld(null))}>
+                <Icon name="forward" /> Forward
+              </button>
+            )}
+            {held.sender_id === me.id && (
+              <button type="button" role="menuitem" onClick={() => (setSeenOf(held), setHeld(null))}>
+                <Icon name="ticks" /> Seen by {seenBy(held).length}
               </button>
             )}
             {held.sender_id !== me.id && (
@@ -670,10 +697,12 @@ export function GroupChat() {
                 </button>
               </>
             )}
-            {held.sender_id === me.id || team ? (
+            {team || (held.sender_id === me.id && canUnsend(held.created_at, held.seen_at)) ? (
               <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>
                 <Icon name="trash" /> {held.sender_id === me.id ? 'Delete for everyone' : 'Delete message'}
               </button>
+            ) : held.sender_id === me.id ? (
+              <p className="cx-sheet-note">{TOO_LATE}</p>
             ) : (
               <button type="button" role="menuitem" onClick={() => reportMsg(held)}>
                 <Icon name="more" /> Report message
@@ -711,6 +740,35 @@ export function GroupChat() {
 }
 
 /** The group's picture: the photo the team chose, or the Motion Dojo logo */
+function SeenBy({ m, readers, onClose }: { m: GroupMessage; readers: GroupReader[]; onClose: () => void }) {
+  const sheet = useDragToClose<HTMLDivElement>(onClose);
+  const sorted = [...readers].sort((a, b) => (a.read_at < b.read_at ? -1 : 1));
+  return (
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-drag cx-seen" role="dialog" aria-label="Seen by" ref={sheet} onClick={(e) => e.stopPropagation()}>
+        <span className="cx-grab" aria-hidden="true" />
+        <h2 className="cx-fwd-title">Seen by {readers.length}</h2>
+        {m.body && <p className="cx-seen-msg">{m.body.slice(0, 140)}</p>}
+        {sorted.length ? (
+          <ul className="cx-fwd-list" data-scroll>
+            {sorted.map((r) => (
+              <li key={r.id} className="cx-fwd-row">
+                <Avatar p={{ name: r.name, avatar_url: r.avatar_url, handle: '' }} size={38} />
+                <span className="cx-fwd-name">{r.name}</span>
+                <small>{dayLabel(r.read_at) === 'Today' ? clock2(r.read_at) : `${dayLabel(r.read_at)}, ${clock2(r.read_at)}`}</small>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="cx-fwd-note">No one has seen it yet.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const clock2 = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
 export function GroupPhoto({ url, size }: { url?: string | null; size: number }) {
   return (
     <span className="cx-group-ico" style={{ width: size, height: size }} aria-hidden="true">

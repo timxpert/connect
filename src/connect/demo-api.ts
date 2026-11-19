@@ -383,8 +383,8 @@ export function createDemoApi(): ConnectApi {
       return wait(c ? { id: c.id, other: who(c.a === me ? c.b : c.a), last_message_at: c.last, last_body: '' } : null);
     },
     listMessages: (id) => wait(messages.filter((m) => m.conversation_id === id).map((m) => ({ ...m }))),
-    async sendMessage(id, body, quote) {
-      const m: Message = { id: nid(), conversation_id: id, sender_id: needMe(), body, quote: quote ?? null, created_at: new Date().toISOString(), kind: 'text' };
+    async sendMessage(id, body, quote, forwarded) {
+      const m: Message = { id: nid(), conversation_id: id, sender_id: needMe(), body, quote: quote ?? null, forwarded: forwarded ?? false, created_at: new Date().toISOString(), kind: 'text' };
       messages = [...messages, m];
       convs = convs.map((c) => (c.id === id ? { ...c, last: m.created_at } : c));
       // Pretend the other person's phone receives it, then they read it
@@ -392,7 +392,7 @@ export function createDemoApi(): ConnectApi {
       setTimeout(() => (m.read_at = new Date().toISOString()), 5000);
       return m;
     },
-    async sendAttachment(id, a, caption, onProgress) {
+    async sendAttachment(id, a, caption, onProgress, forwarded) {
       for (let i = 1; i <= 6; i++) {
         await new Promise((r) => setTimeout(r, 100));
         onProgress?.(i / 6);
@@ -409,6 +409,8 @@ export function createDemoApi(): ConnectApi {
         file_name: a.kind === 'file' ? a.file.name : null,
         file_size: a.file.size,
         duration: a.duration ?? null,
+        thumb: a.thumb ?? null,
+        forwarded: forwarded ?? false,
       };
       messages = [...messages, m];
       setTimeout(() => (m.delivered_at = new Date().toISOString()), 1500);
@@ -471,18 +473,18 @@ export function createDemoApi(): ConnectApi {
       const unread = group.filter((x) => x.sender_id !== current && x.created_at > groupReadAt).length;
       return wait(m ? { name: groupSet.name, photo_url: groupSet.photo_url, text: `${who(m.sender_id).name}: ${m.body || 'Photo'}`, at: m.created_at, unread } : null);
     },
-    async sendGroupMessage(body, replyTo) {
+    async sendGroupMessage(body, replyTo, forwarded) {
       const me = needMe();
       if (groupSet.announce_only && !who(me).is_sensei) throw new Error('You can’t send messages in the group right now.');
       if ((groupMutes.get(me) ?? 0) > Date.now()) throw new Error('You can’t send messages in the group right now.');
-      const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body, kind: 'text', reply_to: replyTo ?? null, created_at: new Date().toISOString() };
+      const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body, kind: 'text', reply_to: replyTo ?? null, forwarded: forwarded ?? false, created_at: new Date().toISOString() };
       group.push(m);
       return wait({ ...m, sender: who(me), reactions: [] });
     },
-    async sendGroupAttachment(a, caption, replyTo, onProgress) {
+    async sendGroupAttachment(a, caption, replyTo, onProgress, forwarded) {
       const me = needMe();
       onProgress?.(1);
-      const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body: caption, kind: a.kind, file_name: a.kind === 'file' ? a.file.name : null, media_url: URL.createObjectURL(a.file), file_size: a.file.size, duration: a.duration, thumb: a.thumb, reply_to: replyTo ?? null, created_at: new Date().toISOString() };
+      const m: RawGroup = { id: nid(), conversation_id: 'group', sender_id: me, body: caption, kind: a.kind, file_name: a.kind === 'file' ? a.file.name : null, media_url: URL.createObjectURL(a.file), file_size: a.file.size, duration: a.duration, thumb: a.thumb, reply_to: replyTo ?? null, forwarded: forwarded ?? false, created_at: new Date().toISOString() };
       group.push(m);
       return wait({ ...m, sender: who(me), reactions: [] });
     },
@@ -495,6 +497,11 @@ export function createDemoApi(): ConnectApi {
       else groupRx.delete(k);
     },
     groupLastRead: async () => groupReadAt,
+    async groupReaders() {
+      const soon = new Date(Date.now() + 60_000).toISOString();
+      const ppl = people.filter((p) => p.id !== current).slice(0, 3);
+      return ppl.map((p, i) => ({ id: p.id, name: p.name, avatar_url: p.avatar_url ?? null, read_at: i === 2 ? new Date(Date.now() - 3 * 3600_000).toISOString() : soon }));
+    },
     async markGroupRead() {
       groupReadAt = new Date().toISOString();
     },

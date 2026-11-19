@@ -11,6 +11,8 @@ import type { Attachment, Conversation, Message, Profile } from './types';
 import { peek } from './cache';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
+import { ForwardSheet } from './forward';
+import { CameraScreen } from './camera';
 
 /* ------------------------------------------------------------------
    One conversation, WhatsApp-style:
@@ -33,6 +35,11 @@ export const clock = (s: number) => {
 const size = (b?: number | null) =>
   !b ? '' : b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(0.1, Math.round((b / 1024) * 10) / 10)} kB`;
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+/** Delete for everyone: up to 24 hours after sending while it's unseen, and 1 hour after it's seen */
+export const canUnsend = (sentAt: string, seenAt?: string | null) =>
+  seenAt ? Date.now() <= new Date(seenAt).getTime() + 3600_000 : Date.now() <= new Date(sentAt).getTime() + 24 * 3600_000;
+export const TOO_LATE = 'You can delete a message for everyone within 24 hours, or within 1 hour once it’s been seen.';
+
 export const dayLabel = (iso: string) => {
   const d = new Date(iso);
   const today = new Date();
@@ -65,7 +72,8 @@ export function docType(name: string | null | undefined) {
 
 const DOC_ACCEPT = 'application/*,text/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.zip,.rar,.aep,.prproj,.psd,.ai,.xml,image/*,video/*';
 
-/** The menu behind the paperclip: photos and videos, camera, or a document */
+/** The menu behind the paperclip: photos and videos, camera, or a document.
+    Pull it up (or tap Photos & videos) to open the phone's gallery. */
 export function AttachSheet({
   open,
   onClose,
@@ -75,35 +83,62 @@ export function AttachSheet({
   open: boolean;
   onClose: () => void;
   /** asDocument: send photos as files (full quality). Videos are always sent as videos. */
-  onPick: (files: FileList, asDocument: boolean) => void;
+  onPick: (files: FileList | File[], asDocument: boolean) => void;
   documents?: boolean;
 }) {
   const gallery = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
   const doc = useRef<HTMLInputElement>(null);
+  const [cam, setCam] = useState(false);
   const sheet = useDragToClose<HTMLDivElement>(onClose, open);
   const take = (asDocument: boolean) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.length) onPick(e.target.files, asDocument);
+    if (e.target.files?.length) onPick(Array.from(e.target.files), asDocument);
     e.target.value = '';
+    setCam(false);
     onClose();
   };
+  const openGallery = () => gallery.current?.click();
   return (
     <>
       <input ref={gallery} type="file" multiple accept="image/*,video/*" className="sr-only" onChange={take(false)} />
-      <input ref={camera} type="file" accept="image/*,video/*" capture="environment" className="sr-only" onChange={take(false)} />
+      <input ref={camera} type="file" accept="image/*" capture="environment" className="sr-only" onChange={take(false)} />
       <input ref={doc} type="file" multiple accept={DOC_ACCEPT} className="sr-only" onChange={take(true)} />
       {open && (
         <div className="cx-sheet-wrap" onClick={onClose}>
-          <div className="cx-sheet cx-drag cx-attach-sheet" role="menu" aria-label="Send" ref={sheet} onClick={(e) => e.stopPropagation()}>
+          <div
+            className="cx-sheet cx-drag cx-attach-sheet"
+            role="menu"
+            aria-label="Send"
+            ref={sheet}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              // pulled up: straight to the gallery (the finger soon leaves the sheet, so watch the whole page)
+              const from = e.clientY;
+              const move = (ev: PointerEvent) => {
+                if (from - ev.clientY > 40) {
+                  stop();
+                  openGallery();
+                }
+              };
+              const stop = () => {
+                window.removeEventListener('pointermove', move);
+                window.removeEventListener('pointerup', stop);
+                window.removeEventListener('pointercancel', stop);
+              };
+              window.addEventListener('pointermove', move);
+              window.addEventListener('pointerup', stop);
+              window.addEventListener('pointercancel', stop);
+            }}
+          >
             <span className="cx-grab" aria-hidden="true" />
             <div className="cx-attach-grid">
-              <button type="button" role="menuitem" onClick={() => gallery.current?.click()}>
+              <button type="button" role="menuitem" onClick={openGallery}>
                 <span className="cx-attach-ico" style={{ background: '#6d32e8' }}>
                   <Icon name="image" size={24} />
                 </span>
                 Photos & videos
               </button>
-              <button type="button" role="menuitem" onClick={() => camera.current?.click()}>
+              <button type="button" role="menuitem" onClick={() => (onClose(), setCam(true))}>
                 <span className="cx-attach-ico" style={{ background: '#d6336c' }}>
                   <Icon name="camera" size={24} />
                 </span>
@@ -118,8 +153,23 @@ export function AttachSheet({
                 </button>
               )}
             </div>
+            <p className="cx-attach-hint">Pull up for your gallery</p>
           </div>
         </div>
+      )}
+      {cam && (
+        <CameraScreen
+          onClose={() => setCam(false)}
+          onShot={(f) => {
+            setCam(false);
+            onPick([f], false);
+          }}
+          onFallback={() => {
+            setCam(false);
+            camera.current?.click();
+          }}
+          onGallery={openGallery}
+        />
       )}
     </>
   );
@@ -247,7 +297,7 @@ export async function keepFile(id: string, blob: Blob) {
     /* no storage: it will download again when opened */
   }
 }
-async function keptFile(id: string): Promise<Blob | null> {
+export async function keptFile(id: string): Promise<Blob | null> {
   try {
     const r = await (await caches.open(FILES)).match(fileKey(id));
     return r ? await r.blob() : null;
@@ -305,7 +355,7 @@ export async function openFile(m: Message, toast: (t: string) => void) {
 }
 
 const EXT: Record<string, string> = { image: 'jpg', video: 'mp4', voice: 'm4a', file: 'bin' };
-function fileNameFor(m: Message, type: string) {
+export function fileNameFor(m: Message, type: string) {
   if (m.file_name && m.kind === 'file') return m.file_name;
   const ext = type.split('/')[1]?.replace('jpeg', 'jpg').replace('quicktime', 'mov').replace(/[^a-z0-9]/g, '') || EXT[m.kind ?? 'file'];
   const d = new Date(m.created_at);
@@ -567,6 +617,8 @@ export function Bubble({
   reactions,
   onReact,
   noTicks = false,
+  seen,
+  onSeen,
   domId,
 }: {
   m: Message;
@@ -578,6 +630,9 @@ export function Bubble({
   reactions?: { emoji: string; count: number; mine: boolean }[];
   onReact?: (emoji: string) => void;
   noTicks?: boolean;
+  /** Group chats: how many members have seen my message */
+  seen?: number;
+  onSeen?: () => void;
   domId?: string;
   /** Downloaded (or sent by me): show the media itself */
   ready: boolean;
@@ -618,7 +673,7 @@ export function Bubble({
         'cx-msg',
         mine ? 'is-mine' : '',
         kind !== 'text' ? `is-${kind}` : '',
-        (kind === 'image' || kind === 'video') && !m.body ? 'is-bare' : '',
+        (kind === 'image' || kind === 'video') && !m.body && !m.forwarded ? 'is-bare' : '',
         m.pending ? 'is-pending' : '',
         m.failed ? 'is-failed' : '',
       ]
@@ -628,6 +683,11 @@ export function Bubble({
       onClick={m.failed && onRetry ? () => onRetry(m) : undefined}
     >
       {who && <b className="cx-msg-who">{who.name}</b>}
+      {m.forwarded && !m.deleted_at && (
+        <span className="cx-msg-fwd">
+          <Icon name="forward" size={14} /> Forwarded
+        </span>
+      )}
       {quote && (
         <button type="button" className="cx-msg-quote" onClick={quote.onClick}>
           <b>{quote.name}</b>
@@ -695,6 +755,12 @@ export function Bubble({
         <time dateTime={m.created_at}>{hhmm(m.created_at)}</time>
         {mine && !noTicks && <Status m={m} />}
         {mine && noTicks && (m.pending || m.failed) && <Status m={m} />}
+        {mine && noTicks && !m.pending && !m.failed && seen !== undefined && (
+          <button type="button" className={seen ? 'cx-tick cx-seen-count is-seen' : 'cx-tick cx-seen-count'} onClick={(e) => (e.stopPropagation(), onSeen?.())} aria-label={seen ? `Seen by ${seen}` : 'Not seen yet'}>
+            <Icon name={seen ? 'ticks' : 'tick'} size={seen ? 17 : 15} />
+            {seen > 0 && <span>{seen}</span>}
+          </button>
+        )}
       </span>
       {reactions && reactions.length > 0 && (
         <span className="cx-msg-rx">
@@ -720,6 +786,7 @@ export function Chat({ id }: { id: string }) {
   const [blocked, setBlocked] = useState(false);
   const [menu, setMenu] = useState(false);
   const [held, setHeld] = useState<Message | null>(null);
+  const [forwarding, setForwarding] = useState<Message | null>(null);
   const [rec, setRec] = useState<{ start: number; secs: number } | null>(null);
   const end = useRef<HTMLLIElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
@@ -916,7 +983,7 @@ export function Chat({ id }: { id: string }) {
   };
 
   /* picking photos, videos or files opens the review screen first */
-  const pickFiles = (files: FileList | null, asDocument = false) => {
+  const pickFiles = (files: FileList | File[] | null, asDocument = false) => {
     if (!files?.length) return;
     if (!picked.length) {
       // Whatever was typed becomes the caption
@@ -1212,10 +1279,17 @@ export function Chat({ id }: { id: string }) {
         </div>
       )}
 
+      {forwarding && <ForwardSheet m={forwarding} onClose={() => setForwarding(null)} />}
+
       {held && (
         <div className="cx-sheet-wrap" onClick={() => setHeld(null)}>
           <div className="cx-sheet cx-drag" role="menu" ref={heldSheet} onClick={(e) => e.stopPropagation()}>
             <span className="cx-grab" aria-hidden="true" />
+            {!held.pending && !held.deleted_at && (held.body || held.media_url) && (
+              <button type="button" role="menuitem" onClick={() => (setForwarding(held), setHeld(null))}>
+                <Icon name="forward" /> Forward
+              </button>
+            )}
             {held.body && (
               <button type="button" role="menuitem" onClick={() => copy(held)}>
                 <Icon name="copy" /> Copy text
@@ -1235,9 +1309,13 @@ export function Chat({ id }: { id: string }) {
               </button>
             )}
             {held.sender_id === me.id ? (
-              <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>
-                <Icon name="trash" /> Delete for everyone
-              </button>
+              canUnsend(held.created_at, held.read_at) ? (
+                <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>
+                  <Icon name="trash" /> Delete for everyone
+                </button>
+              ) : (
+                <p className="cx-sheet-note">{TOO_LATE}</p>
+              )
             ) : (
               <button type="button" role="menuitem" onClick={() => reportMsg(held)}>
                 <Icon name="more" /> Report message

@@ -107,6 +107,8 @@ export type Message = {
   delivered_at?: string | null;
   read_at?: string | null;
   deleted_at?: string | null;
+  /** Sent on from another chat */
+  forwarded?: boolean | null;
   /** A private reply to a group message: JSON {name, text} */
   quote?: string | null;
   /** Client only: still uploading / sending */
@@ -117,6 +119,8 @@ export type Message = {
 
 /** A message in the Dojo group */
 export type GroupMessage = Message & {
+  /** When someone other than the sender first saw it */
+  seen_at?: string | null;
   reply_to?: string | null;
   sender?: Profile;
   reactions?: { emoji: string; count: number; mine: boolean }[];
@@ -125,6 +129,8 @@ export type GroupMessage = Message & {
 /** What new students see from before they joined */
 export type GroupHistory = 'all' | '14d' | '100' | 'none';
 export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string; photo_url?: string | null };
+
+export type GroupReader = { id: string; name: string; avatar_url: string | null; read_at: string };
 
 export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number; thumb?: string };
 
@@ -245,9 +251,9 @@ export interface ConnectApi {
   getConversation(id: string): Promise<Conversation | null>;
   listMessages(conversationId: string): Promise<Message[]>;
   /** quote: a group message this answers privately, as JSON {name, text} */
-  sendMessage(conversationId: string, body: string, quote?: string | null): Promise<Message>;
+  sendMessage(conversationId: string, body: string, quote?: string | null, forwarded?: boolean): Promise<Message>;
   /** Voice note, photo, video or file. Uploads privately, then sends. */
-  sendAttachment(conversationId: string, a: Attachment, caption: string, onProgress?: (share: number) => void): Promise<Message>;
+  sendAttachment(conversationId: string, a: Attachment, caption: string, onProgress?: (share: number) => void, forwarded?: boolean): Promise<Message>;
   deleteMessage(id: string): Promise<void>;
   /** Marks everything the other person sent in this chat as seen */
   markRead(conversationId: string): Promise<void>;
@@ -287,14 +293,16 @@ export interface ConnectApi {
   groupInfo(): Promise<GroupInfo | null>;
   listGroupMessages(): Promise<GroupMessage[]>;
   groupPreview(): Promise<{ name: string; photo_url?: string | null; text: string; at: string; unread: number } | null>;
-  sendGroupMessage(body: string, replyTo?: string | null): Promise<GroupMessage>;
-  sendGroupAttachment(a: Attachment, caption: string, replyTo?: string | null, onProgress?: (share: number) => void): Promise<GroupMessage>;
+  sendGroupMessage(body: string, replyTo?: string | null, forwarded?: boolean): Promise<GroupMessage>;
+  sendGroupAttachment(a: Attachment, caption: string, replyTo?: string | null, onProgress?: (share: number) => void, forwarded?: boolean): Promise<GroupMessage>;
   deleteGroupMessage(id: string): Promise<void>;
   /** null removes your reaction */
   reactGroup(id: string, emoji: string | null): Promise<void>;
   markGroupRead(): Promise<void>;
   /** When I last read the group (null: never) */
   groupLastRead(): Promise<string | null>;
+  /** Members and when they last had the group open */
+  groupReaders(): Promise<GroupReader[]>;
   /** Team only */
   setGroupSettings(s: { announce_only?: boolean; pinned_id?: string | null; history?: GroupHistory; name?: string; photo_url?: string | null }): Promise<void>;
   /** Everyone in the group: students and the team */

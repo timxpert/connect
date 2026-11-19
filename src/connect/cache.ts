@@ -48,6 +48,7 @@ const LIVE = new Set<keyof ConnectApi>([
   'groupPreview',
   'markGroupRead',
   'groupLastRead',
+  'groupReaders',
   'groupStatus',
   'groupRemoved',
 ]);
