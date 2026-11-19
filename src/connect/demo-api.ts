@@ -123,6 +123,7 @@ let lessons: RawLesson[] = sampleTitles.flatMap((titles, ph) =>
     files: i === 0 ? [{ name: 'Sample project file', url: 'https://example.com' }] : [],
   })),
 );
+lessons.unshift({ id: 'l01', phase: 0, position: 1, title: 'Welcome to Black Belt', summary: 'Sample orientation video for the preview.', duration: '6 min', published: true, video_url: '', size_mb: 30, notes: '', files: [] });
 const progress = new Set<string>(['s1:l11', 's1:l12']);
 let assignments: Assignment[] = [];
 type RawGroup = Omit<GroupMessage, 'sender' | 'reactions'>;
@@ -149,7 +150,7 @@ function outline(): Lesson[] {
     const prev = list[i - 1];
     // nothing opens until the phase is confirmed; then every phase before it, and lesson by lesson inside it
     const cur = me?.is_student ? me.phase : null;
-    const prevDone = Boolean(cur) && (l.phase < cur! || (l.phase === cur && (!prev || prev.phase !== l.phase || Boolean(current && progress.has(`${current}:${prev.id}`)))));
+    const prevDone = (l.phase === 0 && Boolean(me?.is_student)) || Boolean(cur) && (l.phase < cur! || (l.phase === cur && (!prev || prev.phase !== l.phase || Boolean(current && progress.has(`${current}:${prev.id}`)))));
     const { video_url, notes, files, ...rest } = l;
     void notes;
     void files;

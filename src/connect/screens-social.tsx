@@ -236,9 +236,9 @@ export function Notifications() {
     if (n.kind === 'community_post') return { text: `${name} posted to the Community feed.`, path: n.post_id ? `/p/${n.post_id}` : '/' };
     if (n.kind === 'connection_request') return { text: `${name} wants to connect with you.`, path: '/connections' };
     if (n.kind === 'assignment_submitted') return { text: `${name} handed in an assignment.`, path: '/reviews' };
-    if (n.kind === 'phase_request') return { text: `${name} says they’re in ${n.snippet?.toLowerCase() ?? 'a phase'}. Confirm it.`, path: '/reviews' };
-    if (n.kind === 'phase_approved') return { text: `Your phase is confirmed: ${n.snippet ?? ''}. Your lessons are open.`, path: '/learn' };
-    if (n.kind === 'phase_declined') return { text: 'The Grand Sensei didn’t confirm your phase. Choose again.', path: '/learn' };
+    if (n.kind === 'phase_request') return { text: `${name} chose ${n.snippet?.toLowerCase() ?? 'a phase'}.`, path: '/reviews' };
+    if (n.kind === 'phase_approved') return { text: `${n.snippet ?? 'Your phase'} confirmed. Lessons are open.`, path: '/learn' };
+    if (n.kind === 'phase_declined') return { text: 'Phase not confirmed. Choose again.', path: '/learn' };
     if (n.kind === 'assignment_approved') return { text: 'Your assignment was approved. The next phase is open.', path: '/learn' };
     if (n.kind === 'assignment_changes') return { text: `${name} asked for changes on your assignment.`, path: '/learn' };
     if (n.kind === 'group_reply') return { text: `${name} replied to you in the group${n.snippet ? `: “${n.snippet.replace(/^[^:]*:\s*/, '').slice(0, 100)}”` : '.'}`, path: '/messages/group' };

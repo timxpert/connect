@@ -418,11 +418,7 @@ export function Settings() {
           <div className="field">
             <span>Your phase</span>
             <p className="cx-muted">
-              {me.phase
-                ? `Phase ${me.phase}: ${PHASES[me.phase - 1]} (${BELTS[me.phase - 1]}). Confirmed by the Grand Sensei. Ask them if it needs to change.`
-                : me.phase_request
-                  ? `You said phase ${me.phase_request}. Waiting for the Grand Sensei to confirm it.`
-                  : 'Not chosen yet.'}
+              {me.phase ? `Phase ${me.phase} · ${BELTS[me.phase - 1]}` : me.phase_request ? `Phase ${me.phase_request} · waiting for confirmation` : 'Not chosen yet'}
             </p>
           </div>
         )}

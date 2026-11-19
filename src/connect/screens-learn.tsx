@@ -39,6 +39,9 @@ export function embedSrc(url: string) {
 
 /* ---------- Helpers ---------- */
 
+/** Phase 0 is the orientation: open to every member, whatever their phase */
+const phaseLabel = (p: number) => (p === 0 ? 'Orientation' : `Phase ${p}`);
+const phaseName = (p: number) => (p === 0 ? 'Watch this first' : PHASES[p - 1]);
 const lessonNo = (list: Lesson[], l: Lesson) => list.filter((x) => x.phase === l.phase).indexOf(l) + 1;
 
 function useLessons() {
@@ -107,7 +110,7 @@ function AssignmentRow({ phase, status }: { phase: number; status: PhaseStatus }
     pending: 'Waiting for review',
     changes: 'Changes asked',
     approved: 'Approved',
-    placed: 'Not needed. You’re in a later phase',
+    placed: 'Not needed',
     team: 'Edit the brief',
   };
   const open = status !== 'locked' && status !== 'placed';
@@ -168,7 +171,7 @@ export function Learn() {
       <div className="cx-intro">
         <h1 className="cx-h1">Learn</h1>
         {learner ? (
-          unplaced ? null : <p>{cur ? `You’re in phase ${cur}. Mark a lesson done to open the next one.` : 'Mark a lesson done to open the next one.'}</p>
+          unplaced ? null : <p>{cur ? `Phase ${cur}. Finish a lesson to open the next.` : 'Finish a lesson to open the next.'}</p>
         ) : (
           <p>Every lesson in Black Belt in Motion Design.</p>
         )}
@@ -183,9 +186,7 @@ export function Learn() {
       {unplaced && (
         <section className="cx-ln-progress" aria-label="Your phase">
           <p className="cx-ln-finished">
-            {me?.phase_request
-              ? `You said you’re in phase ${me.phase_request}. Your lessons open when the Grand Sensei confirms it.`
-              : 'Choose your phase. Your lessons open when the Grand Sensei confirms it.'}
+            {me?.phase_request ? `Phase ${me.phase_request} is waiting for confirmation.` : 'Choose your phase to open your lessons.'}
           </p>
         </section>
       )}
@@ -219,7 +220,7 @@ export function Learn() {
                 <Icon name="play" size={20} filled />
               </span>
               <span>
-                <small>{done ? 'Up next' : 'Start here'} · Phase {next.phase}, lesson {lessonNo(list, next)}</small>
+                <small>{done ? 'Up next' : 'Start here'} · {phaseLabel(next.phase)}, lesson {lessonNo(list, next)}</small>
                 <b>{next.title}</b>
               </span>
             </A>
@@ -241,8 +242,8 @@ export function Learn() {
       {list.length === 0 ? (
         <Empty title="No lessons yet">{team && <p>Add the first lesson and students will see it here.</p>}</Empty>
       ) : (
-        PHASES.map((name, i) => {
-          const phase = i + 1;
+        [0, 1, 2, 3, 4].map((phase) => {
+          const name = phaseName(phase);
           const items = list.filter((l) => l.phase === phase);
           if (items.length === 0) return null;
           const pub = items.filter((l) => l.published);
@@ -251,7 +252,7 @@ export function Learn() {
             <section key={phase} className="cx-ln-phase">
               <header>
                 <h2>
-                  <small>Phase {phase}</small>
+                  <small>{phaseLabel(phase)}</small>
                   {name}
                 </h2>
                 {learner && pub.length > 0 && (
@@ -303,7 +304,7 @@ export function Learn() {
                   );
                 })}
               </ol>
-              {pub.length > 0 && (learner || team) && <AssignmentRow phase={phase} status={team ? 'team' : status(phase)} />}
+              {phase > 0 && pub.length > 0 && (learner || team) && <AssignmentRow phase={phase} status={team ? 'team' : status(phase)} />}
             </section>
           );
         })
@@ -451,7 +452,7 @@ export function LessonScreen({ id }: { id: string }) {
 
       <div className="cx-ln-head">
         <p className="cx-ln-where">
-          Phase {lesson.phase} · {PHASES[lesson.phase - 1]}
+          {lesson.phase === 0 ? 'Orientation' : `Phase ${lesson.phase} · ${PHASES[lesson.phase - 1]}`}
           {n > 0 && ` · Lesson ${n}`}
           {lesson.duration && ` · ${lesson.duration}`}
           {!lesson.published && <em className="cx-ln-tag">Draft</em>}
@@ -597,6 +598,7 @@ export function LessonEditor({ id }: { id?: string }) {
         <label className="field">
           <span>Phase</span>
           <select value={f.phase} onChange={(e) => set('phase', Number(e.target.value))}>
+            <option value={0}>Orientation (everyone can watch)</option>
             {PHASES.map((p, i) => (
               <option key={p} value={i + 1}>
                 Phase {i + 1}: {p}
@@ -893,11 +895,11 @@ function PhaseChecks() {
 
   const first = (r: PhaseRequest) => r.name.split(' ')[0];
   const place = async (r: PhaseRequest, phase: number | null) => {
-    if (phase === null && !(await ask({ title: `Decline ${first(r)}’s phase?`, body: 'They’ll be asked to choose their phase again.', confirm: 'Decline', danger: true }))) return;
+    if (phase === null && !(await ask({ title: `Decline ${first(r)}’s phase?`, body: 'They’ll choose again.', confirm: 'Decline', danger: true }))) return;
     setBusy(r.id);
     try {
       await api.setStudentPhase(r.id, phase);
-      toast(phase === null ? `Declined. ${first(r)} will choose again.` : `${first(r)} is in phase ${phase}`);
+      toast(phase === null ? 'Declined' : `${first(r)}: phase ${phase}`);
       setOther('');
       await load();
     } catch (e) {
@@ -907,7 +909,7 @@ function PhaseChecks() {
     }
   };
   const confirmAll = async () => {
-    if (!list?.length || !(await ask({ title: `Confirm all ${list.length}?`, body: 'Each student goes into the phase they chose.', confirm: 'Confirm all' }))) return;
+    if (!list?.length || !(await ask({ title: `Confirm all ${list.length}?`, body: 'Everyone gets the phase they chose.', confirm: 'Confirm all' }))) return;
     setBusy('all');
     for (const r of list) await api.setStudentPhase(r.id, r.phase_request).catch(() => {});
     setBusy('');
@@ -919,7 +921,7 @@ function PhaseChecks() {
   return (
     <section className="cx-ln-block cx-phase-checks" aria-label="Phase check">
       <div className="cx-phase-checks-head">
-        <h2>Phase check · {list.length}</h2>
+        <h2>Phases to confirm · {list.length}</h2>
         {list.length > 1 && (
           <button type="button" className="btn btn-light btn-sm" disabled={busy !== ''} onClick={confirmAll}>
             Confirm all
@@ -934,13 +936,13 @@ function PhaseChecks() {
               <span>
                 <b>{r.name}</b>
                 <small>
-                  Says phase {r.phase_request}: {PHASES[r.phase_request - 1]} · {timeAgo(r.phase_request_at)}
+                  Phase {r.phase_request} · {timeAgo(r.phase_request_at)}
                 </small>
               </span>
             </div>
             {other === r.id ? (
               <div className="cx-phase-check-btns">
-                <span className="cx-muted">Put in</span>
+                
                 {PHASES.map((_, i) => (
                   <button key={i} type="button" className="cx-chip" disabled={busy === r.id} onClick={() => place(r, i + 1)}>
                     Phase {i + 1}
@@ -953,10 +955,10 @@ function PhaseChecks() {
             ) : (
               <div className="cx-phase-check-btns">
                 <button type="button" className="btn btn-primary btn-sm" disabled={busy === r.id} onClick={() => place(r, r.phase_request)}>
-                  Confirm phase {r.phase_request}
+                  Confirm
                 </button>
                 <button type="button" className="btn btn-light btn-sm" disabled={busy === r.id} onClick={() => setOther(r.id)}>
-                  Different phase
+                  Change
                 </button>
                 <button type="button" className="btn btn-light btn-sm cx-danger" disabled={busy === r.id} onClick={() => place(r, null)}>
                   Decline
@@ -1010,7 +1012,7 @@ export function Reviews() {
     <div className="cx-col cx-reviews">
       <div className="cx-intro">
         <h1 className="cx-h1">Assignment reviews</h1>
-        <p>{waiting.length ? `${waiting.length} assignments waiting.` : 'No assignments waiting.'} Approving posts the project to the feed and opens the student’s next phase.</p>
+        <p>{waiting.length ? `${waiting.length} assignments waiting.` : 'No assignments waiting.'}</p>
       </div>
       <PhaseChecks />
       {error && <p className="cx-error">{error}</p>}

@@ -6843,3 +6843,16 @@ html[data-cx-theme='dark'] .cx-look-seg button.is-on {
 .cx-phase-check .cx-chip {
   background: var(--paper);
 }
+
+/* Toasts: a soft lavender pill instead of a black one */
+.cx-toast {
+  background: #efe7ff;
+  color: #2b1661;
+  font-weight: 600;
+  box-shadow: 0 10px 28px -14px rgba(60, 30, 140, 0.35);
+}
+html[data-cx-theme='dark'] .cx-toast {
+  background: #2d2540;
+  color: #ece6ff;
+  box-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+}

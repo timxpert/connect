@@ -1,4 +1,5 @@
--- Phase check: every student says which phase they're in, and the Grand
+-- Phase check and orientation videos.
+-- Every student says which phase they're in, and the Grand
 -- Sensei (or a moderator) confirms it. Lessons only open once the phase is
 -- confirmed: every phase up to it, then lesson by lesson inside it.
 -- The team can confirm the phase they asked for, put them in a different
@@ -133,7 +134,11 @@ language sql stable security definer set search_path = public as $$
 $$;
 grant execute on function public.phase_requests() to authenticated;
 
--- Lessons: nothing opens until the phase is confirmed. Then every phase before
+-- Orientation (phase 0): videos every member can watch, whatever their phase.
+alter table public.lessons drop constraint if exists lessons_phase_check;
+alter table public.lessons add constraint lessons_phase_check check (phase between 0 and 4);
+
+-- Lessons: nothing opens until the phase is confirmed (except the orientation). Then every phase before
 -- it is open, and inside it lessons open one by one. Approving a phase's
 -- assignment moves the student to the next phase (review_assignment).
 drop function if exists public.course_outline();
@@ -161,7 +166,9 @@ language sql stable security definer set search_path = public as $$
   )
   select o.id, o.phase, o.position, o.title, o.summary, o.duration, o.published,
          o.video_url <> '', o.done,
-         me.team or (
+         me.team
+         or (o.phase = 0 and me.student)
+         or (
            me.student and me.cur is not null
            and (o.phase < me.cur
                 or (o.phase = me.cur and (o.prev_phase is distinct from o.phase or o.prev_done)))
