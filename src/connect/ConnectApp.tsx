@@ -24,6 +24,7 @@ import { PhasePrompt } from './phase-prompt';
 import { InstallPrompt } from './install';
 import { lessonOpened } from './learning';
 import { CallLayer } from './calls';
+import { addWatched, left, startFocus, useFocus, watchingNow } from './focus';
 import { useTypingRoom } from './typing';
 import { ChallengeScreen } from './challenge';
 import { Connections, Notifications, Saved } from './screens-social';
@@ -183,9 +184,45 @@ function Shell({ route }: { route: Route }) {
     if (!signedIn) return;
     return guardDevice(api, () => navigate('/login'));
   }, [api, signedIn]);
+  // Strict focus mode (the padlock): picked when opening a lesson; until that
+  // much video is watched, only Learn can be used
+  const strict = useFocus();
+  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  const [askFocus, setAskFocus] = useState(false);
+  const FOCUS_ROUTES = ['learn', 'lesson', 'assignment'];
+  useEffect(() => {
+    if (!strict) return;
+    if (!FOCUS_ROUTES.includes(route.name)) {
+      navigate('/learn');
+      toast(`Focus mode is on: ${left(strict)} of lessons to go`);
+    }
+  }, [route, Boolean(strict)]);
+  useEffect(() => {
+    if (route.name !== 'lesson' || strict || team || !me?.is_student) return;
+    try {
+      if (sessionStorage.getItem('cx-focus-asked')) return;
+      sessionStorage.setItem('cx-focus-asked', '1');
+    } catch {
+      /* ask anyway */
+    }
+    setAskFocus(true);
+  }, [route]);
+  // count watching time (only while a lesson is open, on screen, and playing)
+  useEffect(() => {
+    if (!strict || route.name !== 'lesson') return;
+    const t = window.setInterval(() => {
+      if (document.visibilityState !== 'visible' || !watchingNow()) return;
+      if (addWatched(1)) {
+        play('post');
+        toast('Focus session done. Connect is unlocked.');
+      }
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [Boolean(strict), route]);
+
   // Focus mode: while learning, nothing pings, pops up or shows a count.
   // When you leave Learn, one note says what came in.
-  const focusing = route.name === 'learn' || route.name === 'lesson';
+  const focusing = Boolean(strict) || route.name === 'learn' || route.name === 'lesson';
   const held = React.useRef(0);
   const wasFocusing = React.useRef(focusing);
   useEffect(() => {
@@ -409,7 +446,7 @@ function Shell({ route }: { route: Route }) {
   }, [route, authKnown, welcome, member]);
 
   return (
-    <div className={(route.name === 'chat' || route.name === 'group') && member ? 'cx is-chat' : 'cx'} style={lookStyle} data-wall={look.wall === 'photo' && !look.photo ? 'plain' : look.wall} data-pattern={look.wall === 'photo' && look.photo ? 'none' : look.pattern}>
+    <div className={[(route.name === 'chat' || route.name === 'group') && member ? 'cx is-chat' : 'cx', strict ? 'is-locked' : ''].filter(Boolean).join(' ')} style={lookStyle} data-wall={look.wall === 'photo' && !look.photo ? 'plain' : look.wall} data-pattern={look.wall === 'photo' && look.photo ? 'none' : look.pattern}>
       {api.mode === 'demo' && (
         <p className="cx-preview-bar">Preview with sample members. Nothing here is real until the database is connected.</p>
       )}
@@ -558,7 +595,29 @@ function Shell({ route }: { route: Route }) {
       )}
       <Composer />
       {route.name !== 'settings' && route.name !== 'login' && <PhasePrompt />}
-      {me && member && <CallLayer />}
+      {me && member && !strict && <CallLayer />}
+      {strict && (
+        <div className="cx-focusbar" role="status">
+          <Icon name="lock" size={16} />
+          <span>
+            <b>Focus mode</b> · {left(strict)} to go
+            {route.name !== 'lesson' && <small> · open a lesson to keep counting</small>}
+          </span>
+          <span className="cx-focusbar-track" aria-hidden="true">
+            <span style={{ width: `${(strict.watched / strict.goal) * 100}%` }} />
+          </span>
+        </div>
+      )}
+      {askFocus && (
+        <FocusPrompt
+          onClose={() => setAskFocus(false)}
+          onStart={(m) => {
+            startFocus(m);
+            setAskFocus(false);
+            toast(`Focus mode on for ${m >= 60 ? `${m / 60} hr` : `${m} min`}. Connect is locked until you’ve watched that much.`);
+          }}
+        />
+      )}
       {alertsOpen && me && (
         <AlertsSheet
           level={alertLevel}
@@ -617,6 +676,36 @@ function AlertsSheet({ level, onClose, onPick, onTest }: { level: AlertLevel; on
         <p className="cx-fwd-note">While you’re in Learn, nothing pings. You’ll see what came in when you leave.</p>
         <button type="button" className="btn btn-light cx-addp-go" onClick={() => (onClose(), onTest())}>
           Send me a test notification
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Opening a lesson: "How long do you want to study?" */
+const FOCUS_TIMES = [15, 30, 45, 60, 90, 120];
+function FocusPrompt({ onClose, onStart }: { onClose: () => void; onStart: (minutes: number) => void }) {
+  const [m, setM] = useState(30);
+  return (
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-focus-ask" role="dialog" aria-label="Focus mode" onClick={(e) => e.stopPropagation()}>
+        <span className="cx-focus-lock" aria-hidden="true">
+          <Icon name="lock" size={26} />
+        </span>
+        <h2 className="cx-fwd-title">How long do you want to study?</h2>
+        <p className="cx-fwd-note">Connect locks until you’ve watched that much. Messages wait until you’re done.</p>
+        <div className="cx-focus-times" role="radiogroup" aria-label="Study time">
+          {FOCUS_TIMES.map((t) => (
+            <button key={t} type="button" role="radio" aria-checked={m === t} className={m === t ? 'is-on' : ''} onClick={() => setM(t)}>
+              {t < 60 ? `${t} min` : t === 60 ? '1 hr' : `${t / 60} hr`}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="btn btn-primary cx-addp-go" onClick={() => onStart(m)}>
+          Start focus mode
+        </button>
+        <button type="button" className="btn btn-light cx-addp-go" onClick={onClose}>
+          Not now
         </button>
       </div>
     </div>

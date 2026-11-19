@@ -9398,3 +9398,78 @@ html.cx-in-chat body {
 .cx-gc-choose small {
   color: rgba(255, 255, 255, 0.6);
 }
+
+/* Strict focus mode */
+.cx-focusbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 16px 0;
+  background: var(--violet);
+  color: #fff;
+  font-size: 0.88rem;
+}
+.cx-focusbar small {
+  opacity: 0.8;
+}
+.cx-focusbar-track {
+  flex: 1 0 100%;
+  height: 3px;
+  margin: 6px -16px 0;
+  background: rgba(255, 255, 255, 0.25);
+}
+.cx-focusbar-track span {
+  display: block;
+  height: 100%;
+  background: #fff;
+  transition: width 1s linear;
+}
+.cx.is-locked .cx-tabbar a:not([href$='/learn']),
+.cx.is-locked .cx-top nav a:not([href$='/learn']),
+.cx.is-locked .cx-bell,
+.cx.is-locked .cx-me {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.cx-focus-ask {
+  text-align: center;
+}
+.cx-focus-lock {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 8px auto 0;
+  border-radius: 50%;
+  background: #f1ebff;
+  color: var(--violet);
+}
+.cx-focus-ask .cx-fwd-note {
+  padding: 0 12px 4px;
+}
+.cx-focus-times {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 8px 4px 6px;
+}
+.cx-focus-times button {
+  height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cx-sheet .cx-focus-times button.is-on,
+.cx-focus-times button.is-on {
+  border-color: var(--violet);
+  background: #f1ebff;
+  color: var(--violet);
+}

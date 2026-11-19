@@ -3,6 +3,7 @@
    can't follow a link out to YouTube. Connect draws its own controls:
    play/pause, seek, speed and full screen. Full screen covers the whole
    player, so the name watermark stays on the video. */
+import { playerMounted, setPlaying } from './focus';
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './ui';
 
@@ -84,6 +85,15 @@ export function YouTubePlayer({ id, className, style, watermark, onEnded }: { id
   const [needTap, setNeedTap] = useState(false);
   const [error, setError] = useState('');
   const [jump, setJump] = useState('');
+  // focus mode counts only time spent watching
+  useEffect(() => playerMounted(), []);
+  const wasPlaying = useRef(false);
+  useEffect(() => {
+    const on = state === 1;
+    setPlaying(on, wasPlaying.current);
+    wasPlaying.current = on;
+  }, [state]);
+  useEffect(() => () => setPlaying(false, wasPlaying.current), []);
 
   useEffect(() => {
     let live = true;
