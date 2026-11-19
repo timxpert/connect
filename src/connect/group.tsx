@@ -1467,7 +1467,7 @@ export function JoinGroupScreen({ token }: { token: string }) {
     }
   };
   return (
-    <div className="cx-col cx-join">
+    <div className="cx-col cx-joinpage">
       <GroupPhoto url={inv.photo_url} size={96} name={inv.name} />
       <h1>{inv.name}</h1>
       <p className="cx-join-count">{inv.members === 1 ? '1 member' : `${inv.members} members`}</p>

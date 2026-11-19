@@ -8144,7 +8144,7 @@ html[data-cx-theme='dark'] .cx-role-tag {
 .cx-invite-btns .btn {
   justify-content: center;
 }
-.cx-join {
+.cx-joinpage {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -8154,7 +8154,7 @@ html[data-cx-theme='dark'] .cx-role-tag {
   padding: 40px 16px;
   text-align: center;
 }
-.cx-join h1 {
+.cx-joinpage h1 {
   margin: 8px 0 0;
   font-size: 1.5rem;
 }

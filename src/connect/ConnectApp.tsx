@@ -417,7 +417,7 @@ function Shell({ route }: { route: Route }) {
               </div>
             ) : route.name === 'login' || welcome ? null : (
               // visitors: the next step is joining, not signing in
-              <a href={`${MAIN_SITE}/blackbelt`} className="btn btn-lime btn-sm cx-join">
+              <a href={`${MAIN_SITE}/blackbelt`} className="btn btn-primary btn-sm cx-join">
                 <span className="cx-join-long">Become a member</span>
                 <span className="cx-join-short">Join</span>
               </a>
