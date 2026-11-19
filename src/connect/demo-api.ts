@@ -3,7 +3,7 @@
    be clicked through before Supabase is connected. Every sample profile is
    flagged `sample: true` and the UI labels it. Nothing here is real. */
 
-import type { Assignment, BriefItem, Comment, ConnectApi, GroupMessage, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
+import type { Assignment, BriefItem, Challenge, ChallengeEntry, Comment, ConnectApi, GroupMessage, ConnectionStatus, Conversation, Lesson, LessonInput, Message, Notice, Post, Profile } from './types';
 
 const now = Date.now();
 const ago = (h: number) => new Date(now - h * 3600_000).toISOString();
@@ -46,12 +46,27 @@ const people: Profile[] = [
   profile({ id: 'g1', handle: 'sample_sensei', name: 'Grand Sensei', is_student: false, is_sensei: true, phase: null, bio: 'Sample grand sensei account for the preview.' }),
 ];
 
+// Sample challenges: one open, one finished with a pick
+const inDays = (d: number) => new Date(Date.now() + d * 86400000).toISOString();
+let challenges: Omit<Challenge, 'entries'>[] = [
+  { id: 'c2', number: 2, title: 'Logo bounce', brief: 'Sample brief: drop a logo in and settle it with a bounce. 5 seconds, keyframes only.', ends_at: inDays(3), pick_id: null, pick_note: '', created_at: ago(60 * 24 * 11) },
+  { id: 'c1', number: 1, title: 'Text pop', brief: 'Sample brief: make one word pop onto the screen.', ends_at: inDays(-11), pick_id: 'e1', pick_note: 'Sample note: the squash on landing sells the weight.', created_at: ago(60 * 24 * 25) },
+];
+let entries: ChallengeEntry[] = [
+  { id: 'e1', challenge_id: 'c1', user_id: 's2', url: 'https://youtu.be/dQw4w9WgXcQ', created_at: ago(60 * 24 * 14) },
+  { id: 'e2', challenge_id: 'c1', user_id: 's3', url: 'https://youtu.be/dQw4w9WgXcQ', created_at: ago(60 * 24 * 13) },
+  { id: 'e3', challenge_id: 'c2', user_id: 's2', url: 'https://youtu.be/dQw4w9WgXcQ', created_at: ago(60 * 5) },
+  { id: 'e4', challenge_id: 'c2', user_id: 's4', url: 'https://youtu.be/dQw4w9WgXcQ', created_at: ago(60 * 2) },
+];
+
 type RawPost = Omit<Post, 'author' | 'likes' | 'comments' | 'liked' | 'saved'>;
 let posts: RawPost[] = [
   { id: 'a1', author_id: 'g1', kind: 'image', media_url: art('#6d32e8', '#f7f5ff', '#c8ff3d', 30), caption: 'Sample community post: this week’s practice brief is a 5-second logo reveal. Post yours with the “I want feedback” tag by Friday.', tag: 'sharing', community: true, created_at: ago(2) },
   { id: 'p1', author_id: 's2', kind: 'image', media_url: art('#140a2e', '#a77bff', '#c8ff3d', 0), caption: 'Sample post: first logo reveal I’m happy with. The overshoot on the last keyframe took a while.', tag: 'sharing', community: false, created_at: ago(3) },
   { id: 'p2', author_id: 's1', kind: 'image', media_url: art('#6d32e8', '#f7f5ff', '#c8ff3d', 80), caption: 'Sample post: kinetic type practice. Does the ease feel too slow at the end?', tag: 'feedback', community: false, created_at: ago(9) },
   { id: 'p3', author_id: 's4', kind: 'image', media_url: art('#c8ff3d', '#140a2e', '#6d32e8', 40), caption: 'Sample post: product turn for my portfolio, phase four project.', tag: 'sharing', community: false, created_at: ago(26) },
+  { id: 'p6', author_id: 's2', kind: 'image', media_url: art('#1d63d8', '#ffffff', '#c8ff3d', 90), caption: 'Sample final project: a 10-second logo reveal for a bakery.', tag: 'sharing', community: false, assignment_phase: 1, created_at: ago(200) },
+  { id: 'p7', author_id: 's4', kind: 'image', media_url: art('#ef6c1a', '#140a2e', '#ffffff', 70), caption: 'Sample final project: animated explainer for a savings app.', tag: 'sharing', community: false, assignment_phase: 2, created_at: ago(400) },
   { id: 'p4', author_id: 's3', kind: 'image', media_url: art('#f6f4fb', '#6d32e8', '#140a2e', 120), caption: 'Sample post: day three of daily practice. Bouncing ball, take two.', tag: 'feedback', community: false, created_at: ago(50) },
   { id: 'p5', author_id: 's5', kind: 'image', media_url: art('#140a2e', '#c8ff3d', '#a77bff', 60), caption: 'Sample post: transition study between two scenes.', tag: 'sharing', community: false, created_at: ago(80) },
 ];
@@ -556,6 +571,55 @@ export function createDemoApi(): ConnectApi {
       onProgress?.(1);
       return URL.createObjectURL(file);
     },
+    listChallenges: () =>
+      wait([...challenges].sort((a, b) => b.ends_at.localeCompare(a.ends_at)).map((c) => ({ ...c, entries: entries.filter((e) => e.challenge_id === c.id).length }))),
+    listEntries(challengeId) {
+      const me = current ? who(current) : null;
+      const insider = Boolean(me && (me.is_student || me.is_sensei || me.is_moderator));
+      const picks = new Set(challenges.map((c) => c.pick_id));
+      return wait(entries.filter((e) => e.challenge_id === challengeId && (insider || picks.has(e.id))).map((e) => ({ ...e, user: who(e.user_id) })));
+    },
+    async submitEntry(challengeId, url) {
+      const me = needMe();
+      const c = challenges.find((x) => x.id === challengeId);
+      if (!c || c.ends_at < new Date().toISOString()) throw new Error('This challenge has closed.');
+      const old = entries.find((e) => e.challenge_id === challengeId && e.user_id === me);
+      if (old) Object.assign(old, { url, created_at: new Date().toISOString() });
+      else entries.push({ id: nid(), challenge_id: challengeId, user_id: me, url, created_at: new Date().toISOString() });
+    },
+    async removeEntry(entryId) {
+      entries = entries.filter((e) => e.id !== entryId);
+    },
+    async saveChallenge(c) {
+      if (c.id) Object.assign(challenges.find((x) => x.id === c.id)!, { title: c.title, brief: c.brief, ends_at: c.ends_at });
+      else challenges.unshift({ id: nid(), number: Math.max(0, ...challenges.map((x) => x.number)) + 1, title: c.title, brief: c.brief, ends_at: c.ends_at, pick_id: null, pick_note: '', created_at: new Date().toISOString() });
+    },
+    async deleteChallenge(id) {
+      challenges = challenges.filter((c) => c.id !== id);
+    },
+    async pickEntry(challengeId, entryId, note) {
+      Object.assign(challenges.find((x) => x.id === challengeId)!, { pick_id: entryId, pick_note: note });
+    },
+    challengeStats() {
+      const now = new Date().toISOString();
+      const list = [...challenges].sort((a, b) => b.ends_at.localeCompare(a.ends_at));
+      const cur = [...challenges].filter((c) => c.ends_at > now).sort((a, b) => a.ends_at.localeCompare(b.ends_at))[0];
+      const me = current ? who(current) : null;
+      const insider = Boolean(me && (me.is_student || me.is_sensei || me.is_moderator));
+      return wait(
+        people.filter((p) => p.is_student).map((p) => {
+          let streak = 0;
+          for (const c of list) {
+            if (entries.some((e) => e.challenge_id === c.id && e.user_id === p.id)) streak++;
+            else if (c.ends_at > now) continue;
+            else break;
+          }
+          const picks = challenges.filter((c) => entries.some((e) => e.id === c.pick_id && e.user_id === p.id)).length;
+          return { user_id: p.id, streak, picks, entered_current: insider && cur ? entries.some((e) => e.challenge_id === cur.id && e.user_id === p.id) : null };
+        }),
+      );
+    },
+    listProjects: (phase) => wait(posts.filter((p) => p.assignment_phase === phase).map(full)),
     async requestPhase(phase) {
       const me = who(needMe());
       if (me.phase) throw new Error('Your phase is already confirmed. Ask the Grand Sensei if it needs to change.');

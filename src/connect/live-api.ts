@@ -4,7 +4,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { prepareImage } from './resize';
-import type { Assignment, BriefItem, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -811,6 +811,54 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       await xhrUpload('media', path, file, onProgress);
       return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
     },
+    async listChallenges() {
+      const [{ data, error }, { data: counts }] = await Promise.all([sb.from('challenges').select('*').order('ends_at', { ascending: false }).limit(50), sb.rpc('challenge_counts')]);
+      if (error) {
+        if (/challenges|schema cache/.test(error.message)) return [];
+        fail(error);
+      }
+      const n = new Map(((counts ?? []) as { challenge_id: string; entries: number }[]).map((c) => [c.challenge_id, c.entries]));
+      return ((data ?? []) as Challenge[]).map((c) => ({ ...c, entries: n.get(c.id) ?? 0 }));
+    },
+    async listEntries(challengeId) {
+      const { data, error } = await sb.from('challenge_entries').select('*, user:profiles(*)').eq('challenge_id', challengeId).order('created_at');
+      fail(error);
+      return (data ?? []) as ChallengeEntry[];
+    },
+    async submitEntry(challengeId, url) {
+      const me = await needUid();
+      const { error } = await sb.from('challenge_entries').upsert({ challenge_id: challengeId, user_id: me, url: url.trim(), created_at: new Date().toISOString() }, { onConflict: 'challenge_id,user_id' });
+      if (error && /row-level|policy/i.test(error.message)) throw new Error('This challenge has closed.');
+      fail(error);
+    },
+    async removeEntry(entryId) {
+      const { error } = await sb.from('challenge_entries').delete().eq('id', entryId);
+      fail(error);
+    },
+    async saveChallenge(c) {
+      const row = { title: c.title.trim(), brief: c.brief.trim(), ends_at: c.ends_at };
+      const { error } = c.id ? await sb.from('challenges').update(row).eq('id', c.id) : await sb.from('challenges').insert(row);
+      if (error && /challenges|schema cache/.test(error.message)) throw new Error('Challenges need a database update: run supabase/challenges.sql in Supabase.');
+      fail(error);
+    },
+    async deleteChallenge(id) {
+      const { error } = await sb.from('challenges').delete().eq('id', id);
+      fail(error);
+    },
+    async pickEntry(challengeId, entryId, note) {
+      const { error } = await sb.from('challenges').update({ pick_id: entryId, pick_note: note.trim().slice(0, 300) }).eq('id', challengeId);
+      fail(error);
+    },
+    async challengeStats() {
+      const { data, error } = await sb.rpc('challenge_stats');
+      if (error) return [];
+      return (data ?? []) as ChallengeStat[];
+    },
+    async listProjects(phase) {
+      const { data, error } = await sb.from('posts').select(POST_SELECT).eq('assignment_phase', phase).order('created_at', { ascending: false }).limit(60);
+      fail(error);
+      return decorate((data ?? []) as unknown as Post[]);
+    },
     async requestPhase(phase) {
       const { error } = await sb.rpc('request_phase', { ph: phase });
       if (error?.message.includes('already_placed')) throw new Error('Your phase is already confirmed. Ask the Grand Sensei if it needs to change.');
@@ -902,6 +950,13 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       return rows.map((r) => ({ ...r, conversation_id: 'group', media_url: r.media_path ? link(r.media_path) : null, reactions: by.get(r.id) ?? [] }));
     },
     async groupPreview() {
+      // the group's own name and picture (group_info works even where the settings row can't be read directly)
+      const look = async () => {
+        const [{ data: info }, { data: g }] = await Promise.all([sb.rpc('group_info'), sb.from('group_settings').select('name, photo_url').eq('id', 1).maybeSingle()]);
+        const i = ((info ?? []) as { name?: string | null }[])[0];
+        const row = g as { name?: string | null; photo_url?: string | null } | null;
+        return { name: row?.name || i?.name || 'Dojo group', photo_url: row?.photo_url ?? null };
+      };
       const { data, error } = await sb
         .from('group_messages')
         .select('body, kind, deleted_at, created_at, sender:profiles!group_messages_sender_id_fkey(name)')
@@ -910,12 +965,10 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       if (error) {
         // still show the group in Messages; opening it shows what's wrong
         console.warn('[connect] group preview', error.message);
-        return { name: 'Dojo group', photo_url: null, text: 'Tap to open', at: '', unread: 0 };
+        return { ...(await look()), text: 'Tap to open', at: '', unread: 0 };
       }
       const r = ((data ?? []) as unknown as { body: string; kind: string; deleted_at: string | null; created_at: string; sender: { name: string } | null }[])[0];
-      const [{ data: n }, { data: g }] = await Promise.all([sb.rpc('group_unread'), sb.from('group_settings').select('*').eq('id', 1).maybeSingle()]);
-      const name = (g as { name?: string } | null)?.name || 'Dojo group';
-      const photo_url = (g as { photo_url?: string | null } | null)?.photo_url ?? null;
+      const [{ data: n }, { name, photo_url }] = await Promise.all([sb.rpc('group_unread'), look()]);
       if (!r) return { name, photo_url, text: 'No messages yet', at: '', unread: 0 };
       return { name, photo_url, text: `${r.sender?.name ?? 'Someone'}: ${preview(r)}`, at: r.created_at, unread: Number(n ?? 0) };
     },
@@ -986,8 +1039,10 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       if (error) await sb.from('group_reads').upsert({ user_id: me, last_read_at: new Date().toISOString() });
     },
     async setGroupSettings(s) {
-      const { error } = await sb.from('group_settings').update(s).eq('id', 1);
+      const { data, error } = await sb.from('group_settings').update(s).eq('id', 1).select('id');
       fail(error);
+      // nothing changed means the database didn't allow it: say so instead of pretending it saved
+      if (!data?.length) throw new Error('Couldn’t save the group settings. Only the Grand Sensei and moderators can change them.');
     },
     async groupMembers() {
       const { data, error } = await sb.rpc('group_members');

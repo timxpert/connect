@@ -57,7 +57,7 @@ export type ConnectionStatus = 'none' | 'requested' | 'incoming' | 'connected';
 
 export type Notice = {
   id: string;
-  kind: 'community_post' | 'connection_request' | 'connection_accepted' | 'assignment_submitted' | 'assignment_approved' | 'assignment_changes' | 'group_reply' | 'group_mention' | 'phase_request' | 'phase_approved' | 'phase_declined';
+  kind: 'community_post' | 'connection_request' | 'connection_accepted' | 'assignment_submitted' | 'assignment_approved' | 'assignment_changes' | 'group_reply' | 'group_mention' | 'phase_request' | 'phase_approved' | 'phase_declined' | 'challenge_new' | 'challenge_pick';
   /** Group replies and mentions: "Name: what they wrote" */
   snippet?: string | null;
   actor: Profile | null;
@@ -134,6 +134,22 @@ export type GroupMessage = Message & {
 /** What new students see from before they joined */
 export type GroupHistory = 'all' | '14d' | '100' | 'none';
 export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string; photo_url?: string | null };
+
+export type Challenge = {
+  id: string;
+  number: number;
+  title: string;
+  brief: string;
+  ends_at: string;
+  pick_id: string | null;
+  pick_note: string;
+  created_at: string;
+  /** how many handed in */
+  entries: number;
+};
+export type ChallengeEntry = { id: string; challenge_id: string; user_id: string; url: string; created_at: string; user?: Profile };
+/** streak = challenges handed in back to back; entered_current only for members */
+export type ChallengeStat = { user_id: string; streak: number; picks: number; entered_current: boolean | null };
 
 export type BriefItem = { kind: 'image' | 'file' | 'link' | 'video'; url: string; name: string };
 
@@ -301,6 +317,18 @@ export interface ConnectApi {
   uploadBriefFile(file: File, onProgress?: (share: number) => void): Promise<string>;
   reviewQueue(): Promise<Assignment[]>;
   reviewAssignment(id: string, approve: boolean, note: string): Promise<void>;
+  /** Dojo Challenge */
+  listChallenges(): Promise<Challenge[]>;
+  /** members: every entry; visitors: only the picked one */
+  listEntries(challengeId: string): Promise<ChallengeEntry[]>;
+  submitEntry(challengeId: string, url: string): Promise<void>;
+  removeEntry(entryId: string): Promise<void>;
+  saveChallenge(c: { id?: string; title: string; brief: string; ends_at: string }): Promise<void>;
+  deleteChallenge(id: string): Promise<void>;
+  pickEntry(challengeId: string, entryId: string | null, note: string): Promise<void>;
+  challengeStats(): Promise<ChallengeStat[]>;
+  /** Approved final projects (phase assignments) for the Projects page */
+  listProjects(phase: number): Promise<Post[]>;
   /** Phase check: a student says which phase they're in; the team confirms */
   requestPhase(phase: number): Promise<void>;
   /** Team: students waiting for their phase to be confirmed */

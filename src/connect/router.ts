@@ -8,7 +8,8 @@ import { useEffect, useState, type MouseEvent } from 'react';
 
 export type Route =
   | { name: 'feed' }
-  | { name: 'students' }
+  | { name: 'students'; tab?: 'challenge' | 'members' | 'projects' }
+  | { name: 'challenge'; id: string }
   | { name: 'profile'; handle: string }
   | { name: 'post'; id: string }
   | { name: 'messages' }
@@ -44,7 +45,9 @@ export function parse(path: string): Route {
   const parts = path.split('?')[0].split('/').filter(Boolean).map(decodeURIComponent);
   const [a, b] = parts;
   if (!a) return { name: 'feed' };
-  if (a === 'students' && !b) return { name: 'students' };
+  if (a === 'students' && !b) return { name: 'students', tab: 'challenge' };
+  if (a === 'students' && (b === 'members' || b === 'projects')) return { name: 'students', tab: b };
+  if (a === 'challenge' && b) return { name: 'challenge', id: b };
   if (a === 'u' && b) return { name: 'profile', handle: b };
   if (a === 'p' && b) return { name: 'post', id: b };
   if (a === 'messages' && b === 'group') return parts[2] === 'info' ? { name: 'group-info' } : { name: 'group' };

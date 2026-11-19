@@ -531,14 +531,14 @@ export function PostMenu({ post, onDeleted }: { post: Post; onDeleted?: () => vo
   );
 }
 
-export function PostCard({ post }: { post: Post }) {
+export function PostCard({ post, plain = false }: { post: Post; plain?: boolean }) {
   return (
     <article className={['cx-post', post.community ? 'cx-post-community' : '', (post as Post & { fresh?: boolean }).fresh ? 'cx-post-fresh' : ''].filter(Boolean).join(' ')}>
       <header className="cx-post-head">
         <PersonLine p={post.author} when={post.created_at} />
         {post.community ? (
           <span className="cx-tag">Community</span>
-        ) : post.assignment_phase ? (
+        ) : plain ? null : post.assignment_phase ? (
           <span className="cx-tag cx-tag-passed">Passed phase {post.assignment_phase}</span>
         ) : (
           post.tag === 'feedback' && <span className="cx-tag">Wants feedback</span>

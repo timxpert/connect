@@ -236,6 +236,8 @@ export function Notifications() {
     if (n.kind === 'community_post') return { text: `${name} posted to the Community feed.`, path: n.post_id ? `/p/${n.post_id}` : '/' };
     if (n.kind === 'connection_request') return { text: `${name} wants to connect with you.`, path: '/connections' };
     if (n.kind === 'assignment_submitted') return { text: `${name} handed in an assignment.`, path: '/reviews' };
+    if (n.kind === 'challenge_new') return { text: `New challenge: ${n.snippet ?? ''}. Hand in your entry.`, path: '/students' };
+    if (n.kind === 'challenge_pick') return { text: `The Grand Sensei picked your entry for ${n.snippet ?? 'the challenge'}.`, path: '/students' };
     if (n.kind === 'phase_request') return { text: `${name} chose ${n.snippet?.toLowerCase() ?? 'a phase'}.`, path: '/reviews' };
     if (n.kind === 'phase_approved') return { text: `${n.snippet ?? 'Your phase'} confirmed. Lessons are open.`, path: '/learn' };
     if (n.kind === 'phase_declined') return { text: 'Phase not confirmed. Choose again.', path: '/learn' };

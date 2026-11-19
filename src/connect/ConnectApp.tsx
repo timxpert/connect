@@ -20,6 +20,7 @@ import { Login, Settings, Welcome } from './screens-me';
 import { Chat, Inbox } from './chat';
 import { GroupChat, GroupInfoScreen } from './group';
 import { PhasePrompt } from './phase-prompt';
+import { ChallengeScreen } from './challenge';
 import { Connections, Notifications, Saved } from './screens-social';
 import { AssignmentScreen, Devices, Learn, LessonEditor, LessonScreen, Reviews } from './screens-learn';
 
@@ -85,7 +86,7 @@ class ScreenGuard extends React.Component<{ children: React.ReactNode }, { error
 const TABS = [
   { path: '/', label: 'Feed', icon: 'home' as const, match: ['feed', 'post'] },
   { path: '/learn', label: 'Learn', icon: 'learn' as const, match: ['learn', 'lesson', 'lesson-edit', 'assignment'] },
-  { path: '/students', label: 'Members', icon: 'people' as const, match: ['students', 'profile'] },
+  { path: '/students', label: 'Members', icon: 'people' as const, match: ['students', 'profile', 'challenge'] },
   // On phones Connections lives in the account menu, to keep the bottom bar to five
   { path: '/connections', label: 'Connections', icon: 'link2' as const, match: ['connections'], desktopOnly: true },
   { path: '/messages', label: 'Messages', icon: 'chat' as const, match: ['messages', 'chat', 'group', 'group-info'] },
@@ -240,12 +241,14 @@ function Shell({ route }: { route: Route }) {
   const screen = useMemo(() => {
     if (!authKnown) return <Loading />;
     if (welcome) return <Welcome />;
-    if (!member && route.name === 'feed') return <Students />;
+    if (!member && route.name === 'feed') return <Students tab="challenge" />;
     switch (route.name) {
       case 'feed':
         return <Feed />;
       case 'students':
-        return <Students />;
+        return <Students tab={route.tab ?? 'challenge'} />;
+      case 'challenge':
+        return <ChallengeScreen key={route.id} id={route.id} />;
       case 'profile':
         return <ProfileScreen key={route.handle} handle={route.handle} />;
       case 'post':

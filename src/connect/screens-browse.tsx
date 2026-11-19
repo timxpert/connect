@@ -8,9 +8,9 @@ import { play } from './sounds';
 import { timeAgo } from './media';
 import { profileLinks } from './links';
 import { peek } from './cache';
-import { PHASES, SKILLS, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
+import { ChallengeStats, ChallengeTab, MembersTabs, ProjectsTab } from './challenge';
+import { PHASES, SKILLS, type ChallengeStat, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
 
-const MAIN_SITE = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://joinmotiondojo.com';
 import { A, Avatar, Empty, Icon, isVideoFile, shortBio, BELTS, LikeButton, Loading, Media, BeltBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, visiblePhase, POST_DELETED } from './ui';
 
 /* ================= Feed ================= */
@@ -150,10 +150,31 @@ function workBy(posts: Post[]) {
   return by;
 }
 
-export function Students() {
-  const { api, me } = useConnect();
-  // Search and filters are for members; visitors just browse the list
+/** The Members tab: Challenge, then Members (members) or Projects (visitors) */
+export function Students({ tab = 'challenge' }: { tab?: 'challenge' | 'members' | 'projects' }) {
+  const { me } = useConnect();
   const member = isMember(me);
+  // visitors don't get the members list
+  const t = tab === 'members' && !member ? 'projects' : tab === 'projects' && member ? 'members' : tab;
+  return (
+    <div className="cx-col">
+      <MembersTabs tab={t} />
+      {t === 'challenge' ? <ChallengeTab /> : t === 'projects' ? <ProjectsTab /> : <MembersList />}
+    </div>
+  );
+}
+
+function MembersList() {
+  const { api, me } = useConnect();
+  const member = isMember(me);
+  // who handed in the open challenge, and streaks
+  const [stats, setStats] = useState<Record<string, ChallengeStat>>({});
+  useEffect(() => {
+    api
+      .challengeStats()
+      .then((l) => setStats(Object.fromEntries(l.map((x) => [x.user_id, x]))))
+      .catch(() => {});
+  }, [api]);
   const [q, setQ] = useState('');
   const [skill, setSkill] = useState('');
   const [phase, setPhase] = useState<number | null>(null);
@@ -187,26 +208,7 @@ export function Students() {
   }, [api, q, skill, phase]);
 
   return (
-    <div className="cx-col">
-      {member ? (
-        <div className="cx-intro">
-          <h1 className="cx-h1">Members</h1>
-          <p>Everyone on Black Belt in Motion Design.</p>
-        </div>
-      ) : (
-        <section className="cx-guest" aria-labelledby="guest-title">
-          <h1 id="guest-title">Meet the Keyframe Ninjas</h1>
-          <p>Meet them, connect with them and see their best work.</p>
-          <div className="cx-guest-btns">
-            <a className="btn btn-primary" href={`${MAIN_SITE}/blackbelt`}>
-              Become a member
-            </a>
-            <A path="/login" className="cx-guest-signin">
-              Sign in
-            </A>
-          </div>
-        </section>
-      )}
+    <>
 
       {member && (
       <div className="cx-filters">
@@ -271,6 +273,14 @@ export function Students() {
                         )}
                         <span>{w?.count ? `${w.count} ${w.count === 1 ? 'post' : 'posts'}` : 'New member'}</span>
                       </span>
+                      {stats[p.id] && (
+                        <span className="cx-talent-ch">
+                          {stats[p.id].entered_current !== null && (
+                            <span className={stats[p.id].entered_current ? 'is-in' : ''}>{stats[p.id].entered_current ? 'Handed in' : 'Not handed in yet'}</span>
+                          )}
+                          {stats[p.id].streak > 0 && <span>{stats[p.id].streak} in a row</span>}
+                        </span>
+                      )}
                     </span>
                   </span>
                   {w?.shots.length ? (
@@ -291,7 +301,7 @@ export function Students() {
           })}
         </ul>
       )}
-    </div>
+    </>
   );
 }
 
@@ -550,6 +560,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
               <strong>{counts.connections}</strong> {counts.connections === 1 ? 'connection' : 'connections'}
             </span>
           </p>
+          {p.is_student && <ChallengeStats userId={p.id} />}
         </div>
 
         <div className="cx-pf-tabs" role="tablist" aria-label="Profile">
