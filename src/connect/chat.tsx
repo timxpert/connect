@@ -47,6 +47,84 @@ const VIDEO_EXT = /\.(mp4|m4v|mov|webm|mkv|3gp|3g2|avi|wmv|mpe?g|ts)$/i;
 
 /** What a picked file is. A video is always sent as a video (made smaller first),
     never as a document, even when the phone doesn't label it as one. */
+/** The short label and colour for a document: PDF, DOC, XLS ... */
+export function docType(name: string | null | undefined) {
+  const ext = (name?.split('.').pop() || '').toLowerCase();
+  const map: Record<string, [string, string]> = {
+    pdf: ['PDF', '#d93b3b'],
+    doc: ['DOC', '#2f6fde'], docx: ['DOC', '#2f6fde'], txt: ['TXT', '#5d5470'],
+    xls: ['XLS', '#1f8a4c'], xlsx: ['XLS', '#1f8a4c'], csv: ['CSV', '#1f8a4c'],
+    ppt: ['PPT', '#e0662a'], pptx: ['PPT', '#e0662a'],
+    zip: ['ZIP', '#6b6478'], rar: ['RAR', '#6b6478'],
+    aep: ['AE', '#7b5cff'], prproj: ['PR', '#7b5cff'], psd: ['PSD', '#1b8ad6'], ai: ['AI', '#f08a24'],
+    mp3: ['MP3', '#c2357d'], m4a: ['M4A', '#c2357d'], wav: ['WAV', '#c2357d'],
+  };
+  const [label, color] = map[ext] ?? [ext ? ext.slice(0, 4).toUpperCase() : 'FILE', '#6b6478'];
+  return { label, color };
+}
+
+const DOC_ACCEPT = 'application/*,text/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.zip,.rar,.aep,.prproj,.psd,.ai,.xml,image/*,video/*';
+
+/** The menu behind the paperclip: photos and videos, camera, or a document */
+export function AttachSheet({
+  open,
+  onClose,
+  onPick,
+  documents = true,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** asDocument: send photos as files (full quality). Videos are always sent as videos. */
+  onPick: (files: FileList, asDocument: boolean) => void;
+  documents?: boolean;
+}) {
+  const gallery = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const doc = useRef<HTMLInputElement>(null);
+  const sheet = useDragToClose<HTMLDivElement>(onClose, open);
+  const take = (asDocument: boolean) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) onPick(e.target.files, asDocument);
+    e.target.value = '';
+    onClose();
+  };
+  return (
+    <>
+      <input ref={gallery} type="file" multiple accept="image/*,video/*" className="sr-only" onChange={take(false)} />
+      <input ref={camera} type="file" accept="image/*,video/*" capture="environment" className="sr-only" onChange={take(false)} />
+      <input ref={doc} type="file" multiple accept={DOC_ACCEPT} className="sr-only" onChange={take(true)} />
+      {open && (
+        <div className="cx-sheet-wrap" onClick={onClose}>
+          <div className="cx-sheet cx-drag cx-attach-sheet" role="menu" aria-label="Send" ref={sheet} onClick={(e) => e.stopPropagation()}>
+            <span className="cx-grab" aria-hidden="true" />
+            <div className="cx-attach-grid">
+              <button type="button" role="menuitem" onClick={() => gallery.current?.click()}>
+                <span className="cx-attach-ico" style={{ background: '#6d32e8' }}>
+                  <Icon name="image" size={24} />
+                </span>
+                Photos & videos
+              </button>
+              <button type="button" role="menuitem" onClick={() => camera.current?.click()}>
+                <span className="cx-attach-ico" style={{ background: '#d6336c' }}>
+                  <Icon name="camera" size={24} />
+                </span>
+                Camera
+              </button>
+              {documents && (
+                <button type="button" role="menuitem" onClick={() => doc.current?.click()}>
+                  <span className="cx-attach-ico" style={{ background: '#1d63d8' }}>
+                    <Icon name="file" size={24} />
+                  </span>
+                  Document
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function kindOf(file: File): Attachment['kind'] {
   if (file.type.startsWith('image/') && file.type !== 'image/svg+xml') return 'image';
   if (file.type.startsWith('video/') || VIDEO_EXT.test(file.name)) return 'video';
@@ -564,9 +642,18 @@ export function Bubble({
               <img src={m.media_url} alt="" />
             </button>
           ) : (
-            <div className="cx-msg-media">
-              <video src={`${m.media_url}#t=0.1`} controls playsInline preload="metadata" />
-            </div>
+            // a still with a play button; tapping opens it full screen
+            <button type="button" className="cx-msg-media cx-msg-vid" onClick={() => onOpen(m)} aria-label="Play video">
+              {m.thumb ? <img src={m.thumb} alt="" /> : <video src={`${m.media_url}#t=0.1`} muted playsInline preload="metadata" tabIndex={-1} />}
+              <span className="cx-msg-play" aria-hidden="true">
+                <Icon name="play" size={26} filled />
+              </span>
+              {m.duration ? (
+                <span className="cx-msg-len">
+                  <Icon name="video" size={14} /> {clock(m.duration)}
+                </span>
+              ) : null}
+            </button>
           )
         ) : (
           // Not downloaded yet (WhatsApp-style): nothing is fetched until it's tapped
@@ -576,18 +663,22 @@ export function Bubble({
               <Icon name="download" size={18} />
               {size(m.file_size) || 'Download'}
             </span>
+            {kind === 'video' && m.duration ? (
+              <span className="cx-msg-len">
+                <Icon name="video" size={14} /> {clock(m.duration)}
+              </span>
+            ) : null}
           </button>
         ))}
       {kind === 'file' && (
         <button type="button" className="cx-msg-file" onClick={() => !m.failed && !m.pending && (ready ? onOpen(m) : onDownload(m))} disabled={!m.media_url}>
-          <span className="cx-msg-file-ico">
-            <Icon name="file" />
+          <span className="cx-msg-file-ico" style={{ background: docType(m.file_name).color }}>
+            {docType(m.file_name).label}
           </span>
           <span className="cx-msg-file-text">
             <strong>{m.file_name || 'File'}</strong>
             <small>
-              {size(m.file_size)}
-              {m.pending ? '' : ready ? ' · Tap to open' : ' · Tap to download'}
+              {[size(m.file_size), docType(m.file_name).label].filter(Boolean).join(' · ')}
             </small>
           </span>
           {!ready && <Icon name="download" size={18} />}
@@ -633,6 +724,7 @@ export function Chat({ id }: { id: string }) {
   const end = useRef<HTMLLIElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [attach, setAttach] = useState(false);
   const recorder = useRef<{ mr: MediaRecorder; chunks: Blob[]; stream: MediaStream; cancel: boolean } | null>(null);
   const retries = useRef(new Map<string, { a: Attachment; caption: string }>());
   const [downloaded, setDownloaded] = useState<Set<string>>(() => new Set());
@@ -767,7 +859,11 @@ export function Chat({ id }: { id: string }) {
   /* sending a file, photo, video or voice note: shows at once, uploads behind */
   const sendFile = async (a: Attachment, caption = '') => {
     if (a.kind !== 'video' && a.file.size > MAX_FILE) return toast('Files can be up to 50 MB.');
-    if (a.kind === 'video' && (await videoSeconds(a.file)) > MAX_VIDEO_SECONDS) return toast('Videos can be up to 3 minutes. Share a Google Drive link for longer ones.');
+    if (a.kind === 'video') {
+      const secs = await videoSeconds(a.file);
+      if (secs > MAX_VIDEO_SECONDS) return toast('Videos can be up to 3 minutes. Share a Google Drive link for longer ones.');
+      if (secs && !a.duration) a = { ...a, duration: Math.round(secs) };
+    }
     const tmp: Message = {
       id: `tmp-${Date.now()}`,
       conversation_id: id,
@@ -820,14 +916,18 @@ export function Chat({ id }: { id: string }) {
   };
 
   /* picking photos, videos or files opens the review screen first */
-  const pickFiles = (files: FileList | null) => {
+  const pickFiles = (files: FileList | null, asDocument = false) => {
     if (!files?.length) return;
     if (!picked.length) {
       // Whatever was typed becomes the caption
       setCaption(draft.trim());
       setDraft('');
     }
-    const add = Array.from(files).map((f, n) => ({ key: `${Date.now()}-${n}-${f.name}`, file: f, kind: kindOf(f), url: URL.createObjectURL(f) }));
+    // videos are always videos; from Document, everything else goes as a file
+    const add = Array.from(files).map((f, n) => {
+      const k = kindOf(f);
+      return { key: `${Date.now()}-${n}-${f.name}`, file: f, kind: k === 'video' ? k : asDocument || k === 'voice' ? ('file' as const) : k, url: URL.createObjectURL(f) };
+    });
     setPicked((p) => [...p, ...add].slice(0, 10));
   };
   const closePicked = () => {
@@ -1079,7 +1179,7 @@ export function Chat({ id }: { id: string }) {
             sendText();
           }}
         >
-          <button type="button" className="cx-icon-btn cx-icon-flat cx-attach" onClick={() => fileInput.current?.click()} aria-label="Attach a photo, video or file">
+          <button type="button" className="cx-icon-btn cx-icon-flat cx-attach" onClick={() => setAttach(true)} aria-label="Send a photo, video or document">
             <Icon name="clip" />
           </button>
           <input
@@ -1087,12 +1187,13 @@ export function Chat({ id }: { id: string }) {
             type="file"
             multiple
             className="sr-only"
-            accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.aep,.prproj,.psd,.ai,.xml"
+            accept="image/*,video/*"
             onChange={(e) => {
               pickFiles(e.target.files);
               e.target.value = '';
             }}
           />
+          <AttachSheet open={attach} onClose={() => setAttach(false)} onPick={pickFiles} />
           <label className="sr-only" htmlFor="msg-box">
             Message
           </label>

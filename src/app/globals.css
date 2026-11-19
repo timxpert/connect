@@ -6416,3 +6416,91 @@ html[data-cx-theme='dark'] .cx-look-seg button.is-on {
   font-size: 0.9rem;
   font-weight: 600;
 }
+
+/* Videos in chat: a still with a play button and the length; tap plays full screen */
+.cx-msg-vid {
+  position: relative;
+  width: 260px;
+  max-width: 100%;
+  min-height: 150px;
+  background: #1b1726;
+}
+.cx-msg-vid img,
+.cx-msg-vid video {
+  width: 100%;
+  max-width: none;
+  pointer-events: none;
+}
+.cx-msg-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: rgba(10, 8, 16, 0.55);
+  color: #fff;
+  padding-left: 3px;
+}
+.cx-msg-len {
+  position: absolute;
+  left: 9px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(10, 8, 16, 0.5);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Documents: a coloured tile with the file type */
+.cx-msg-file .cx-msg-file-ico {
+  width: 38px;
+  height: 46px;
+  border-radius: 7px;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+/* The paperclip menu */
+.cx-attach-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 6px 4px 10px;
+}
+.cx-attach-grid button {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 10px 4px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cx-attach-grid button:hover {
+  background: var(--tint);
+}
+.cx-attach-ico {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  color: #fff;
+}

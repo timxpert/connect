@@ -12,7 +12,7 @@ import { navigate } from './router';
 import { useOnline } from './presence';
 import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
-import { Bubble, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
+import { AttachSheet, Bubble, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
 import type { Attachment, GroupHistory, GroupInfo, GroupMessage, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
 
@@ -65,6 +65,7 @@ export function GroupChat() {
   const end = useRef<HTMLLIElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [attach, setAttach] = useState(false);
   const recorder = useRef<{ mr: MediaRecorder; chunks: Blob[]; stream: MediaStream; cancel: boolean } | null>(null);
   const heldSheet = useDragToClose<HTMLDivElement>(() => setHeld(null), Boolean(held));
   useEffect(() => setDownloaded(loadDownloaded()), []);
@@ -210,7 +211,11 @@ export function GroupChat() {
 
   const sendFile = async (a: Attachment, text = '') => {
     if (a.kind !== 'video' && a.file.size > MAX_FILE) return toast('Files can be up to 50 MB.');
-    if (a.kind === 'video' && (await videoSeconds(a.file)) > MAX_VIDEO_SECONDS) return toast('Videos can be up to 3 minutes. Share a Google Drive link for longer ones.');
+    if (a.kind === 'video') {
+      const secs = await videoSeconds(a.file);
+      if (secs && !a.duration) a = { ...a, duration: Math.round(secs) };
+    }
+    if (a.kind === 'video' && (a.duration ?? 0) > MAX_VIDEO_SECONDS) return toast('Videos can be up to 3 minutes. Share a Google Drive link for longer ones.');
     const reply = replyTo?.id ?? null;
     setReplyTo(null);
     const tmp: GroupMessage = {
@@ -221,6 +226,7 @@ export function GroupChat() {
       created_at: new Date().toISOString(),
       kind: a.kind,
       media_url: URL.createObjectURL(a.file),
+      file_name: a.file.name,
       file_size: a.file.size,
       duration: a.duration,
       reply_to: reply,
@@ -249,16 +255,16 @@ export function GroupChat() {
     }
   };
 
-  const pickFiles = (files: FileList | null) => {
+  const pickFiles = (files: FileList | null, asDocument = false) => {
     if (!files?.length) return;
     if (!picked.length) {
       setCaption(draft.trim());
       setDraft('');
     }
-    // photos and videos as themselves; anything else (PDFs, project files, audio files) as a document
+    // videos are always videos; from Document, photos go as files too
     const add = Array.from(files).map((f, n) => {
       const k = kindOf(f);
-      return { key: `${Date.now()}-${n}-${f.name}`, file: f, kind: k === 'voice' ? ('file' as const) : k, url: URL.createObjectURL(f) };
+      return { key: `${Date.now()}-${n}-${f.name}`, file: f, kind: k === 'video' ? k : asDocument || k === 'voice' ? ('file' as const) : k, url: URL.createObjectURL(f) };
     });
     setPicked((p) => [...p, ...add].slice(0, 10));
   };
@@ -554,7 +560,7 @@ export function GroupChat() {
               sendText();
             }}
           >
-            <button type="button" className="cx-icon-btn cx-icon-flat cx-attach" onClick={() => fileInput.current?.click()} aria-label="Send a photo, video or document">
+            <button type="button" className="cx-icon-btn cx-icon-flat cx-attach" onClick={() => setAttach(true)} aria-label="Send a photo, video or document">
               <Icon name="clip" />
             </button>
             <input
@@ -562,12 +568,13 @@ export function GroupChat() {
               type="file"
               multiple
               className="sr-only"
-              accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.aep,.prproj,.psd,.ai,.xml"
+              accept="image/*,video/*"
               onChange={(e) => {
                 pickFiles(e.target.files);
                 e.target.value = '';
               }}
             />
+            <AttachSheet open={attach} onClose={() => setAttach(false)} onPick={pickFiles} />
             <label className="sr-only" htmlFor="group-box">
               Message
             </label>

@@ -25,6 +25,7 @@ const PATHS = {
     </>
   ),
   play: <path d="M8 5.5v13l10.5-6.5z" />,
+  camera: <path d="M4 8h3l1.6-2.2h6.8L17 8h3v11H4zM12 16.5a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8z" />,
   pause: <path d="M8 5v14M16 5v14" />,
   tick: <path d="m4.5 12.5 4.5 4.5 10-10" />,
   download: <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />,
