@@ -11,6 +11,8 @@ import { navigate } from './router';
 import { PHASES, type Assignment, type DeviceRow, type Lesson, type LessonInput, type PhaseRequest } from './types';
 import { A, Avatar, Empty, Icon, Loading, Media } from './ui';
 import { timeAgo, toEmbed } from './media';
+import { compressVideo, videoSeconds } from './compress';
+import { useDragToClose } from './drag';
 
 const MAIN_SITE = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://joinmotiondojo.com';
 
@@ -140,6 +142,36 @@ function AssignmentRow({ phase, status }: { phase: number; status: PhaseStatus }
   );
 }
 
+/* ================= Lesson previews ================= */
+/** What students will make: a picture, or a short clip that plays on its own, silently, on repeat */
+function PreviewMedia({ url, kind, small = false }: { url: string; kind?: 'image' | 'video' | null; small?: boolean }) {
+  if (kind === 'video')
+    return small ? (
+      <video src={`${url}#t=0.1`} muted playsInline preload="metadata" tabIndex={-1} />
+    ) : (
+      <video src={url} muted playsInline autoPlay loop preload="auto" />
+    );
+  return <img src={url} alt="" loading="lazy" decoding="async" />;
+}
+
+/** Tapping a locked lesson with a preview: see what it teaches */
+function PreviewSheet({ l, onClose }: { l: Lesson; onClose: () => void }) {
+  const sheet = useDragToClose<HTMLDivElement>(onClose);
+  return (
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-drag cx-ln-peek" role="dialog" aria-label={l.title} ref={sheet} onClick={(e) => e.stopPropagation()}>
+        <span className="cx-grab" aria-hidden="true" />
+        <div className="cx-ln-peek-media">{l.preview_url && <PreviewMedia url={l.preview_url} kind={l.preview_kind} />}</div>
+        <h2>{l.title}</h2>
+        {l.summary && <p>{l.summary}</p>}
+        <p className="cx-ln-peek-lock">
+          <Icon name="lock" size={14} /> Opens after the lesson before it
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ================= Course outline ================= */
 export function Learn() {
   const { api, me, signedIn } = useConnect();
@@ -155,6 +187,7 @@ export function Learn() {
   const mine = useAssignments(learner && !team);
   const status = (phase: number) => phaseStatus(list ?? [], mine, phase, cur);
   const unplaced = Boolean(me?.is_student && !team && !me.phase);
+  const [peekAt, setPeekAt] = useState<Lesson | null>(null);
   const due = PHASES.map((_, i) => i + 1).find((p) => ['due', 'changes'].includes(status(p)));
   const waiting = PHASES.map((_, i) => i + 1).find((p) => status(p) === 'pending');
 
@@ -276,6 +309,12 @@ export function Learn() {
                           {team && !l.has_video && <em className="cx-ln-tag">No video</em>}
                         </small>
                       </span>
+                      {l.preview_url && (
+                        <span className={`cx-ln-thumb${l.preview_kind === 'video' ? ' is-video' : ''}`} aria-hidden="true">
+                          <PreviewMedia url={l.preview_url} kind={l.preview_kind} small />
+                          {l.preview_kind === 'video' && <Icon name="play" size={14} filled />}
+                        </span>
+                      )}
                       <span className="sr-only">{l.done ? 'Done' : l.open ? 'Open' : 'Locked'}</span>
                     </>
                   );
@@ -285,6 +324,10 @@ export function Learn() {
                         <A path={`/learn/${l.id}`} className="cx-ln-row">
                           {body}
                         </A>
+                      ) : l.preview_url ? (
+                        <button type="button" className="cx-ln-row" onClick={() => setPeekAt(l)}>
+                          {body}
+                        </button>
                       ) : (
                         <div className="cx-ln-row" aria-disabled="true">
                           {body}
@@ -309,6 +352,7 @@ export function Learn() {
           );
         })
       )}
+      {peekAt && <PreviewSheet l={peekAt} onClose={() => setPeekAt(null)} />}
     </div>
   );
 }
@@ -350,7 +394,7 @@ function Player({ url, title, mark, size, autoload = false, portrait = false }: 
           <Icon name="play" size={28} filled />
         </span>
         <b>{size ? `Play · about ${size} MB` : 'Play video'}</b>
-        {e.drive && <small>To use less data, pick 360p in the player’s settings.</small>}
+        {e.drive && <small>Pick 360p in settings to use less data.</small>}
       </button>
     );
   }
@@ -482,6 +526,15 @@ export function LessonScreen({ id }: { id: string }) {
         )}
       </div>
 
+      {lesson.preview_url && (
+        <section className="cx-ln-block">
+          <h2>What you’ll make</h2>
+          <div className="cx-ln-made">
+            <PreviewMedia url={lesson.preview_url} kind={lesson.preview_kind} />
+          </div>
+        </section>
+      )}
+
       {lesson.notes && (
         <section className="cx-ln-block">
           <h2>Notes</h2>
@@ -536,7 +589,48 @@ export function LessonScreen({ id }: { id: string }) {
 }
 
 /* ================= Add / edit a lesson (team) ================= */
-const EMPTY: LessonInput = { phase: 1, title: '', summary: '', duration: '', video_url: '', size_mb: null, notes: '', files: [], published: true, portrait: true };
+const EMPTY: LessonInput = { phase: 1, title: '', summary: '', duration: '', video_url: '', size_mb: null, notes: '', files: [], published: true, portrait: true, preview_url: null, preview_kind: null };
+
+/** Team: the picture or short clip students see before they open a lesson */
+function PreviewField({ url, kind, onChange }: { url: string | null; kind: 'image' | 'video' | null; onChange: (url: string | null, kind: 'image' | 'video' | null) => void }) {
+  const { api, toast } = useConnect();
+  const [busy, setBusy] = useState<number | null>(null);
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    const isVideo = file.type.startsWith('video/');
+    try {
+      if (isVideo && (await videoSeconds(file)) > 60) return toast('Keep the preview clip under a minute.');
+      setBusy(0);
+      const ready = isVideo ? await compressVideo(file, (p) => setBusy(p * 0.5)) : file;
+      const out = await api.uploadImage(ready, isVideo ? 'videos' : 'posts', (p) => setBusy((isVideo ? 0.5 : 0) + p * (isVideo ? 0.5 : 1)));
+      onChange(out, isVideo ? 'video' : 'image');
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <div className="field">
+      <span>Preview</span>
+      {url ? (
+        <div className="cx-ln-made is-edit">
+          <PreviewMedia url={url} kind={kind} />
+          <button type="button" className="btn btn-light btn-sm" onClick={() => onChange(null, null)}>
+            Remove
+          </button>
+        </div>
+      ) : (
+        <label className={`cx-ln-drop${busy !== null ? ' is-busy' : ''}`}>
+          <input type="file" accept="image/*,video/*" className="sr-only" disabled={busy !== null} onChange={(e) => (pick(e.target.files?.[0]), (e.target.value = ''))} />
+          <Icon name="image" size={22} />
+          <b>{busy !== null ? `Uploading ${Math.round(busy * 100)}%` : 'Add a picture or clip'}</b>
+        </label>
+      )}
+      <small>What they’ll make. Shown before the lesson opens.</small>
+    </div>
+  );
+}
 
 export function LessonEditor({ id }: { id?: string }) {
   const { api, me } = useConnect();
@@ -550,7 +644,7 @@ export function LessonEditor({ id }: { id?: string }) {
     if (!id || !team) return;
     api
       .getLesson(id)
-      .then((l) => setF({ id: l.id, phase: l.phase, title: l.title, summary: l.summary, duration: l.duration, video_url: l.video_url ?? '', size_mb: l.size_mb ?? null, notes: l.notes ?? '', files: l.files ?? [], published: l.published, portrait: l.portrait ?? true }))
+      .then((l) => setF({ id: l.id, phase: l.phase, title: l.title, summary: l.summary, duration: l.duration, video_url: l.video_url ?? '', size_mb: l.size_mb ?? null, notes: l.notes ?? '', files: l.files ?? [], published: l.published, portrait: l.portrait ?? true, preview_url: l.preview_url ?? null, preview_kind: l.preview_kind ?? null }))
       .catch((e: Error) => setError(e.message));
   }, [api, id, team]);
 
@@ -610,7 +704,7 @@ export function LessonEditor({ id }: { id?: string }) {
               </option>
             ))}
           </select>
-          {!f.id && <small>It goes at the end of this phase. You can move it on the lessons page.</small>}
+          {!f.id && <small>Added to the end of the phase.</small>}
         </label>
         <label className="field">
           <span>Title</span>
@@ -621,7 +715,7 @@ export function LessonEditor({ id }: { id?: string }) {
           <input value={f.video_url} inputMode="url" onChange={(e) => set('video_url', e.target.value)} placeholder="https://drive.google.com/file/d/…/view" />
           <small className={playable ? '' : 'cx-ln-bad'}>
             {playable
-              ? 'In Drive: Share, set General access to “Anyone with the link” as Viewer, then in the settings untick “Viewers can download”. Copy the link and paste it here.'
+              ? 'Drive: Share → Anyone with the link (Viewer), untick “Viewers can download”, copy the link.'
               : 'This isn’t a Google Drive file link yet.'}
           </small>
         </label>
@@ -641,6 +735,11 @@ export function LessonEditor({ id }: { id?: string }) {
             </button>
           </div>
         </fieldset>
+        <PreviewField
+          url={f.preview_url}
+          kind={f.preview_kind}
+          onChange={(preview_url, preview_kind) => setF((cur) => (cur ? { ...cur, preview_url, preview_kind } : cur))}
+        />
         <label className="field">
           <span>Video size (MB)</span>
           <input
@@ -652,7 +751,7 @@ export function LessonEditor({ id }: { id?: string }) {
               set('size_mb', Number.isFinite(n) ? n : null);
             }}
           />
-          <small>Students see this before they play, so they know the data it uses. In Drive, open the file’s details to see its size.</small>
+          <small>Shown before they play, so they know the data it uses.</small>
         </label>
         <label className="field">
           <span>Length</span>
@@ -859,12 +958,12 @@ export function AssignmentScreen({ phase }: { phase: number }) {
               <label className="field">
                 <span>Link to your project</span>
                 <input value={link} inputMode="url" placeholder="https://drive.google.com/file/d/…" onChange={(e) => setLink(e.target.value)} />
-                <small>Upload the video to Google Drive, tap Share, set General access to “Anyone with the link”, then copy the link and paste it here. YouTube, Instagram, TikTok and Vimeo links work too.</small>
+                <small>A Google Drive link (Anyone with the link), or YouTube, Instagram, TikTok or Vimeo.</small>
               </label>
               <label className="field">
                 <span>About your project</span>
                 <textarea rows={3} maxLength={1000} value={caption} onChange={(e) => setCaption(e.target.value)} />
-                <small>Once it’s approved, it goes on the feed with this text.</small>
+                <small>Goes on the feed with your project once approved.</small>
               </label>
               {error && (
                 <p className="cx-error" role="alert">
@@ -1039,7 +1138,7 @@ export function Reviews() {
             <label className="field">
               <span>Note to {a.student?.name ?? 'the student'}</span>
               <textarea rows={2} maxLength={2000} value={notes[a.id] ?? ''} onChange={(e) => setNotes({ ...notes, [a.id]: e.target.value })} />
-              <small>Needed when you ask for changes. Optional when you approve.</small>
+              <small>Needed when asking for changes.</small>
             </label>
             <div className="cx-ln-form-actions">
               <button type="button" className="btn btn-primary" disabled={busy === a.id} onClick={() => review(a, true)}>

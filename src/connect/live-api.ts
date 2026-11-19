@@ -707,28 +707,30 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const { data, error } = await sb.rpc('course_outline');
       if (error && /course_outline/.test(error.message)) throw new Error('The Learn section needs its database update. Run supabase/learn.sql in Supabase.');
       fail(error);
-      return ((data ?? []) as { id: string; phase: number; lesson_position: number; title: string; summary: string; duration: string; published: boolean; has_video: boolean; done: boolean; is_open: boolean; size_mb: number | null }[]).map(
-        (r) => ({ id: r.id, phase: r.phase, position: r.lesson_position, title: r.title, summary: r.summary, duration: r.duration, published: r.published, has_video: r.has_video, done: r.done, open: r.is_open, size_mb: r.size_mb ?? null }),
+      return ((data ?? []) as { id: string; phase: number; lesson_position: number; title: string; summary: string; duration: string; published: boolean; has_video: boolean; done: boolean; is_open: boolean; size_mb: number | null; preview_url?: string | null; preview_kind?: 'image' | 'video' | null }[]).map(
+        (r) => ({ id: r.id, phase: r.phase, position: r.lesson_position, title: r.title, summary: r.summary, duration: r.duration, published: r.published, has_video: r.has_video, done: r.done, open: r.is_open, size_mb: r.size_mb ?? null, preview_url: r.preview_url ?? null, preview_kind: r.preview_kind ?? null }),
       );
     },
     async getLesson(id) {
       const { data, error } = await sb.rpc('get_lesson', { lid: id });
       if (error) throw new Error(/members_only|locked|not_found/.exec(error.message)?.[0] ?? error.message);
-      const r = ((data ?? []) as { id: string; phase: number; lesson_position: number; title: string; summary: string; duration: string; video_url: string; notes: string; files: Lesson['files']; published: boolean; done: boolean; is_open: boolean; size_mb: number | null; portrait?: boolean }[])[0];
+      const r = ((data ?? []) as { id: string; phase: number; lesson_position: number; title: string; summary: string; duration: string; video_url: string; notes: string; files: Lesson['files']; published: boolean; done: boolean; is_open: boolean; size_mb: number | null; portrait?: boolean; preview_url?: string | null; preview_kind?: 'image' | 'video' | null }[])[0];
       if (!r) throw new Error('not_found');
-      return { id: r.id, phase: r.phase, position: r.lesson_position, title: r.title, summary: r.summary, duration: r.duration, published: r.published, has_video: Boolean(r.video_url), done: r.done, open: r.is_open, size_mb: r.size_mb ?? null, portrait: r.portrait ?? true, video_url: r.video_url, notes: r.notes, files: r.files ?? [] };
+      return { id: r.id, phase: r.phase, position: r.lesson_position, title: r.title, summary: r.summary, duration: r.duration, published: r.published, has_video: Boolean(r.video_url), done: r.done, open: r.is_open, size_mb: r.size_mb ?? null, portrait: r.portrait ?? true, preview_url: r.preview_url ?? null, preview_kind: r.preview_kind ?? null, video_url: r.video_url, notes: r.notes, files: r.files ?? [] };
     },
     async setLessonDone(id, done) {
       const { error } = await sb.rpc('set_lesson_done', { lid: id, is_done: done });
       fail(error);
     },
     async saveLesson(input) {
-      const row: Record<string, unknown> = { phase: input.phase, title: input.title.trim(), summary: input.summary.trim(), duration: input.duration.trim(), video_url: input.video_url.trim(), size_mb: input.size_mb, notes: input.notes, files: input.files, published: input.published, portrait: input.portrait, updated_at: new Date().toISOString() };
+      const row: Record<string, unknown> = { phase: input.phase, title: input.title.trim(), summary: input.summary.trim(), duration: input.duration.trim(), video_url: input.video_url.trim(), size_mb: input.size_mb, notes: input.notes, files: input.files, published: input.published, portrait: input.portrait, preview_url: input.preview_url, preview_kind: input.preview_url ? input.preview_kind : null, updated_at: new Date().toISOString() };
       if (input.id) {
         let { error } = await sb.from('lessons').update(row).eq('id', input.id);
-        if (error && /portrait/.test(error.message)) {
-          // database without the portrait setting yet (phases.sql)
+        if (error && /portrait|preview/.test(error.message)) {
+          // database without the portrait or preview setting yet (phases.sql)
           delete row.portrait;
+          delete row.preview_url;
+          delete row.preview_kind;
           ({ error } = await sb.from('lessons').update(row).eq('id', input.id));
         }
         fail(error);
@@ -737,8 +739,10 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const { data: last } = await sb.from('lessons').select('position').eq('phase', input.phase).order('position', { ascending: false }).limit(1).maybeSingle();
       const position = ((last as { position: number } | null)?.position ?? 0) + 1;
       let { data, error } = await sb.from('lessons').insert({ ...row, position }).select('id').single();
-      if (error && /portrait/.test(error.message)) {
+      if (error && /portrait|preview/.test(error.message)) {
         delete row.portrait;
+        delete row.preview_url;
+        delete row.preview_kind;
         ({ data, error } = await sb.from('lessons').insert({ ...row, position }).select('id').single());
       }
       fail(error);

@@ -123,6 +123,11 @@ let lessons: RawLesson[] = sampleTitles.flatMap((titles, ph) =>
     files: i === 0 ? [{ name: 'Sample project file', url: 'https://example.com' }] : [],
   })),
 );
+{
+  // a sample preview picture on one lesson
+  const l = lessons.find((x) => x.id === 'l13');
+  if (l) Object.assign(l, { preview_kind: 'image', preview_url: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640"><rect width="360" height="640" fill="#241446"/><circle cx="180" cy="300" r="90" fill="#a77bff"/><text x="180" y="460" font-family="sans-serif" font-size="28" fill="#fff" text-anchor="middle">Sample preview</text></svg>') });
+}
 lessons.unshift({ id: 'l01', phase: 0, position: 1, title: 'Welcome to Black Belt', summary: 'Sample orientation video for the preview.', duration: '6 min', published: true, video_url: '', size_mb: 30, notes: '', files: [] });
 const progress = new Set<string>(['s1:l11', 's1:l12']);
 let assignments: Assignment[] = [];

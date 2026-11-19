@@ -159,6 +159,9 @@ export type Lesson = {
   size_mb: number | null;
   /** Tall phone video (most Alight Motion exports). Default true */
   portrait?: boolean;
+  /** What students will make: a picture or short clip everyone can see, even before the lesson opens */
+  preview_url?: string | null;
+  preview_kind?: 'image' | 'video' | null;
   done: boolean;
   /** Open to watch: the lesson before it is done (the team sees everything) */
   open: boolean;
@@ -197,6 +200,8 @@ export type LessonInput = {
   files: { name: string; url: string }[];
   published: boolean;
   portrait: boolean;
+  preview_url: string | null;
+  preview_kind: 'image' | 'video' | null;
 };
 
 export type StudentFilter = { q?: string; skill?: string; phase?: number | null };
