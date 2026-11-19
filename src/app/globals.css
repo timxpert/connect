@@ -6794,3 +6794,52 @@ html[data-cx-theme='dark'] .cx-look-seg button.is-on {
 .cx-send svg {
   translate: 1px 0;
 }
+
+/* Phase check (team) */
+.cx-phase-checks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cx-phase-checks ul {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cx-phase-check {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--tint);
+}
+.cx-phase-check-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cx-phase-check-who span {
+  display: grid;
+  min-width: 0;
+}
+.cx-phase-check-who small {
+  color: var(--muted);
+}
+.cx-phase-check-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.cx-phase-check .btn.cx-danger {
+  color: #c62828;
+}
+.cx-phase-btns {
+  grid-template-columns: 1fr;
+}
+.cx-phase-check .cx-chip {
+  background: var(--paper);
+}

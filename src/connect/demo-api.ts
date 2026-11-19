@@ -37,11 +37,11 @@ function profile(p: Partial<Profile> & Pick<Profile, 'id' | 'handle' | 'name'>):
 }
 
 const people: Profile[] = [
-  profile({ id: 's1', handle: 'sample_ada', name: 'Ada', country: 'Nigeria', phase: 2, skills: ['Alight Motion', 'Typography'], bio: 'Sample profile for the preview. Practising kinetic type.' }),
+  profile({ id: 's1', handle: 'sample_ada', name: 'Ada', country: 'Nigeria', phase: null, skills: ['Alight Motion', 'Typography'], bio: 'Sample profile for the preview. Practising kinetic type.' }),
   profile({ id: 's2', handle: 'sample_tunde', name: 'Tunde', country: 'Nigeria', phase: 3, skills: ['Logo animation', 'Transitions'], bio: 'Sample profile for the preview. Logo reveals and smooth transitions.' }),
   profile({ id: 's3', handle: 'sample_amaka', name: 'Amaka', country: 'Ghana', phase: 1, skills: ['Alight Motion', 'Graphic design'], bio: 'Sample profile for the preview. Graphic designer starting out with motion.' }),
   profile({ id: 's4', handle: 'sample_kemi', name: 'Kemi', country: 'Nigeria', phase: 4, skills: ['Product visuals', '2D animation', 'Sound design'], bio: 'Sample profile for the preview. Building my portfolio in phase four.' }),
-  profile({ id: 's5', handle: 'sample_jide', name: 'Jide', country: 'Kenya', phase: 2, skills: ['Video editing', 'AI video'], bio: 'Sample profile for the preview. Editor learning motion.' }),
+  profile({ id: 's5', handle: 'sample_jide', name: 'Jide', country: 'Kenya', phase: null, phase_request: 2, phase_request_at: ago(3), skills: ['Video editing', 'AI video'], bio: 'Sample profile for the preview. Editor learning motion.' }),
   profile({ id: 'v1', handle: 'sample_visitor', name: 'Visitor', is_student: false, phase: null, bio: 'Sample visitor account for the preview.' }),
   profile({ id: 'g1', handle: 'sample_sensei', name: 'Grand Sensei', is_student: false, is_sensei: true, phase: null, bio: 'Sample grand sensei account for the preview.' }),
 ];
@@ -147,8 +147,9 @@ function outline(): Lesson[] {
   return list.map((l, i) => {
     const done = Boolean(current && progress.has(`${current}:${l.id}`));
     const prev = list[i - 1];
-    const gate = !prev || prev.phase === l.phase || assignments.some((a) => a.user_id === current && a.phase === prev.phase && a.status === 'approved');
-    const prevDone = (i === 0 || Boolean(current && progress.has(`${current}:${list[i - 1].id}`))) && gate;
+    // nothing opens until the phase is confirmed; then every phase before it, and lesson by lesson inside it
+    const cur = me?.is_student ? me.phase : null;
+    const prevDone = Boolean(cur) && (l.phase < cur! || (l.phase === cur && (!prev || prev.phase !== l.phase || Boolean(current && progress.has(`${current}:${prev.id}`)))));
     const { video_url, notes, files, ...rest } = l;
     void notes;
     void files;
@@ -190,7 +191,7 @@ export function createDemoApi(): ConnectApi {
       emit();
     },
 
-    me: () => wait(current ? who(current) : null),
+    me: () => wait(current ? { ...who(current) } : null),
     async createProfile(input) {
       throw new Error(`Profiles are created after email sign-in. (${input.handle})`);
     },
@@ -199,7 +200,10 @@ export function createDemoApi(): ConnectApi {
       if (input.handle && input.handle !== me.handle && people.some((p) => p.handle === input.handle)) {
         throw new Error('That username is taken. Try another.');
       }
-      Object.assign(me, input);
+      // the phase is set by the team, not from Edit profile
+      const { phase: _phase, ...rest } = input;
+      void _phase;
+      Object.assign(me, rest);
       if (!me.is_student) me.phase = null;
       return wait(me);
     },
@@ -542,6 +546,25 @@ export function createDemoApi(): ConnectApi {
     getBriefs: () => wait({ ...briefs }),
     async saveBrief(phase, brief) {
       briefs[phase] = brief;
+    },
+    async requestPhase(phase) {
+      const me = who(needMe());
+      if (me.phase) throw new Error('Your phase is already confirmed. Ask the Grand Sensei if it needs to change.');
+      me.phase_request = phase;
+      me.phase_request_at = new Date().toISOString();
+      me.phase_declined_at = null;
+    },
+    phaseRequests: () =>
+      wait(
+        people
+          .filter((p) => p.is_student && p.phase_request)
+          .map((p) => ({ id: p.id, name: p.name, handle: p.handle, avatar_url: p.avatar_url, phase_request: p.phase_request!, phase_request_at: p.phase_request_at ?? new Date().toISOString() })),
+      ),
+    async setStudentPhase(userId, phase) {
+      const p = who(userId);
+      p.phase = phase;
+      p.phase_request = null;
+      p.phase_declined_at = phase ? null : new Date().toISOString();
     },
     reviewQueue: () => wait(assignments.map((a) => ({ ...a, student: who(a.user_id) }))),
     async reviewAssignment(id, approve, note) {

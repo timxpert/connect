@@ -12,6 +12,11 @@ export type Profile = {
   phase: number | null;
   /** false: only the student (and the team) see their phase */
   phase_public?: boolean;
+  /** The phase a student says they're in, waiting for the team to confirm */
+  phase_request?: number | null;
+  phase_request_at?: string | null;
+  /** The team declined their last request: they choose again */
+  phase_declined_at?: string | null;
   instagram: string;
   youtube: string;
   website: string;
@@ -52,7 +57,7 @@ export type ConnectionStatus = 'none' | 'requested' | 'incoming' | 'connected';
 
 export type Notice = {
   id: string;
-  kind: 'community_post' | 'connection_request' | 'connection_accepted' | 'assignment_submitted' | 'assignment_approved' | 'assignment_changes' | 'group_reply' | 'group_mention';
+  kind: 'community_post' | 'connection_request' | 'connection_accepted' | 'assignment_submitted' | 'assignment_approved' | 'assignment_changes' | 'group_reply' | 'group_mention' | 'phase_request' | 'phase_approved' | 'phase_declined';
   /** Group replies and mentions: "Name: what they wrote" */
   snippet?: string | null;
   actor: Profile | null;
@@ -129,6 +134,8 @@ export type GroupMessage = Message & {
 /** What new students see from before they joined */
 export type GroupHistory = 'all' | '14d' | '100' | 'none';
 export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string; photo_url?: string | null };
+
+export type PhaseRequest = { id: string; name: string; handle: string; avatar_url: string | null; phase_request: number; phase_request_at: string };
 
 export type GroupReader = { id: string; name: string; avatar_url: string | null; read_at: string };
 
@@ -279,6 +286,12 @@ export interface ConnectApi {
   saveBrief(phase: number, brief: string): Promise<void>;
   reviewQueue(): Promise<Assignment[]>;
   reviewAssignment(id: string, approve: boolean, note: string): Promise<void>;
+  /** Phase check: a student says which phase they're in; the team confirms */
+  requestPhase(phase: number): Promise<void>;
+  /** Team: students waiting for their phase to be confirmed */
+  phaseRequests(): Promise<PhaseRequest[]>;
+  /** Team: put a student in a phase, or decline (null) so they choose again */
+  setStudentPhase(userId: string, phase: number | null): Promise<void>;
 
   /** One device at a time (students). Team accounts are exempt. */
   claimDevice(token: string, label: string): Promise<void>;

@@ -325,8 +325,6 @@ export function Settings() {
       shakeField(form.querySelector('input[name="handle"]'));
       return setErr('Your username needs at least 3 letters or numbers.');
     }
-    // Students are known by their belt, so the phase is required
-    if (me?.is_student && !me.is_sensei && !f.phase) return setErr('Choose your phase. Your badge shows your belt.');
     setBusy(true);
     try {
       // Wait for any photo still uploading, then save its real address (not the on-phone preview)
@@ -417,19 +415,16 @@ export function Settings() {
         </fieldset>
 
         {me?.is_student && !me.is_sensei && (
-          <label className="field">
+          <div className="field">
             <span>Your phase</span>
-            <select required value={f.phase ?? ''} onChange={(e) => set('phase', e.target.value ? Number(e.target.value) : null)}>
-              <option value="" disabled>
-                Choose your phase
-              </option>
-              {PHASES.map((t, i) => (
-                <option key={t} value={i + 1}>
-                  Phase {i + 1}: {t} ({BELTS[i]})
-                </option>
-              ))}
-            </select>
-          </label>
+            <p className="cx-muted">
+              {me.phase
+                ? `Phase ${me.phase}: ${PHASES[me.phase - 1]} (${BELTS[me.phase - 1]}). Confirmed by the Grand Sensei. Ask them if it needs to change.`
+                : me.phase_request
+                  ? `You said phase ${me.phase_request}. Waiting for the Grand Sensei to confirm it.`
+                  : 'Not chosen yet.'}
+            </p>
+          </div>
         )}
         {me?.is_student && !me.is_sensei && f.phase && (
           <label className="cx-check">

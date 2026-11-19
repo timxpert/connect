@@ -5,24 +5,25 @@ import { useConnect } from './context';
 import { PHASES } from './types';
 import { BELTS, Icon } from './ui';
 
-/* Asks a member which phase they're in until they choose one.
-   "Later" hides it for this visit only. */
+/* Every student must say which phase they're in before using Connect.
+   The Grand Sensei confirms it; until then lessons stay locked. If the
+   request is declined, this shows again so they can choose again. */
 export function PhasePrompt() {
   const { api, me, refreshMe, toast } = useConnect();
-  const [later, setLater] = useState(false);
   const [phase, setPhase] = useState<number | null>(null);
   const [show, setShow] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  if (later || !me || !me.is_student || me.is_sensei || me.phase) return null;
+  if (!me || !me.is_student || me.is_sensei || me.is_moderator || me.phase || me.phase_request) return null;
 
   const save = async () => {
     if (!phase) return;
     setBusy(true);
     try {
-      await api.updateProfile({ phase, phase_public: show });
+      await api.requestPhase(phase);
+      if (me.phase_public !== show) await api.updateProfile({ phase_public: show }).catch(() => {});
       await refreshMe();
-      toast(`${BELTS[phase - 1]} added`);
+      toast('Sent. The Grand Sensei will confirm your phase.');
     } catch (e) {
       toast((e as Error).message);
     } finally {
@@ -34,7 +35,11 @@ export function PhasePrompt() {
     <div className="cx-sheet-wrap" role="presentation">
       <div className="cx-sheet cx-phase" role="dialog" aria-modal="true" aria-labelledby="phase-title">
         <h2 id="phase-title">Which phase are you in?</h2>
-        <p>Your badge shows the belt for your phase. You can change it or hide it any time in Edit profile.</p>
+        {me.phase_declined_at ? (
+          <p>The Grand Sensei didn’t confirm the phase you chose. Pick the phase you’re really in and send it again.</p>
+        ) : (
+          <p>The Grand Sensei will confirm it. Your lessons open once it’s confirmed.</p>
+        )}
         <div className="cx-phase-options" role="radiogroup" aria-label="Your phase">
           {PHASES.map((name, i) => (
             <button
@@ -60,11 +65,8 @@ export function PhasePrompt() {
           <span>Show my belt to other members</span>
         </label>
         <div className="cx-phase-btns">
-          <button type="button" className="btn btn-light" onClick={() => setLater(true)}>
-            Later
-          </button>
           <button type="button" className="btn btn-primary" disabled={!phase || busy} onClick={save}>
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? 'Sending…' : 'Send to the Grand Sensei'}
           </button>
         </div>
       </div>

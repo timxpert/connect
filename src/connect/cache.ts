@@ -40,6 +40,7 @@ const LIVE = new Set<keyof ConnectApi>([
   'markDelivered',
   'myAssignments',
   'reviewQueue',
+  'phaseRequests',
   'teamDevices',
   'claimDevice',
   'checkDevice',

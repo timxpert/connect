@@ -4,7 +4,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { prepareImage } from './resize';
-import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { Assignment, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -760,6 +760,21 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     },
     async saveBrief(phase, brief) {
       const { error } = await sb.from('phase_briefs').upsert({ phase, brief });
+      fail(error);
+    },
+    async requestPhase(phase) {
+      const { error } = await sb.rpc('request_phase', { ph: phase });
+      if (error?.message.includes('already_placed')) throw new Error('Your phase is already confirmed. Ask the Grand Sensei if it needs to change.');
+      if (error && /function|schema cache/i.test(error.message)) throw new Error('Phase check needs a database update: run supabase/phases.sql in Supabase.');
+      fail(error);
+    },
+    async phaseRequests() {
+      const { data, error } = await sb.rpc('phase_requests');
+      if (error) return [];
+      return (data ?? []) as PhaseRequest[];
+    },
+    async setStudentPhase(userId, phase) {
+      const { error } = await sb.rpc('set_student_phase', { uid: userId, ph: phase });
       fail(error);
     },
     async reviewQueue() {

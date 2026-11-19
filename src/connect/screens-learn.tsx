@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useConnect } from './context';
 import { peek } from './cache';
 import { navigate } from './router';
-import { PHASES, type Assignment, type DeviceRow, type Lesson, type LessonInput } from './types';
+import { PHASES, type Assignment, type DeviceRow, type Lesson, type LessonInput, type PhaseRequest } from './types';
 import { A, Avatar, Empty, Icon, Loading, Media } from './ui';
 import { timeAgo, toEmbed } from './media';
 
@@ -77,7 +77,7 @@ function Notes({ text }: { text: string }) {
 }
 
 /* ---------- Phase assignments ---------- */
-type PhaseStatus = 'locked' | 'due' | 'pending' | 'changes' | 'approved' | 'team';
+type PhaseStatus = 'locked' | 'due' | 'pending' | 'changes' | 'approved' | 'placed' | 'team';
 
 function useAssignments(on: boolean) {
   const { api } = useConnect();
@@ -89,10 +89,12 @@ function useAssignments(on: boolean) {
 }
 
 /** Where a student is with a phase's assignment */
-function phaseStatus(lessons: Lesson[], mine: Assignment[], phase: number): PhaseStatus {
+function phaseStatus(lessons: Lesson[], mine: Assignment[], phase: number, cur?: number | null): PhaseStatus {
   const latest = mine.filter((a) => a.phase === phase).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   if (mine.some((a) => a.phase === phase && a.status === 'approved')) return 'approved';
   if (latest?.status === 'pending') return 'pending';
+  // the Grand Sensei placed them in a later phase: no assignment needed here
+  if (cur && phase < cur) return 'placed';
   const pub = lessons.filter((l) => l.phase === phase && l.published);
   if (pub.length === 0 || pub.some((l) => !l.done)) return 'locked';
   return latest?.status === 'changes' ? 'changes' : 'due';
@@ -105,13 +107,14 @@ function AssignmentRow({ phase, status }: { phase: number; status: PhaseStatus }
     pending: 'Waiting for review',
     changes: 'Changes asked',
     approved: 'Approved',
+    placed: 'Not needed. You’re in a later phase',
     team: 'Edit the brief',
   };
-  const open = status !== 'locked';
+  const open = status !== 'locked' && status !== 'placed';
   const body = (
     <>
-      <span className={`cx-ln-mark${status === 'approved' ? ' is-done' : status === 'due' || status === 'changes' ? ' is-open' : ''}`} aria-hidden="true">
-        {status === 'approved' ? <Icon name="check" size={18} /> : status === 'locked' ? <Icon name="lock" size={16} /> : <Icon name="send" size={16} />}
+      <span className={`cx-ln-mark${status === 'approved' || status === 'placed' ? ' is-done' : status === 'due' || status === 'changes' ? ' is-open' : ''}`} aria-hidden="true">
+        {status === 'approved' || status === 'placed' ? <Icon name="check" size={18} /> : status === 'locked' ? <Icon name="lock" size={16} /> : <Icon name="send" size={16} />}
       </span>
       <span className="cx-ln-text">
         <b>Phase {phase} assignment</b>
@@ -141,11 +144,14 @@ export function Learn() {
   const team = Boolean(me?.is_sensei || me?.is_moderator);
   const learner = Boolean(me && (me.is_student || team));
 
-  const published = useMemo(() => (list ?? []).filter((l) => l.published), [list]);
+  // students: progress counts from the phase they're in
+  const cur = !team && me?.is_student ? (me.phase ?? null) : null;
+  const published = useMemo(() => (list ?? []).filter((l) => l.published && (!cur || l.phase >= cur)), [list, cur]);
   const done = published.filter((l) => l.done).length;
-  const next = (list ?? []).find((l) => l.open && !l.done && l.published);
+  const next = published.find((l) => l.open && !l.done);
   const mine = useAssignments(learner && !team);
-  const status = (phase: number) => phaseStatus(list ?? [], mine, phase);
+  const status = (phase: number) => phaseStatus(list ?? [], mine, phase, cur);
+  const unplaced = Boolean(me?.is_student && !team && !me.phase);
   const due = PHASES.map((_, i) => i + 1).find((p) => ['due', 'changes'].includes(status(p)));
   const waiting = PHASES.map((_, i) => i + 1).find((p) => status(p) === 'pending');
 
@@ -162,7 +168,7 @@ export function Learn() {
       <div className="cx-intro">
         <h1 className="cx-h1">Learn</h1>
         {learner ? (
-          <p>Mark a lesson done to open the next one.</p>
+          unplaced ? null : <p>{cur ? `You’re in phase ${cur}. Mark a lesson done to open the next one.` : 'Mark a lesson done to open the next one.'}</p>
         ) : (
           <p>Every lesson in Black Belt in Motion Design.</p>
         )}
@@ -174,7 +180,17 @@ export function Learn() {
         )}
       </div>
 
-      {learner && !team && published.length > 0 && (
+      {unplaced && (
+        <section className="cx-ln-progress" aria-label="Your phase">
+          <p className="cx-ln-finished">
+            {me?.phase_request
+              ? `You said you’re in phase ${me.phase_request}. Your lessons open when the Grand Sensei confirms it.`
+              : 'Choose your phase. Your lessons open when the Grand Sensei confirms it.'}
+          </p>
+        </section>
+      )}
+
+      {learner && !team && !unplaced && published.length > 0 && (
         <section className="cx-ln-progress" aria-label="Your progress">
           <div className="cx-ln-progress-row">
             <b>
@@ -860,6 +876,100 @@ export function AssignmentScreen({ phase }: { phase: number }) {
 }
 
 
+/* ================= Phase check (team) ================= */
+/** Students who said which phase they're in. Confirm it, put them in another
+    phase, or decline so they choose again. */
+function PhaseChecks() {
+  const { api, ask, toast } = useConnect();
+  const [list, setList] = useState<PhaseRequest[] | null>(null);
+  const [other, setOther] = useState('');
+  const [busy, setBusy] = useState('');
+
+  const load = () => api.phaseRequests().then(setList).catch(() => setList([]));
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
+
+  const first = (r: PhaseRequest) => r.name.split(' ')[0];
+  const place = async (r: PhaseRequest, phase: number | null) => {
+    if (phase === null && !(await ask({ title: `Decline ${first(r)}’s phase?`, body: 'They’ll be asked to choose their phase again.', confirm: 'Decline', danger: true }))) return;
+    setBusy(r.id);
+    try {
+      await api.setStudentPhase(r.id, phase);
+      toast(phase === null ? `Declined. ${first(r)} will choose again.` : `${first(r)} is in phase ${phase}`);
+      setOther('');
+      await load();
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy('');
+    }
+  };
+  const confirmAll = async () => {
+    if (!list?.length || !(await ask({ title: `Confirm all ${list.length}?`, body: 'Each student goes into the phase they chose.', confirm: 'Confirm all' }))) return;
+    setBusy('all');
+    for (const r of list) await api.setStudentPhase(r.id, r.phase_request).catch(() => {});
+    setBusy('');
+    toast('Phases confirmed');
+    await load();
+  };
+
+  if (!list || list.length === 0) return null;
+  return (
+    <section className="cx-ln-block cx-phase-checks" aria-label="Phase check">
+      <div className="cx-phase-checks-head">
+        <h2>Phase check · {list.length}</h2>
+        {list.length > 1 && (
+          <button type="button" className="btn btn-light btn-sm" disabled={busy !== ''} onClick={confirmAll}>
+            Confirm all
+          </button>
+        )}
+      </div>
+      <ul>
+        {list.map((r) => (
+          <li key={r.id} className="cx-phase-check">
+            <div className="cx-phase-check-who">
+              <Avatar p={r} size={40} />
+              <span>
+                <b>{r.name}</b>
+                <small>
+                  Says phase {r.phase_request}: {PHASES[r.phase_request - 1]} · {timeAgo(r.phase_request_at)}
+                </small>
+              </span>
+            </div>
+            {other === r.id ? (
+              <div className="cx-phase-check-btns">
+                <span className="cx-muted">Put in</span>
+                {PHASES.map((_, i) => (
+                  <button key={i} type="button" className="cx-chip" disabled={busy === r.id} onClick={() => place(r, i + 1)}>
+                    Phase {i + 1}
+                  </button>
+                ))}
+                <button type="button" className="cx-text-btn" onClick={() => setOther('')}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="cx-phase-check-btns">
+                <button type="button" className="btn btn-primary btn-sm" disabled={busy === r.id} onClick={() => place(r, r.phase_request)}>
+                  Confirm phase {r.phase_request}
+                </button>
+                <button type="button" className="btn btn-light btn-sm" disabled={busy === r.id} onClick={() => setOther(r.id)}>
+                  Different phase
+                </button>
+                <button type="button" className="btn btn-light btn-sm cx-danger" disabled={busy === r.id} onClick={() => place(r, null)}>
+                  Decline
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /* ================= Reviews (team) ================= */
 export function Reviews() {
   const { api, me } = useConnect();
@@ -900,8 +1010,9 @@ export function Reviews() {
     <div className="cx-col cx-reviews">
       <div className="cx-intro">
         <h1 className="cx-h1">Assignment reviews</h1>
-        <p>{waiting.length ? `${waiting.length} waiting.` : 'Nothing waiting.'} Approving posts the project to the feed and opens the student’s next phase.</p>
+        <p>{waiting.length ? `${waiting.length} assignments waiting.` : 'No assignments waiting.'} Approving posts the project to the feed and opens the student’s next phase.</p>
       </div>
+      <PhaseChecks />
       {error && <p className="cx-error">{error}</p>}
       <div className="cx-asg-list">
         {waiting.map((a) => (
