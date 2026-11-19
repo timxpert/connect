@@ -8189,3 +8189,28 @@ html[data-cx-theme='dark'] .cx-role-tag {
   font-size: 0.85rem;
   color: var(--muted);
 }
+
+/* Buttons inside sheets keep their own colours (the sheet's row hover
+   was turning them white on phones, where hover sticks after a tap) */
+.cx-sheet .btn {
+  justify-content: center;
+  text-align: center;
+  font-weight: 700;
+  box-shadow: none;
+}
+.cx-sheet .btn-primary,
+.cx-sheet .btn-primary:hover,
+.cx-sheet .btn-primary:hover:not(:disabled) {
+  background: var(--violet);
+  color: #fff;
+  box-shadow: none;
+}
+.cx-sheet .btn-primary:disabled {
+  background: #c9b5f7;
+  color: #fff;
+}
+.cx-sheet .btn-light,
+.cx-sheet .btn-light:hover {
+  background: #f1ebff;
+  color: var(--violet);
+}

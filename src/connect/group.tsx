@@ -1034,7 +1034,7 @@ function GroupInfoInner() {
       <div className="cx-gi-head">
         <GroupPhoto url={info.photo_url} size={96} name={gid ? info.name : undefined} />
         <h1>{info.name || (gid ? '' : storedName())}</h1>
-        <p>{info.members} members</p>
+        <p>{info.members === 1 ? "1 member" : `${info.members} members`}</p>
         {team && (
           <div className="cx-gi-actions">
             <button type="button" className="btn btn-light btn-sm" onClick={() => photoInput.current?.click()} disabled={busy}>
