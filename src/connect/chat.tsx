@@ -9,6 +9,7 @@ import { presenceLabel, useOnline } from './presence';
 import { useDragToClose } from './drag';
 import type { Attachment, Conversation, GroupRow, Message, Profile } from './types';
 import { peek } from './cache';
+import { coalesce } from './coalesce';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge, type IconName } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
@@ -986,6 +987,10 @@ export function Chat({ id }: { id: string }) {
     if (!cached || !me) return undefined;
     return cached.find((m) => m.sender_id !== me.id && !m.read_at && !m.deleted_at)?.id ?? null;
   });
+  const shownIds = useRef(new Set<string>());
+  useEffect(() => {
+    shownIds.current = new Set(msgs.map((m) => m.id));
+  }, [msgs]);
   const load = useCallback(async () => {
     const list = await api.listMessages(id);
     if (me) setUnreadFrom((u) => (u !== undefined ? u : (list.find((m) => m.sender_id !== me.id && !m.read_at && !m.deleted_at)?.id ?? null)));
@@ -1000,16 +1005,20 @@ export function Chat({ id }: { id: string }) {
       if (c) api.isBlocked(c.other.id).then(setBlocked).catch(() => {});
     });
     load().catch(() => {});
-    // New messages and tick updates: check every few seconds while the chat is open
-    // Live: messages and tick changes arrive the moment they happen.
+    // Live: messages and tick changes arrive the moment they happen; a burst reloads once.
     // A slow check every 20 seconds covers a dropped connection.
-    const stop = api.subscribe('messages', `conversation_id=eq.${id}`, () => load().catch(() => {}));
-    // reactions on this chat's messages
-    const stopRx = api.subscribe('message_reactions', '', () => load().catch(() => {}));
-    const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 20000);
+    const soon = coalesce(load, 200);
+    const stop = api.subscribe('messages', `conversation_id=eq.${id}`, soon);
+    // reactions on this chat's messages (not everyone else's)
+    const stopRx = api.subscribe('message_reactions', '', ({ row }) => {
+      if (row.message_id && !shownIds.current.has(row.message_id as string)) return;
+      soon();
+    });
+    const t = window.setInterval(() => document.visibilityState === 'visible' && soon(), 20000);
     return () => {
       stop();
       stopRx();
+      soon.stop();
       window.clearInterval(t);
     };
   }, [api, id, me, load]);
@@ -1690,8 +1699,12 @@ function GroupInboxRow({ p: pinp }: { p: PinProps }) {
         })
         .catch(() => {});
     load();
-    const stop = api.subscribe('group_messages', '', load);
-    return stop;
+    const soon = coalesce(load, 500);
+    const stop = api.subscribe('group_messages', '', ({ event, row }) => (event !== 'UPDATE' || row.deleted_at ? soon() : undefined));
+    return () => {
+      stop();
+      soon.stop();
+    };
   }, [api]);
   if (!p)
     return (
@@ -1815,10 +1828,12 @@ function OwnGroupRows({ pin }: { pin: (chat: string) => PinProps }) {
   useEffect(() => {
     const load = () => api.myGroups().then(setRows).catch(() => {});
     load();
-    const stop = api.subscribe('group_messages', '', load);
+    const soon = coalesce(load, 500);
+    const stop = api.subscribe('group_messages', '', ({ event, row }) => (event !== 'UPDATE' || row.deleted_at ? soon() : undefined));
     const t = window.setInterval(() => document.visibilityState === 'visible' && load(), 30000);
     return () => {
       stop();
+      soon.stop();
       window.clearInterval(t);
     };
   }, [api]);

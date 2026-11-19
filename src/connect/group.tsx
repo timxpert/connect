@@ -22,6 +22,7 @@ import { LiveCard, LiveSheet, PollCard, PollSheet } from './polls-live';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
+import { coalesce } from './coalesce';
 
 const MAX_FILE = 50 * 1024 * 1024;
 const EMOJI = ['👍', '❤️', '😂', '🔥', '👏', '🙏'];
@@ -177,6 +178,11 @@ function GroupChatInner() {
     return cached.find((m) => m.sender_id !== me.id && !m.deleted_at && (m.kind as string) !== 'join' && (!lastRead || m.created_at > lastRead))?.id ?? null;
   });
   const firstLoad = useRef(true);
+  // the messages on screen, to tell which live updates matter
+  const shown = useRef(new Map<string, GroupMessage>());
+  useEffect(() => {
+    shown.current = new Map(msgs.map((m) => [m.id, m]));
+  }, [msgs]);
   const load = useCallback(async () => {
     const [list, i, lastRead] = await Promise.all([api.listGroupMessages(), api.groupInfo(), firstLoad.current ? api.groupLastRead().catch(() => null) : Promise.resolve(null)]);
     if (firstLoad.current && me) {
@@ -192,25 +198,55 @@ function GroupChatInner() {
       .then(() => window.dispatchEvent(new Event('cx:counts')))
       .catch(() => {});
   }, [api, me]);
+  // live updates: only the messages; "read" is marked only when something new came from someone else
+  const refresh = useCallback(async () => {
+    const list = await api.listGroupMessages();
+    const before = shown.current;
+    setMsgs(list);
+    if (me && list.some((m) => m.sender_id !== me.id && !before.has(m.id))) {
+      api
+        .markGroupRead()
+        .then(() => window.dispatchEvent(new Event('cx:counts')))
+        .catch(() => {});
+    }
+  }, [api, me]);
 
   useEffect(() => {
     if (!me) return;
     load().catch((e: Error) => setError(e.message));
+    const soon = coalesce(refresh);
+    const here = gid ?? null;
     const stops = [
-      api.subscribe('group_messages', '', () => load().catch(() => {})),
-      api.subscribe('group_reactions', '', () => load().catch(() => {})),
-      api.subscribe('poll_votes', '', () => load().catch(() => {})),
+      api.subscribe('group_messages', '', ({ event, row }) => {
+        // another group
+        if ('group_id' in row && ((row.group_id as string | null) ?? null) !== here) return;
+        // someone just opened the group (only "seen" changed): nothing to show
+        if (event === 'UPDATE') {
+          const old = shown.current.get(row.id as string);
+          if (old && old.body === row.body && (old.deleted_at ?? null) === (row.deleted_at ?? null) && (old.edited_at ?? null) === ((row.edited_at as string | null) ?? null)) return;
+        }
+        soon();
+      }),
+      api.subscribe('group_reactions', '', ({ row }) => {
+        if (row.message_id && !shown.current.has(row.message_id as string)) return;
+        soon();
+      }),
+      api.subscribe('poll_votes', '', ({ row }) => {
+        if (row.message_id && !shown.current.has(row.message_id as string)) return;
+        soon();
+      }),
       api.subscribe('group_settings', '', () => load().catch(() => {})),
     ];
-    const t = window.setInterval(() => document.visibilityState === 'visible' && load().catch(() => {}), 30000);
+    const t = window.setInterval(() => document.visibilityState === 'visible' && soon(), 30000);
     // read counts change when other people open the group
     const r = window.setInterval(() => document.visibilityState === 'visible' && api.groupReaders().then(setReaders).catch(() => {}), 12000);
     return () => {
       stops.forEach((s) => s());
+      soon.stop();
       window.clearInterval(t);
       window.clearInterval(r);
     };
-  }, [api, me, load]);
+  }, [api, me, load, refresh, gid]);
 
   /** Members (not me) who opened the group after this message arrived */
   const seenBy = (m: GroupMessage) => readers.filter((r) => r.id !== m.sender_id && r.read_at >= m.created_at);

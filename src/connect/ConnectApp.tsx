@@ -141,6 +141,8 @@ function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind:
     });
     // Groups: update the Messages count, and a sound for messages from others
     const stopGroup = api.subscribe('group_messages', '', ({ event, row }) => {
+      // "seen" updates as people open a group don't change my counts
+      if (event === 'UPDATE' && !row.deleted_at) return;
       window.clearTimeout(pending);
       pending = window.setTimeout(on, 250);
       if (event === 'INSERT' && row.sender_id && row.sender_id !== me.id) onGroupMessageRef.current(row as { group_id?: string | null; kind?: string; sender_id?: string });

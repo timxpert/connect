@@ -796,9 +796,10 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       return { id: r.id, other: r.user_a === me ? r.b : r.a, last_message_at: r.last_message_at, last_body: '' } as Conversation;
     },
     async listMessages(conversationId) {
-      const { data, error } = await sb.from('messages').select('*').eq('conversation_id', conversationId).order('created_at').limit(500);
+      // the newest 300 (oldest first on screen)
+      const { data, error } = await sb.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(300);
       fail(error);
-      const rows = (data ?? []) as unknown as Message[];
+      const rows = ((data ?? []) as unknown as Message[]).reverse();
       const paths = rows.map((m) => m.media_path).filter((p): p is string => Boolean(p));
       // file links and reactions at the same time
       const ids = rows.map((m) => m.id);
@@ -1178,8 +1179,16 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     },
     async listGroupMessages(gid) {
       const me = await uid();
-      const q = () => sb.from('group_messages').select('*, sender:profiles!group_messages_sender_id_fkey(*)').order('created_at', { ascending: false }).limit(200);
+      // only the parts of the sender a chat shows (not their bio, links and skills)
+      const slim = 'id, handle, name, avatar_url, phase, phase_public, team_role, is_student, is_moderator, is_sensei';
+      const pick = (who: string) => () => sb.from('group_messages').select(`*, sender:profiles!group_messages_sender_id_fkey(${who})`).order('created_at', { ascending: false }).limit(200);
+      let q = pick(slim);
       let { data, error } = await (gid ? q().eq('group_id', gid) : q().is('group_id', null));
+      // a database without team roles yet
+      if (error && /team_role|phase_public/.test(error.message)) {
+        q = pick('*');
+        ({ data, error } = await (gid ? q().eq('group_id', gid) : q().is('group_id', null)));
+      }
       // database without your own groups yet (groups.sql): everything is the community group
       if (error && !gid && /group_id/.test(error.message)) ({ data, error } = await q());
       if (error && /group_messages/.test(error.message)) throw new Error('The group needs its database update. Run supabase/group.sql in Supabase.');
