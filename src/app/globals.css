@@ -8447,3 +8447,207 @@ html[data-cx-theme='dark'] .cx-role-tag {
     animation: none;
   }
 }
+
+/* Message box: formatting shows while typing */
+.cx-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.cx-field textarea {
+  flex: 1;
+  min-width: 0;
+}
+.cx-field textarea.is-rich {
+  color: transparent;
+  caret-color: var(--ink);
+}
+.cx-field textarea.is-rich::selection {
+  color: transparent;
+}
+.cx-mirror {
+  position: absolute;
+  pointer-events: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  color: var(--ink);
+  border-style: solid;
+  border-color: transparent;
+  box-sizing: border-box;
+}
+.cx-mk {
+  color: var(--muted);
+  opacity: 0.6;
+}
+/* same width as normal text, so the cursor stays in line */
+.cx-mb {
+  -webkit-text-stroke: 0.035em currentColor;
+}
+.cx-mi {
+  font-style: oblique 10deg;
+}
+.cx-mu {
+  text-decoration: underline;
+}
+.cx-ms {
+  text-decoration: line-through;
+}
+.cx-draft {
+  color: var(--violet);
+  font-weight: 700;
+}
+
+/* Emoji */
+.cx-chat-compose {
+  position: relative;
+}
+.cx-emoji-btn.is-on {
+  color: var(--violet);
+}
+/* the panel takes its own row above the box, like the phone's emoji keyboard */
+.cx-chat-compose:has(.cx-emoji) {
+  flex-wrap: wrap;
+}
+.cx-chat-compose {
+  min-width: 0;
+}
+.cx-emoji {
+  order: -1;
+  flex: 1 0 100%;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  height: 260px;
+  margin-bottom: 6px;
+  border-radius: 18px;
+  background: var(--paper);
+  overflow: hidden;
+}
+.cx-emoji-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 8px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: none;
+  min-width: 0;
+}
+.cx-emoji-tabs button {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cx-emoji-tabs button[aria-selected='true'] {
+  background: #f1ebff;
+  color: var(--violet);
+}
+.cx-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  padding: 4px 8px 10px;
+  overflow-y: auto;
+}
+.cx-emoji-grid button {
+  height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.cx-emoji-grid button:active {
+  background: #f1ebff;
+}
+
+/* Group: the sender's photo beside their messages */
+.cx-msg.has-av {
+  position: relative;
+  margin-left: 38px;
+}
+.cx-msg-av {
+  position: absolute;
+  left: -38px;
+  top: 0;
+}
+.cx-msg-edited {
+  margin-right: 4px;
+  font-style: italic;
+  opacity: 0.8;
+}
+.cx-pinned-by {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.cx-pin-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.cx-editing b {
+  color: var(--violet);
+}
+/* Who reacted */
+.cx-rx-who ul {
+  margin: 0;
+  padding: 0 4px 8px;
+  list-style: none;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.cx-rx-who li button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+}
+.cx-rx-who li button:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.cx-rx-who-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cx-rx-who-name small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.cx-rx-who-emoji {
+  font-size: 1.4rem;
+}
+.cx-rx-who-blank {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f1ebff;
+}

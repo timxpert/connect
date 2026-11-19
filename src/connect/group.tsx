@@ -14,7 +14,8 @@ import { play } from './sounds';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { TypingBubble, AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
 import { ForwardSheet } from './forward';
-import { FormatBar, plainText, smartChange } from './format';
+import { FormatBar, MessageField, plainText, smartChange, useDraft } from './format';
+import { EmojiButton } from './emoji';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
@@ -111,7 +112,7 @@ function GroupChatInner() {
   // name and messages appear together: wait for the messages unless we have them from last time
   const [ready, setReady] = useState(() => last<GroupMessage[]>('listGroupMessages') !== undefined);
   const [local, setLocal] = useState<GroupMessage[]>([]);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useDraft(gid ? `g:${gid}` : 'group');
   // "Tunde is typing…"
   const room = gid ? `g:${gid}` : 'g:main';
   const chatKey = gid ? `g:${gid}` : 'group';
@@ -131,6 +132,10 @@ function GroupChatInner() {
   const [viewing, setViewing] = useState<GroupMessage | null>(null);
   const [error, setError] = useState('');
   const [people, setPeople] = useState<Profile[]>([]);
+  // editing one of my messages
+  const [editing, setEditing] = useState<GroupMessage | null>(null);
+  // who reacted to a message
+  const [rxOf, setRxOf] = useState<GroupMessage | null>(null);
   const [caret, setCaret] = useState(0);
   const placeCaret = useRef<number | null>(null);
   const end = useRef<HTMLLIElement>(null);
@@ -262,6 +267,8 @@ function GroupChatInner() {
   const byId = new Map(all.map((m) => [m.id, m]));
   const pinned = info.pinned_id ? byId.get(info.pinned_id) : undefined;
 
+  const nameOf = (uid: string) => people.find((p) => p.id === uid)?.name ?? all.find((x) => x.sender_id === uid)?.sender?.name ?? 'a member';
+  const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const jump = (mid: string) => {
     const el = document.getElementById(`gm-${mid}`);
     if (!el) return;
@@ -274,6 +281,20 @@ function GroupChatInner() {
   const sendText = async () => {
     const body = draft.trim();
     if (!body) return;
+    if (editing) {
+      const m = editing;
+      setEditing(null);
+      setDraft('');
+      if (body === m.body) return;
+      setMsgs((ms) => ms.map((x) => (x.id === m.id ? { ...x, body, edited_at: new Date().toISOString() } : x)));
+      try {
+        await api.editGroupMessage(m.id, body);
+      } catch (e) {
+        setMsgs((ms) => ms.map((x) => (x.id === m.id ? m : x)));
+        toast((e as Error).message);
+      }
+      return;
+    }
     const reply = replyTo?.id ?? null;
     setDraft('');
     setReplyTo(null);
@@ -471,8 +492,9 @@ function GroupChatInner() {
   };
   const pin = async (m: GroupMessage | null) => {
     setHeld(null);
-    setInfo({ ...info, pinned_id: m?.id ?? null });
+    setInfo({ ...info, pinned_id: m?.id ?? null, pinned_by: m ? me.id : null, pinned_at: m ? new Date().toISOString() : null });
     await api.setGroupSettings({ pinned_id: m?.id ?? null }).catch((e: Error) => toast(e.message));
+    load().catch(() => {});
   };
   const mute = async (m: GroupMessage) => {
     setHeld(null);
@@ -560,6 +582,7 @@ function GroupChatInner() {
           <Icon name="bookmark" size={16} />
           <span>
             <b>{pinned.sender?.name ?? 'Pinned'}</b> {snippet(pinned)}
+            {info.pinned_by && <small className="cx-pinned-by">Pinned by {info.pinned_by === me.id ? 'you' : nameOf(info.pinned_by)}</small>}
           </span>
         </button>
       )}
@@ -581,6 +604,20 @@ function GroupChatInner() {
               </React.Fragment>
             );
           }
+          // "Grand Sensei pinned a message" (tap to see it)
+          if ((m.kind as string) === 'pin') {
+            lastSender = '';
+            return (
+              <React.Fragment key={m.id}>
+                {showDay && <li className="cx-day">{day}</li>}
+                <li className="cx-day cx-joined">
+                  <button type="button" className="cx-pin-line" onClick={() => m.reply_to && jump(m.reply_to)}>
+                    <Icon name="pin" size={13} /> {m.sender_id === me.id ? 'You' : m.sender?.name ?? 'Someone'} pinned a message · {hhmm(m.created_at)}
+                  </button>
+                </li>
+              </React.Fragment>
+            );
+          }
           const mine = m.sender_id === me.id;
           const showWho = !mine && m.sender_id !== lastSender;
           lastSender = m.sender_id;
@@ -595,6 +632,8 @@ function GroupChatInner() {
                   mine={mine}
                   ready={mine || downloaded.has(m.id)}
                   who={showWho ? { name: whoName(m) } : null}
+                  avatar={mine ? undefined : showWho ? (m.sender ?? false) : false}
+                  onReactions={() => setRxOf(m)}
                   quote={parent ? { name: parent.sender_id === me.id ? 'You' : parent.sender?.name ?? 'Member', text: snippet(parent).slice(0, 120), onClick: () => jump(parent.id) } : null}
                   reactions={m.reactions}
                   onReact={(e) => react(m, e)}
@@ -645,6 +684,17 @@ function GroupChatInner() {
               ))}
             </ul>
           )}
+          {editing && (
+            <div className="cx-replying cx-editing">
+              <span>
+                <b>Editing message</b>
+                <small>{editing.body.slice(0, 120)}</small>
+              </span>
+              <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Stop editing" onClick={() => (setEditing(null), setDraft(''))}>
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+          )}
           {replyTo && (
             <div className="cx-replying">
               <span>
@@ -682,8 +732,9 @@ function GroupChatInner() {
             <label className="sr-only" htmlFor="group-box">
               Message
             </label>
-            <textarea
-              ref={box}
+            <EmojiButton box={box} value={draft} onValue={setDraft} />
+            <MessageField
+              box={box}
               id="group-box"
               rows={1}
               maxLength={4000}
@@ -712,6 +763,38 @@ function GroupChatInner() {
       {forwarding && <ForwardSheet m={forwarding} onClose={() => setForwarding(null)} />}
 
       {seenOf && <SeenBy m={seenOf} readers={seenBy(seenOf)} onClose={() => setSeenOf(null)} />}
+
+      {rxOf && (() => {
+        const m = all.find((x) => x.id === rxOf.id) ?? rxOf;
+        const rows = (m.reactions ?? []).flatMap((r) => (r.who ?? []).map((uid) => ({ uid, emoji: r.emoji })));
+        const total = rows.length;
+        return (
+          <div className="cx-sheet-wrap" onClick={() => setRxOf(null)}>
+            <div className="cx-sheet cx-rx-who" role="dialog" aria-label="Reactions" onClick={(e) => e.stopPropagation()}>
+              <span className="cx-grab" aria-hidden="true" />
+              <h2 className="cx-fwd-title">{total === 1 ? '1 reaction' : `${total} reactions`}</h2>
+              <ul data-scroll>
+                {rows.map(({ uid, emoji }) => {
+                  const p = people.find((x) => x.id === uid) ?? all.find((x) => x.sender_id === uid)?.sender ?? null;
+                  const mineRow = uid === me.id;
+                  return (
+                    <li key={uid + emoji}>
+                      <button type="button" disabled={!mineRow} onClick={() => (react(m, emoji), setRxOf(null))}>
+                        {p ? <Avatar p={p} size={40} /> : <span className="cx-rx-who-blank" />}
+                        <span className="cx-rx-who-name">
+                          <b>{mineRow ? 'You' : p?.name ?? 'Member'}</b>
+                          {mineRow && <small>Tap to remove</small>}
+                        </span>
+                        <span className="cx-rx-who-emoji">{emoji}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        );
+      })()}
 
       {held && (
         <div className="cx-sheet-wrap" onClick={() => setHeld(null)}>
@@ -789,6 +872,20 @@ function GroupChatInner() {
                   </button>
                 )}
               </>
+            )}
+            {held.sender_id === me.id && held.kind === 'text' && canUnsend(held.created_at, held.seen_at) && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setEditing(held);
+                  setDraft(held.body);
+                  setHeld(null);
+                  window.setTimeout(() => box.current?.focus(), 50);
+                }}
+              >
+                <Icon name="pen" /> Edit
+              </button>
             )}
             {team || (held.sender_id === me.id && canUnsend(held.created_at, held.seen_at)) ? (
               <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>

@@ -481,6 +481,10 @@ export function createDemoApi(): ConnectApi {
       setTimeout(() => (m.delivered_at = new Date().toISOString()), 1500);
       return m;
     },
+    async editMessage(mid, body) {
+      const me = needMe();
+      messages = messages.map((m) => (m.id === mid && m.sender_id === me ? { ...m, body, edited_at: new Date().toISOString() } : m));
+    },
     async deleteMessage(mid) {
       const me = needMe();
       messages = messages.map((m) =>
@@ -519,7 +523,7 @@ export function createDemoApi(): ConnectApi {
         const g = ownGroups.find((x) => x.id === gid);
         const mine = g && current ? g.people.get(current) : undefined;
         if (!g || (!mine && !(current && who(current).is_sensei))) return null;
-        return wait({ members: g.people.size, announce_only: g.announce_only, pinned_id: g.pinned_id, history: g.history, name: g.name, photo_url: g.photo_url, muted_until: mine && mine.muted > Date.now() ? new Date(mine.muted).toISOString() : null });
+        return wait({ members: g.people.size, announce_only: g.announce_only, pinned_id: g.pinned_id, pinned_by: (g as unknown as { pinned_by?: string | null }).pinned_by ?? null, history: g.history, name: g.name, photo_url: g.photo_url, muted_until: mine && mine.muted > Date.now() ? new Date(mine.muted).toISOString() : null });
       }
       const me = current ? who(current) : null;
       if (!me || !(me.is_student || me.is_sensei || me.is_moderator) || groupOut.has(me.id)) return null;
@@ -530,10 +534,11 @@ export function createDemoApi(): ConnectApi {
       wait(
         (gid ? og(gid).msgs : group).map((m) => {
           const rx = [...groupRx].filter(([k]) => k.startsWith(m.id + ':'));
-          const list: { emoji: string; count: number; mine: boolean }[] = [];
+          const list: { emoji: string; count: number; mine: boolean; who: string[] }[] = [];
           for (const [k, e] of rx) {
-            const x = list.find((y) => y.emoji === e) ?? (list.push({ emoji: e, count: 0, mine: false }), list[list.length - 1]);
+            const x = list.find((y) => y.emoji === e) ?? (list.push({ emoji: e, count: 0, mine: false, who: [] }), list[list.length - 1]);
             x.count += 1;
+            x.who.push(k.slice(k.indexOf(':') + 1));
             if (k.endsWith(':' + current)) x.mine = true;
           }
           return { ...m, sender: who(m.sender_id), reactions: list };
@@ -566,6 +571,11 @@ export function createDemoApi(): ConnectApi {
       (gid ? og(gid).msgs : group).push(m);
       return wait({ ...m, sender: who(me), reactions: [] });
     },
+    async editGroupMessage(id, body) {
+      const edit = (m: RawGroup) => (m.id === id ? { ...m, body, edited_at: new Date().toISOString() } : m);
+      group = group.map(edit);
+      for (const g of ownGroups) g.msgs = g.msgs.map(edit);
+    },
     async deleteGroupMessage(id) {
       for (const g of ownGroups) g.msgs = g.msgs.map((m) => (m.id === id ? { ...m, deleted_at: new Date().toISOString(), body: '', media_url: null } : m));
       group = group.map((m) => (m.id === id ? { ...m, deleted_at: new Date().toISOString(), body: '', media_url: null } : m));
@@ -591,12 +601,22 @@ export function createDemoApi(): ConnectApi {
       groupReadAt = new Date().toISOString();
     },
     async setGroupSettings(s, gid) {
+      const me = needMe();
+      // pinning: remember who, and add "X pinned a message"
+      const pinNote = (target: { pinned_by?: string | null; pinned_at?: string | null }, list: RawGroup[]) => {
+        if (!('pinned_id' in s)) return;
+        target.pinned_by = s.pinned_id ? me : null;
+        target.pinned_at = s.pinned_id ? new Date().toISOString() : null;
+        if (s.pinned_id) list.push({ id: nid(), conversation_id: gid ? `g:${gid}` : 'group', sender_id: me, body: '', kind: 'pin', reply_to: s.pinned_id, created_at: new Date().toISOString() } as unknown as RawGroup);
+      };
       if (gid) {
-        if (!who(needMe()).is_sensei) throw new Error('Only the Grand Sensei can change this group.');
+        if (!who(me).is_sensei) throw new Error('Only the Grand Sensei can change this group.');
         Object.assign(og(gid), s);
+        pinNote(og(gid) as unknown as { pinned_by?: string | null }, og(gid).msgs);
         return;
       }
       Object.assign(groupSet, s);
+      pinNote(groupSet as unknown as { pinned_by?: string | null }, group);
     },
     groupMembers: (gid) => gid ? wait([...og(gid).people.keys()].map(who)) : wait(people.filter((p) => (p.is_student || p.is_sensei || p.is_moderator) && !groupOut.has(p.id))),
     groupStatus: async (gid) => {
@@ -719,6 +739,9 @@ export function createDemoApi(): ConnectApi {
     },
     async enablePush() {
       return false;
+    },
+    async testPush() {
+      return { ok: false, why: 'Notifications work on the real site, not in this preview.' };
     },
     async setTeamRole(userId, role) {
       const p = who(userId);

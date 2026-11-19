@@ -81,7 +81,7 @@ self.addEventListener('push', (e) => {
     (async () => {
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       // Connect is open on screen: the app shows its own alert
-      if (wins.some((c) => c.visibilityState === 'visible' && c.focused)) return;
+      if (!d.force && wins.some((c) => c.visibilityState === 'visible' && c.focused)) return;
       const tag = d.tag || 'connect';
       const earlier = await self.registration.getNotifications({ tag });
       const lines = [...((earlier[0] && earlier[0].data && earlier[0].data.lines) || []), d.body || ''].slice(-6);
@@ -91,6 +91,8 @@ self.addEventListener('push', (e) => {
         body,
         tag,
         renotify: true,
+        silent: false,
+        vibrate: [120, 60, 120],
         icon: d.icon || '/assets/favicon-128.png',
         badge: '/assets/favicon-128.png',
         data: { url: d.url || '/', lines },

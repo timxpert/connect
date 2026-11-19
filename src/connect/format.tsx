@@ -223,3 +223,109 @@ export function smartChange(prevState: string, el: HTMLTextAreaElement, set: (v:
   el.setSelectionRange(r.caret, r.caret);
   set(r.value);
 }
+
+/* ---------- Formatting shown while typing ---------- */
+/** The draft with its marks kept (dimmed) and the styles applied, drawn over the box */
+function marked(text: string): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  let i = 0;
+  for (const m of text.matchAll(INLINE)) {
+    const at = m.index ?? 0;
+    const before = text[at - 1];
+    const after = text[at + m[0].length];
+    if ((before && /[A-Za-z0-9]/.test(before)) || (after && /[A-Za-z0-9]/.test(after))) continue;
+    if (at > last) out.push(text.slice(last, at));
+    const tok = m[0];
+    const w = tok.startsWith('__') ? 2 : 1;
+    const mark = tok.slice(0, w);
+    const inner = marked(tok.slice(w, -w));
+    const cls = w === 2 ? 'cx-mu' : tok[0] === '*' ? 'cx-mb' : tok[0] === '_' ? 'cx-mi' : 'cx-ms';
+    out.push(
+      <span key={i++}>
+        <span className="cx-mk">{mark}</span>
+        <span className={cls}>{inner}</span>
+        <span className="cx-mk">{mark}</span>
+      </span>,
+    );
+    last = at + tok.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+const COPY = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'wordSpacing', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'textIndent', 'tabSize'] as const;
+
+/** A message box that shows bold, italic, underline and strike as you type */
+export function MessageField({
+  box,
+  value,
+  ...rest
+}: { box: React.RefObject<HTMLTextAreaElement | null>; value: string } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const mirror: React.RefObject<HTMLDivElement | null> = React.useRef(null);
+  INLINE.lastIndex = 0;
+  const rich = /[*_~]/.test(value) && INLINE.test(value);
+  INLINE.lastIndex = 0;
+  React.useLayoutEffect(() => {
+    const el = box.current;
+    const mi = mirror.current;
+    if (!el || !mi) return;
+    const fit = () => {
+      const cs = getComputedStyle(el);
+      for (const k of COPY) (mi.style as unknown as Record<string, string>)[k] = cs[k];
+      mi.style.top = `${el.offsetTop}px`;
+      mi.style.left = `${el.offsetLeft}px`;
+      mi.style.width = `${el.offsetWidth}px`;
+      mi.style.height = `${el.offsetHeight}px`;
+      mi.scrollTop = el.scrollTop;
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    const sync = () => (mi.scrollTop = el.scrollTop);
+    el.addEventListener('scroll', sync);
+    return () => {
+      ro.disconnect();
+      el.removeEventListener('scroll', sync);
+    };
+  }, [rich, value, box]);
+  return (
+    <span className="cx-field">
+      <textarea ref={box as React.RefObject<HTMLTextAreaElement>} value={value} className={rich ? 'is-rich' : undefined} {...rest} />
+      {rich && (
+        <div ref={mirror} className="cx-mirror" aria-hidden="true">
+          {marked(value)}
+          {/* keeps the last empty line's height */}
+          {'​'}
+        </div>
+      )}
+    </span>
+  );
+}
+
+/* ---------- Drafts ---------- */
+const DRAFT = 'cx-draft-';
+export function loadDraft(chat: string): string {
+  try {
+    return localStorage.getItem(DRAFT + chat) ?? '';
+  } catch {
+    return '';
+  }
+}
+export function saveDraft(chat: string, text: string) {
+  try {
+    if (text.trim()) localStorage.setItem(DRAFT + chat, text.slice(0, 4000));
+    else localStorage.removeItem(DRAFT + chat);
+  } catch {
+    /* storage full or blocked */
+  }
+}
+/** Keeps what you typed in a chat until you send it, like WhatsApp */
+export function useDraft(chat: string): [string, React.Dispatch<React.SetStateAction<string>>] {
+  const [draft, setDraft] = React.useState(() => loadDraft(chat));
+  React.useEffect(() => {
+    const t = window.setTimeout(() => saveDraft(chat, draft), 300);
+    return () => window.clearTimeout(t);
+  }, [chat, draft]);
+  return [draft, setDraft];
+}

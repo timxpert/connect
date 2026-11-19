@@ -68,6 +68,12 @@ function encrypt(sub: PushSub, payload: Buffer) {
 
 /** Sends one notification. Returns false when the phone has unsubscribed (remove it). */
 export async function sendPush(sub: PushSub, data: Record<string, unknown>, keys: Keys): Promise<boolean> {
+  const r = await sendPushStatus(sub, data, keys);
+  return !(r.status === 404 || r.status === 410);
+}
+
+/** Same, with what the push service answered (for the test button) */
+export async function sendPushStatus(sub: PushSub, data: Record<string, unknown>, keys: Keys): Promise<{ status: number; text: string }> {
   try {
     const res = await fetch(sub.endpoint, {
       method: 'POST',
@@ -80,8 +86,8 @@ export async function sendPush(sub: PushSub, data: Record<string, unknown>, keys
       },
       body: encrypt(sub, Buffer.from(JSON.stringify(data))),
     });
-    return !(res.status === 404 || res.status === 410);
-  } catch {
-    return true;
+    return { status: res.status, text: res.ok ? '' : (await res.text().catch(() => '')).slice(0, 300) };
+  } catch (e) {
+    return { status: 0, text: (e as Error).message };
   }
 }

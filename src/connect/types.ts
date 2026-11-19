@@ -116,6 +116,8 @@ export type Message = {
   deleted_at?: string | null;
   /** Sent on from another chat */
   forwarded?: boolean | null;
+  /** Changed after sending */
+  edited_at?: string | null;
   /** A private reply to a group message: JSON {name, text} */
   quote?: string | null;
   /** Client only: still uploading / sending */
@@ -130,12 +132,13 @@ export type GroupMessage = Message & {
   seen_at?: string | null;
   reply_to?: string | null;
   sender?: Profile;
-  reactions?: { emoji: string; count: number; mine: boolean }[];
+  /** who: the people who reacted with it */
+  reactions?: { emoji: string; count: number; mine: boolean; who?: string[] }[];
 };
 
 /** What new students see from before they joined */
 export type GroupHistory = 'all' | '14d' | '100' | 'none';
-export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string; photo_url?: string | null };
+export type GroupInfo = { members: number; announce_only: boolean; pinned_id: string | null; muted_until: string | null; history?: GroupHistory; name?: string; photo_url?: string | null; pinned_by?: string | null; pinned_at?: string | null };
 
 export type Challenge = {
   id: string;
@@ -300,6 +303,8 @@ export interface ConnectApi {
   /** Voice note, photo, video or file. Uploads privately, then sends. */
   sendAttachment(conversationId: string, a: Attachment, caption: string, onProgress?: (share: number) => void, forwarded?: boolean): Promise<Message>;
   deleteMessage(id: string): Promise<void>;
+  /** Your own text, within the delete-for-everyone time */
+  editMessage(id: string, body: string): Promise<void>;
   /** Marks everything the other person sent in this chat as seen */
   markRead(conversationId: string): Promise<void>;
   /** Marks all incoming messages as delivered to this device */
@@ -344,6 +349,8 @@ export interface ConnectApi {
   setTeamRole(userId: string, role: string | null): Promise<void>;
   /** Phone notifications when Connect is closed; false if not possible */
   enablePush(): Promise<boolean>;
+  /** Sends this person a test notification; why says what went wrong */
+  testPush(): Promise<{ ok: boolean; why: string }>;
   /** Everyone on the team who is also a student: id → role */
   teamRoles(): Promise<Record<string, string>>;
   /** Phase check: a student says which phase they're in; the team confirms */
@@ -370,6 +377,8 @@ export interface ConnectApi {
   sendGroupMessage(body: string, replyTo?: string | null, forwarded?: boolean, gid?: string | null): Promise<GroupMessage>;
   sendGroupAttachment(a: Attachment, caption: string, replyTo?: string | null, onProgress?: (share: number) => void, forwarded?: boolean, gid?: string | null): Promise<GroupMessage>;
   deleteGroupMessage(id: string): Promise<void>;
+  /** Your own text, within the delete-for-everyone time */
+  editGroupMessage(id: string, body: string): Promise<void>;
   /** null removes your reaction */
   reactGroup(id: string, emoji: string | null): Promise<void>;
   markGroupRead(gid?: string | null): Promise<void>;

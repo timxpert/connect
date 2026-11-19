@@ -2,7 +2,7 @@
    download). Short and quiet on purpose. People can turn them off in the
    account menu; the choice is remembered per browser. */
 
-type Sound = 'like' | 'comment' | 'post' | 'send';
+type Sound = 'like' | 'comment' | 'post' | 'send' | 'message' | 'incoming';
 
 const KEY = 'cx-sound';
 let ctx: AudioContext | null = null;
@@ -60,6 +60,13 @@ export function play(s: Sound) {
       break;
     case 'comment': // soft blip
       note(a, 880, t, 0.1, 'triangle', 0.1, 1180);
+      break;
+    case 'message': // new message somewhere else in the app: clear two-note ding
+      note(a, 784, t, 0.16, 'sine', 0.28);
+      note(a, 1175, t + 0.11, 0.26, 'sine', 0.24);
+      break;
+    case 'incoming': // new message in the chat you're reading: soft pop
+      note(a, 660, t, 0.08, 'sine', 0.16, 990);
       break;
     case 'send': // short tick for messages
       note(a, 1046, t, 0.07, 'triangle', 0.08);

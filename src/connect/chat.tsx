@@ -13,7 +13,8 @@ import { A, Avatar, Empty, Icon, Loading, BeltBadge } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
 import { CameraScreen } from './camera';
-import { FormatBar, Rich, smartChange } from './format';
+import { FormatBar, MessageField, Rich, loadDraft, smartChange, useDraft } from './format';
+import { EmojiButton } from './emoji';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import { NewGroupSheet } from './group';
 
@@ -623,6 +624,8 @@ export function Bubble({
   seen,
   onSeen,
   domId,
+  avatar,
+  onReactions,
 }: {
   m: Message;
   mine: boolean;
@@ -637,6 +640,10 @@ export function Bubble({
   seen?: number;
   onSeen?: () => void;
   domId?: string;
+  /** Group chats: the sender's photo beside their first message in a row (false: keep the space) */
+  avatar?: Profile | false;
+  /** Group chats: tapping the reactions shows who reacted */
+  onReactions?: () => void;
   /** Downloaded (or sent by me): show the media itself */
   ready: boolean;
   onHold: (m: Message) => void;
@@ -679,12 +686,18 @@ export function Bubble({
         (kind === 'image' || kind === 'video') && !m.body && !m.forwarded ? 'is-bare' : '',
         m.pending ? 'is-pending' : '',
         m.failed ? 'is-failed' : '',
+        avatar !== undefined ? 'has-av' : '',
       ]
         .filter(Boolean)
         .join(' ')}
       {...hold}
       onClick={m.failed && onRetry ? () => onRetry(m) : undefined}
     >
+      {avatar && (
+        <span className="cx-msg-av" aria-hidden="true">
+          <Avatar p={avatar} size={30} />
+        </span>
+      )}
       {who && <b className="cx-msg-who">{who.name}</b>}
       {m.forwarded && !m.deleted_at && (
         <span className="cx-msg-fwd">
@@ -755,6 +768,7 @@ export function Bubble({
       {m.pending && kind === 'video' && (m.progress ?? 0) < 0.5 && <small className="cx-msg-prep">Making the video smaller…</small>}
       {m.body && <Rich text={m.body} mention={withMentions} />}
       <span className="cx-msg-meta">
+        {m.edited_at && <span className="cx-msg-edited">Edited</span>}
         <time dateTime={m.created_at}>{hhmm(m.created_at)}</time>
         {mine && !noTicks && <Status m={m} />}
         {mine && noTicks && (m.pending || m.failed) && <Status m={m} />}
@@ -768,7 +782,7 @@ export function Bubble({
       {reactions && reactions.length > 0 && (
         <span className="cx-msg-rx">
           {reactions.map((r) => (
-            <button key={r.emoji} type="button" className={r.mine ? 'is-mine' : ''} onClick={(e) => (e.stopPropagation(), onReact?.(r.emoji))} aria-label={`${r.emoji} ${r.count}`}>
+            <button key={r.emoji} type="button" className={r.mine ? 'is-mine' : ''} onClick={(e) => (e.stopPropagation(), onReactions ? onReactions() : onReact?.(r.emoji))} aria-label={`${r.emoji} ${r.count}`}>
               {r.emoji}
               {r.count > 1 && <small>{r.count}</small>}
             </button>
@@ -785,10 +799,13 @@ export function Chat({ id }: { id: string }) {
   const [conv, setConv] = useState<Conversation | null | undefined>(() => peek<Conversation | null>('getConversation', id));
   const [msgs, setMsgs] = useState<Message[]>(() => peek<Message[]>('listMessages', id) ?? []);
   const [local, setLocal] = useState<Message[]>([]); // still sending
-  const [draft, setDraft] = useState('');
+  // unsent text stays when you leave the chat ("Draft" in Messages)
+  const [draft, setDraft] = useDraft(id);
   const [blocked, setBlocked] = useState(false);
   const [menu, setMenu] = useState(false);
   const [held, setHeld] = useState<Message | null>(null);
+  // editing one of my messages: the box holds its text until saved
+  const [editing, setEditing] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState<Message | null>(null);
   const [rec, setRec] = useState<{ start: number; secs: number } | null>(null);
   const end = useRef<HTMLLIElement>(null);
@@ -919,6 +936,20 @@ export function Chat({ id }: { id: string }) {
   const sendText = async () => {
     const body = draft.trim();
     if (!body) return;
+    if (editing) {
+      const m = editing;
+      setEditing(null);
+      setDraft('');
+      if (body === m.body) return;
+      setMsgs((ms) => ms.map((x) => (x.id === m.id ? { ...x, body, edited_at: new Date().toISOString() } : x)));
+      try {
+        await api.editMessage(m.id, body);
+      } catch (e) {
+        setMsgs((ms) => ms.map((x) => (x.id === m.id ? m : x)));
+        toast((e as Error).message);
+      }
+      return;
+    }
     const q = quote;
     setDraft('');
     setQuote(null);
@@ -1273,6 +1304,17 @@ export function Chat({ id }: { id: string }) {
         </div>
       ) : (
         <div className="cx-group-foot">
+        {editing && (
+          <div className="cx-replying cx-editing">
+            <span>
+              <b>Editing message</b>
+              <small>{editing.body.slice(0, 120)}</small>
+            </span>
+            <button type="button" className="cx-icon-btn cx-icon-flat" aria-label="Stop editing" onClick={() => (setEditing(null), setDraft(''))}>
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+        )}
         {quote && readQuote(quote) && (
           <div className="cx-replying">
             <span>
@@ -1311,7 +1353,8 @@ export function Chat({ id }: { id: string }) {
             Message
           </label>
           {/* Enter adds a new line; only the send button sends */}
-          <textarea ref={box} id="msg-box" rows={1} maxLength={4000} placeholder="Message" value={draft} onChange={(e) => smartChange(draft, e.target, setDraft)} enterKeyHint="enter" />
+          <EmojiButton box={box} value={draft} onValue={setDraft} />
+          <MessageField box={box} id="msg-box" rows={1} maxLength={4000} placeholder="Message" value={draft} onChange={(e) => smartChange(draft, e.target, setDraft)} enterKeyHint="enter" />
           {typing ? (
             <button type="submit" className="cx-send" aria-label="Send">
               <Icon name="send" size={20} />
@@ -1352,6 +1395,20 @@ export function Chat({ id }: { id: string }) {
                 }}
               >
                 <Icon name="download" /> Save to phone
+              </button>
+            )}
+            {held.sender_id === me.id && (held.kind ?? 'text') === 'text' && canUnsend(held.created_at, held.read_at) && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setEditing(held);
+                  setDraft(held.body);
+                  setHeld(null);
+                  window.setTimeout(() => box.current?.focus(), 50);
+                }}
+              >
+                <Icon name="pen" /> Edit
               </button>
             )}
             {held.sender_id === me.id ? (
@@ -1447,7 +1504,15 @@ function GroupInboxRow({ p: pinp }: { p: PinProps }) {
             </span>
             <span className="cx-inbox-bottom">
               <span className="cx-inbox-last">
-                <span className={typers.length ? 'cx-inbox-snippet is-typing' : 'cx-inbox-snippet'}>{typers.length ? typingLine(typers) : p.text}</span>
+                {typers.length ? (
+                  <span className="cx-inbox-snippet is-typing">{typingLine(typers)}</span>
+                ) : loadDraft('group') ? (
+                  <span className="cx-inbox-snippet">
+                    <b className="cx-draft">Draft:</b> {loadDraft('group').split('\n')[0]}
+                  </span>
+                ) : (
+                  <span className="cx-inbox-snippet">{p.text}</span>
+                )}
               </span>
               <PinMark on={pinp.pinned} />
               {p.unread > 0 && <span className="cx-inbox-count">{p.unread > 99 ? '99+' : p.unread}</span>}
@@ -1571,7 +1636,15 @@ function OwnGroupRow({ g, p }: { g: GroupRow; p: PinProps }) {
         </span>
         <span className="cx-inbox-bottom">
           <span className="cx-inbox-last">
-            <span className={typers.length ? 'cx-inbox-snippet is-typing' : 'cx-inbox-snippet'}>{typers.length ? typingLine(typers) : g.text}</span>
+            {typers.length ? (
+              <span className="cx-inbox-snippet is-typing">{typingLine(typers)}</span>
+            ) : loadDraft(`g:${g.id}`) ? (
+              <span className="cx-inbox-snippet">
+                <b className="cx-draft">Draft:</b> {loadDraft(`g:${g.id}`).split('\n')[0]}
+              </span>
+            ) : (
+              <span className="cx-inbox-snippet">{g.text}</span>
+            )}
           </span>
           <PinMark on={p.pinned} />
           {g.unread > 0 && <span className="cx-inbox-count">{g.unread > 99 ? '99+' : g.unread}</span>}
@@ -1614,6 +1687,10 @@ function ChatRow({ c, p }: { c: Conversation; p: PinProps }) {
               {kind && <Icon name={KIND_ICON[kind]} size={16} />}
               {typing ? (
               <span className="cx-inbox-snippet is-typing">typing…</span>
+            ) : loadDraft(c.id) ? (
+              <span className="cx-inbox-snippet">
+                <b className="cx-draft">Draft:</b> {loadDraft(c.id).split('\n')[0]}
+              </span>
             ) : (
               <span className={joined && unread > 0 ? 'cx-inbox-snippet is-joined' : 'cx-inbox-snippet'}>{c.last_body || 'Say hello'}</span>
             )}
@@ -1649,7 +1726,7 @@ export function Inbox() {
   const [opening, setOpening] = useState('');
   const [askAlerts, setAskAlerts] = useState(false);
   const [newGroup, setNewGroup] = useState(false);
-  // Pinned chats sit at the top, in the order they were pinned
+  // Pinned chats sit at the top, newest pin first
   const [pins, setPins] = useState<string[]>(() => peek<string[]>('listPins') ?? []);
   const [holding, setHolding] = useState<string | null>(null);
   useEffect(() => {
@@ -1657,7 +1734,8 @@ export function Inbox() {
   }, [api, me?.id]);
   const pinOf = (chat: string): PinProps => {
     const i = pins.indexOf(chat);
-    return { order: i < 0 ? 0 : i - 1000, pinned: i >= 0, onHold: () => setHolding(chat) };
+    // the newest pin goes on top
+    return { order: i < 0 ? 0 : -1 - i, pinned: i >= 0, onHold: () => setHolding(chat) };
   };
   const togglePin = async (chat: string) => {
     setHolding(null);

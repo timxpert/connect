@@ -5,7 +5,7 @@ import { ConnectProvider, isMember, useConnect } from './context';
 import { Composer, openComposer } from './compose';
 import { onVisitorChange, visitorChosen } from './visitor';
 import { play, setSoundOn, soundOn } from './sounds';
-import { alertsAllowed, notify, registerAlerts } from './alerts';
+import { alertsAllowed, alertsSupported, askForAlerts, notify, registerAlerts } from './alerts';
 import { startPresence } from './presence';
 import { guardDevice } from './device';
 import { CHAT_COLORS, useAppearance } from './appearance';
@@ -97,13 +97,15 @@ const TABS = [
 /** Unread notifications and waiting connection requests, refreshed every 30 seconds */
 type IncomingMessage = { conversation_id: string; sender_id: string; body?: string; kind?: string };
 
-function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind: string; snippet?: string }) => void) {
+function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind: string; snippet?: string }) => void, onGroupMessage: (row: { group_id?: string | null; kind?: string }) => void) {
   const { api, me } = useConnect();
   const [c, setC] = useState({ unread: 0, requests: 0, messages: 0 });
   const onMessageRef = React.useRef(onMessage);
   onMessageRef.current = onMessage;
   const onGroupRef = React.useRef(onGroup);
   onGroupRef.current = onGroup;
+  const onGroupMessageRef = React.useRef(onGroupMessage);
+  onGroupMessageRef.current = onGroupMessage;
   useEffect(() => {
     if (!me) {
       setC({ unread: 0, requests: 0, messages: 0 });
@@ -132,10 +134,11 @@ function useCounts(onMessage: (m: IncomingMessage) => void, onGroup: (n: { kind:
       pending = window.setTimeout(on, 250);
       if (event === 'INSERT' && row.sender_id && row.sender_id !== me.id) onMessageRef.current(row as unknown as IncomingMessage);
     });
-    // The Dojo group only updates the Messages count (no sound for every message)
-    const stopGroup = api.subscribe('group_messages', '', () => {
+    // Groups: update the Messages count, and a sound for messages from others
+    const stopGroup = api.subscribe('group_messages', '', ({ event, row }) => {
       window.clearTimeout(pending);
       pending = window.setTimeout(on, 250);
+      if (event === 'INSERT' && row.sender_id && row.sender_id !== me.id) onGroupMessageRef.current(row as { group_id?: string | null; kind?: string });
     });
     return () => {
       live = false;
@@ -180,20 +183,31 @@ function Shell({ route }: { route: Route }) {
   // when Connect is in the background. Not when you're already in that chat.
   const onMessage = (m: IncomingMessage) => {
     const here = route.name === 'chat' && (route as { id?: string }).id === m.conversation_id && document.visibilityState === 'visible';
-    if (here) return;
+    if (here) return play('incoming');
     const what = m.kind === 'voice' ? 'Voice message' : m.kind === 'image' ? 'Photo' : m.kind === 'video' ? 'Video' : m.kind === 'file' ? 'File' : (m.body || '').slice(0, 120);
     api
       .getConversation(m.conversation_id)
       .then((conv) => {
         const name = conv?.other.name ?? 'New message';
         if (document.visibilityState === 'visible') {
-          play('comment');
+          play('message');
           toast(`${name}: ${what}`);
         } else {
           notify(name, what, new URL(to(`/messages/${m.conversation_id}`), window.location.href).href, m.conversation_id);
         }
       })
       .catch(() => {});
+  };
+  // Any new group message: a sound (a soft pop if you're reading that group)
+  const groupSound = React.useRef(0);
+  const onGroupMessage = (row: { group_id?: string | null; kind?: string }) => {
+    if (document.visibilityState !== 'visible' || row.kind === 'join' || row.kind === 'pin') return;
+    const gid = (route as { gid?: string }).gid ?? null;
+    const here = route.name === 'group' && gid === (row.group_id ?? null);
+    const now = Date.now();
+    if (now - groupSound.current < 2500) return;
+    groupSound.current = now;
+    play(here ? 'incoming' : 'message');
   };
   const onGroup = (n: { kind: string; snippet?: string }) => {
     if (route.name === 'group' && document.visibilityState === 'visible') return;
@@ -206,7 +220,7 @@ function Shell({ route }: { route: Route }) {
       notify(title, body, new URL(to('/messages/group'), window.location.href).href, `group-${n.kind}`);
     }
   };
-  const counts = useCounts(onMessage, onGroup);
+  const counts = useCounts(onMessage, onGroup, onGroupMessage);
   useEffect(() => {
     registerAlerts();
   }, []);
@@ -216,6 +230,16 @@ function Shell({ route }: { route: Route }) {
   useEffect(() => {
     if (me?.id && alertsAllowed()) api.enablePush().catch(() => {});
   }, [api, me?.id]);
+  // Account menu: check this phone gets notifications, and say what's wrong if not
+  const testAlerts = async () => {
+    setMenu(false);
+    if (!alertsSupported()) return toast(/iphone|ipad/i.test(navigator.userAgent) ? 'On iPhone, add Connect to your Home Screen first, then open it from there.' : 'This browser can’t show notifications.');
+    if (Notification.permission === 'denied') return toast('Notifications are blocked. Allow them for this site in your browser settings.');
+    if (Notification.permission !== 'granted' && !(await askForAlerts())) return toast('Notifications weren’t allowed.');
+    toast('Sending a test…');
+    const r = await api.testPush().catch((e) => ({ ok: false, why: (e as Error).message }));
+    toast(r.ok ? 'Sent. It should appear in a moment, with sound.' : `No notification: ${r.why}`);
+  };
   // Online status: only members with a profile show up as online
   useEffect(() => (me ? startPresence(api) : undefined), [api, me?.id]);
 
@@ -409,6 +433,9 @@ function Shell({ route }: { route: Route }) {
                       }}
                     >
                       Sounds: {sound ? 'on' : 'off'}
+                    </button>
+                    <button type="button" role="menuitem" onClick={testAlerts}>
+                      Test notifications
                     </button>
                     <a href={MAIN_SITE} role="menuitem">
                       Motion Dojo website

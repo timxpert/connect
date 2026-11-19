@@ -88,6 +88,16 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     });
   }
 
+  /** Signs this phone up for notifications when Connect is closed */
+  async function enablePushNow() {
+    const me = await uid();
+    const sub = me ? await pushSubscription() : null;
+    if (!me || !sub) return false;
+    const { error } = await sb.from('push_subscriptions').upsert({ ...sub, user_id: me });
+    markPushOn(!error);
+    return !error;
+  }
+
   /* "typing…": live signals only (Realtime broadcast), nothing saved */
   type TypingRoom = { ch: ReturnType<typeof sb.channel>; ready: Promise<void>; cbs: Set<(t: TypingSignal) => void>; idle: number };
   const typingRooms = new Map<string, TypingRoom>();
@@ -734,13 +744,14 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const link = paths.length ? await sign(paths) : () => null;
       return rows.map((m) => (m.media_path ? { ...m, media_url: link(m.media_path) } : m));
     },
-    async enablePush() {
-      const me = await uid();
-      const sub = me ? await pushSubscription() : null;
-      if (!me || !sub) return false;
-      const { error } = await sb.from('push_subscriptions').upsert({ ...sub, user_id: me });
-      markPushOn(!error);
-      return !error;
+    enablePush: () => enablePushNow(),
+    async testPush() {
+      const on = await enablePushNow();
+      const token = (await sb.auth.getSession()).data.session?.access_token;
+      const res = await fetch('/api/push/test', { method: 'POST', headers: { Authorization: `Bearer ${token ?? ''}` } }).catch(() => null);
+      const body = (res ? await res.json().catch(() => null) : null) as { ok?: boolean; why?: string } | null;
+      if (!body) return { ok: false, why: on ? 'The server didn’t answer.' : 'Couldn’t sign this phone up for notifications.' };
+      return { ok: Boolean(body.ok), why: body.why || '' };
     },
     async sendMessage(conversationId, body, quote, forwarded) {
       const me = await needUid();
@@ -798,6 +809,12 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       ping('dm', (data as unknown as Message).id, `/messages/${conversationId}`);
       const link = await sign([path]);
       return { ...(data as unknown as Message), media_url: link(path) };
+    },
+    async editMessage(id, body) {
+      const { error } = await sb.rpc('edit_message', { mid: id, new_body: body });
+      if (error?.message.includes('too_late')) throw new Error('You can edit a message within 24 hours, or within 1 hour once it’s been seen.');
+      if (error && /edit_message/.test(error.message)) throw new Error('Editing needs a database update: run edit-pin.sql in Supabase.');
+      fail(error);
     },
     async deleteMessage(id) {
       const { error } = await sb.rpc('delete_message', { mid: id });
@@ -1049,7 +1066,8 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const [{ data, error }, { data: g }] = await Promise.all([sb.rpc('group_info'), sb.from('group_settings').select('*').eq('id', 1).maybeSingle()]);
       if (error) return null;
       const r = ((data ?? []) as GroupInfo[])[0];
-      return r ? { ...r, photo_url: (g as { photo_url?: string | null } | null)?.photo_url ?? null } : null;
+      const row = g as { photo_url?: string | null; pinned_by?: string | null; pinned_at?: string | null } | null;
+      return r ? { ...r, photo_url: row?.photo_url ?? null, pinned_by: row?.pinned_by ?? null, pinned_at: row?.pinned_at ?? null } : null;
     },
     async listGroupMessages(gid) {
       const me = await uid();
@@ -1066,11 +1084,12 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         ids.length ? sb.from('group_reactions').select('message_id, user_id, emoji').in('message_id', ids) : Promise.resolve({ data: [] as unknown[] }),
         sign(rows.map((r) => r.media_path).filter((p): p is string => Boolean(p))),
       ]);
-      const by = new Map<string, { emoji: string; count: number; mine: boolean }[]>();
+      const by = new Map<string, { emoji: string; count: number; mine: boolean; who: string[] }[]>();
       for (const r of (rx ?? []) as { message_id: string; user_id: string; emoji: string }[]) {
         const list = by.get(r.message_id) ?? [];
-        const e = list.find((x) => x.emoji === r.emoji) ?? (list.push({ emoji: r.emoji, count: 0, mine: false }), list[list.length - 1]);
+        const e = list.find((x) => x.emoji === r.emoji) ?? (list.push({ emoji: r.emoji, count: 0, mine: false, who: [] }), list[list.length - 1]);
         e.count += 1;
+        e.who.push(r.user_id);
         if (r.user_id === me) e.mine = true;
         by.set(r.message_id, list);
       }
@@ -1096,7 +1115,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       }
       const r = ((last1.data ?? []) as unknown as { body: string; kind: string; file_name?: string | null; deleted_at: string | null; created_at: string; sender: { name: string } | null }[])[0];
       if (!r) return { name, photo_url, text: 'No messages yet', at: '', unread: 0 };
-      const text = r.kind === 'join' ? `${r.sender?.name ?? 'Someone'} joined the group` : `${r.sender?.name ?? 'Someone'}: ${preview(r)}`;
+      const text = r.kind === 'join' ? `${r.sender?.name ?? 'Someone'} joined the group` : r.kind === 'pin' ? `${r.sender?.name ?? 'Someone'} pinned a message` : `${r.sender?.name ?? 'Someone'}: ${preview(r)}`;
       return { name, photo_url, text, at: r.created_at, unread: Number(n ?? 0) };
     },
     async sendGroupMessage(body, replyTo, forwarded, gid) {
@@ -1135,6 +1154,12 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       ping('group', (data as GroupMessage).id, gid ? `/messages/g/${gid}` : '/messages/group');
       const link = await sign([path]);
       return { ...(data as GroupMessage), conversation_id: gid ? `g:${gid}` : 'group', media_url: link(path), reactions: [] };
+    },
+    async editGroupMessage(id, body) {
+      const { error } = await sb.rpc('edit_group_message', { mid: id, new_body: body });
+      if (error?.message.includes('too_late')) throw new Error('You can edit a message within 24 hours, or within 1 hour once it’s been seen.');
+      if (error && /edit_group_message/.test(error.message)) throw new Error('Editing needs a database update: run edit-pin.sql in Supabase.');
+      fail(error);
     },
     async deleteGroupMessage(id) {
       const { error } = await sb.rpc('delete_group_message', { mid: id });
@@ -1292,7 +1317,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
         id: r.id,
         name: r.name,
         photo_url: r.photo_url,
-        text: !r.last_kind ? 'No messages yet' : r.last_kind === 'join' ? `${r.last_sender ?? 'Someone'} joined the group` : `${r.last_sender ?? 'Someone'}: ${preview({ body: r.last_body ?? '', kind: r.last_kind, deleted_at: r.last_deleted ? 'x' : null, file_name: r.last_file } as never)}`,
+        text: !r.last_kind ? 'No messages yet' : r.last_kind === 'join' ? `${r.last_sender ?? 'Someone'} joined the group` : r.last_kind === 'pin' ? `${r.last_sender ?? 'Someone'} pinned a message` : `${r.last_sender ?? 'Someone'}: ${preview({ body: r.last_body ?? '', kind: r.last_kind, deleted_at: r.last_deleted ? 'x' : null, file_name: r.last_file } as never)}`,
         at: r.last_at ?? r.created_at,
         unread: Number(r.unread ?? 0),
       }));
