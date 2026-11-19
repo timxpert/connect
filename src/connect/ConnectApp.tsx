@@ -697,7 +697,7 @@ function FocusPrompt({ onClose, onStart }: { onClose: () => void; onStart: (minu
           <Icon name="lock" size={26} />
         </span>
         <h2 className="cx-fwd-title">How long do you want to study?</h2>
-        <p className="cx-fwd-note">Connect stays on Learn until you’ve watched that much.</p>
+        <p className="cx-fwd-note">Messages, Feed and Members stay locked until you’ve watched lessons for this long.</p>
         <div className="cx-focus-times" role="radiogroup" aria-label="Study time">
           {FOCUS_TIMES.map((t) => (
             <button key={t} type="button" role="radio" aria-checked={!custom && m === t} className={!custom && m === t ? 'is-on' : ''} onClick={() => (setM(t), setOwn(''))}>
