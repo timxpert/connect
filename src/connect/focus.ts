@@ -78,5 +78,6 @@ export function useFocus() {
 export const left = (f: Focus) => {
   const s = Math.max(0, f.goal - f.watched);
   const m = Math.floor(s / 60);
-  return m >= 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : m > 0 ? `${m} min ${String(s % 60).padStart(2, '0')} s` : `${s} s`;
+  if (m >= 60) return m % 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m / 60} hr`;
+  return s >= 60 ? `${Math.ceil(s / 60)} min` : `${s} sec`;
 };

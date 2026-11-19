@@ -81,3 +81,41 @@ export function EmojiButton({ box, value, onValue }: { box: React.RefObject<HTML
     </>
   );
 }
+
+/** Any emoji as a reaction (the + after the quick ones) */
+export function EmojiSheet({ onPick, onClose }: { onPick: (e: string) => void; onClose: () => void }) {
+  const [tab, setTab] = useState(() => (recent().length ? 'Recent' : 'Smileys'));
+  const list = tab === 'Recent' ? recent() : (GROUPS.find(([n]) => n === tab)?.[1].split(' ') ?? []);
+  const tabs = [...(recent().length ? ['Recent'] : []), ...GROUPS.map(([n]) => n)];
+  return (
+    <div className="cx-sheet-wrap" onClick={onClose}>
+      <div className="cx-sheet cx-emoji-sheet" role="dialog" aria-label="Pick a reaction" onClick={(e) => e.stopPropagation()}>
+        <span className="cx-grab" aria-hidden="true" />
+        <div className="cx-emoji" role="group" aria-label="Emoji">
+          <div className="cx-emoji-tabs" role="tablist">
+            {tabs.map((t) => (
+              <button key={t} type="button" role="tab" aria-selected={t === tab} onClick={() => setTab(t)}>
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className="cx-emoji-grid" data-scroll>
+            {list.map((e) => (
+              <button
+                key={e}
+                type="button"
+                aria-label={e}
+                onClick={() => {
+                  remember(e);
+                  onPick(e);
+                }}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

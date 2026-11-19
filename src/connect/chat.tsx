@@ -14,7 +14,7 @@ import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
 import { CameraScreen } from './camera';
 import { MessageField, Rich, loadDraft, smartChange, useDraft } from './format';
-import { EmojiButton } from './emoji';
+import { EmojiButton, EmojiSheet } from './emoji';
 import { startCall } from './calls';
 import { callLine, readCall } from './special';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
@@ -813,6 +813,7 @@ export function Bubble({
         m.pending ? 'is-pending' : '',
         m.failed ? 'is-failed' : '',
         avatar !== undefined ? 'has-av' : '',
+        reactions && reactions.length > 0 ? 'has-rx' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -910,16 +911,28 @@ export function Bubble({
           </button>
         )}
       </span>
-      {reactions && reactions.length > 0 && (
-        <span className="cx-msg-rx">
-          {reactions.map((r) => (
-            <button key={r.emoji} type="button" className={r.mine ? 'is-mine' : ''} onClick={(e) => (e.stopPropagation(), onReactions ? onReactions() : onReact?.(r.emoji))} aria-label={`${r.emoji} ${r.count}`}>
-              {r.emoji}
-              {r.count > 1 && <small>{r.count}</small>}
-            </button>
-          ))}
-        </span>
-      )}
+      {reactions && reactions.length > 0 && (() => {
+        // one pill on the bubble's edge, like WhatsApp: the emojis, then how many
+        const total = reactions.reduce((n, r) => n + r.count, 0);
+        const mineR = reactions.find((r) => r.mine);
+        return (
+          <button
+            type="button"
+            className={mineR ? 'cx-msg-rx is-mine' : 'cx-msg-rx'}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onReactions) onReactions();
+              else if (mineR) onReact?.(mineR.emoji);
+            }}
+            aria-label={`${total} ${total === 1 ? 'reaction' : 'reactions'}: ${reactions.map((r) => r.emoji).join(' ')}`}
+          >
+            {[...reactions].sort((a, b) => b.count - a.count).slice(0, 3).map((r) => (
+              <span key={r.emoji}>{r.emoji}</span>
+            ))}
+            {total > 1 && <small>{total}</small>}
+          </button>
+        );
+      })()}
     </li>
   );
 }
@@ -935,6 +948,8 @@ export function Chat({ id }: { id: string }) {
   const [blocked, setBlocked] = useState(false);
   const [menu, setMenu] = useState(false);
   const [held, setHeld] = useState<Message | null>(null);
+  // + : any emoji as a reaction
+  const [rxMore, setRxMore] = useState<Message | null>(null);
   // editing one of my messages: the box holds its text until saved
   const [editing, setEditing] = useState<Message | null>(null);
   // message info: sent, delivered, read, played
@@ -1548,6 +1563,7 @@ export function Chat({ id }: { id: string }) {
       {forwarding && <ForwardSheet m={forwarding} onClose={() => setForwarding(null)} />}
       {infoOf && <MessageInfo m={msgs.find((x) => x.id === infoOf.id) ?? infoOf} onClose={() => setInfoOf(null)} />}
 
+      {rxMore && <EmojiSheet onClose={() => setRxMore(null)} onPick={(e) => (react(rxMore, e), setRxMore(null))} />}
       {held && (
         <div className="cx-sheet-wrap" onClick={() => setHeld(null)}>
           <div className="cx-sheet cx-drag" role="menu" ref={heldSheet} onClick={(e) => e.stopPropagation()}>
@@ -1559,6 +1575,9 @@ export function Chat({ id }: { id: string }) {
                     {e}
                   </button>
                 ))}
+                <button type="button" className="cx-rx-more" onClick={() => (setRxMore(held), setHeld(null))} aria-label="More reactions">
+                  <Icon name="plus" size={20} />
+                </button>
               </div>
             )}
             {!held.pending && !held.deleted_at && (held.body || held.media_url) && (

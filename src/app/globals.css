@@ -5699,31 +5699,41 @@ a.cx-ln-row:active {
   font-size: 0.8rem;
   opacity: 0.75;
 }
-.cx-msg-rx {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
+.cx-msg.has-rx {
+  position: relative;
+  margin-bottom: 16px;
 }
-.cx-msg-rx button {
+.cx-msg-rx {
+  position: absolute;
+  bottom: -18px;
+  left: 10px;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  min-height: 26px;
-  padding: 0 8px;
-  border: 0;
+  gap: 1px;
+  min-height: 28px;
+  padding: 0 7px;
+  border: 2px solid var(--ground);
   border-radius: 999px;
   background: var(--paper);
+  color: var(--ink);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  line-height: 1;
   cursor: pointer;
 }
-.cx-msg-rx button.is-mine {
-  background: var(--tint);
+.cx-msg.is-mine .cx-msg-rx {
+  left: auto;
+  right: 10px;
+}
+.cx-msg-rx.is-mine {
+  background: #f1ebff;
 }
 .cx-msg-rx small {
+  margin-left: 3px;
   color: var(--muted);
   font-size: 0.75rem;
+  font-weight: 600;
 }
 .cx-msg.is-flash {
   animation: cx-flash 1.2s var(--ease);
@@ -9401,25 +9411,33 @@ html.cx-in-chat body {
 
 /* Strict focus mode */
 .cx-focusbar {
-  position: sticky;
-  top: 0;
-  z-index: 50;
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 55;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  padding: 8px 16px 0;
+  gap: 2px 8px;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 10px 14px 0;
+  border-radius: 16px;
   background: var(--violet);
   color: #fff;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow: hidden;
 }
 .cx-focusbar small {
-  opacity: 0.8;
+  font-weight: 500;
+  opacity: 0.85;
 }
 .cx-focusbar-track {
   flex: 1 0 100%;
-  height: 3px;
-  margin: 6px -16px 0;
+  height: 4px;
+  margin: 8px -14px 0;
   background: rgba(255, 255, 255, 0.25);
 }
 .cx-focusbar-track span {
@@ -9428,10 +9446,17 @@ html.cx-in-chat body {
   background: #fff;
   transition: width 1s linear;
 }
+@media (min-width: 860px) {
+  .cx-focusbar {
+    bottom: 20px;
+  }
+}
 .cx.is-locked .cx-tabbar a:not([href$='/learn']),
 .cx.is-locked .cx-top nav a:not([href$='/learn']),
 .cx.is-locked .cx-bell,
-.cx.is-locked .cx-me {
+.cx.is-locked .cx-me,
+.cx.is-locked .cx-tabbar button,
+.cx.is-locked .cx-top button.btn-primary {
   opacity: 0.35;
   pointer-events: none;
 }
@@ -9472,4 +9497,57 @@ html.cx-in-chat body {
   border-color: var(--violet);
   background: #f1ebff;
   color: var(--violet);
+}
+.cx-focus-own {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 4px 8px;
+  padding: 0 14px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font-weight: 600;
+  color: var(--muted);
+}
+.cx-focus-own.is-on {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.cx-focus-own input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  outline: none;
+  text-align: right;
+}
+.cx-rx-more {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: #f1ebff;
+  color: var(--violet);
+  cursor: pointer;
+}
+.cx-emoji-sheet .cx-emoji {
+  height: 360px;
+  margin: 0;
+  background: none;
+}
+.cx-focus-own input::-webkit-outer-spin-button,
+.cx-focus-own input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.cx-focus-own input {
+  -moz-appearance: textfield;
 }

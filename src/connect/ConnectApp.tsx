@@ -193,8 +193,9 @@ function Shell({ route }: { route: Route }) {
   useEffect(() => {
     if (!strict) return;
     if (!FOCUS_ROUTES.includes(route.name)) {
+      // the bar at the bottom says why; give it a nudge
       navigate('/learn');
-      toast(`Focus mode is on: ${left(strict)} of lessons to go`);
+      document.querySelector('.cx-focusbar')?.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 300 });
     }
   }, [route, Boolean(strict)]);
   useEffect(() => {
@@ -214,7 +215,7 @@ function Shell({ route }: { route: Route }) {
       if (document.visibilityState !== 'visible' || !watchingNow()) return;
       if (addWatched(1)) {
         play('post');
-        toast('Focus session done. Connect is unlocked.');
+        toast('Done. Connect is unlocked.');
       }
     }, 1000);
     return () => window.clearInterval(t);
@@ -600,8 +601,8 @@ function Shell({ route }: { route: Route }) {
         <div className="cx-focusbar" role="status">
           <Icon name="lock" size={16} />
           <span>
-            <b>Focus mode</b> · {left(strict)} to go
-            {route.name !== 'lesson' && <small> · open a lesson to keep counting</small>}
+            {left(strict)} left
+            {route.name !== 'lesson' && <small> · play a lesson to count</small>}
           </span>
           <span className="cx-focusbar-track" aria-hidden="true">
             <span style={{ width: `${(strict.watched / strict.goal) * 100}%` }} />
@@ -614,7 +615,7 @@ function Shell({ route }: { route: Route }) {
           onStart={(m) => {
             startFocus(m);
             setAskFocus(false);
-            toast(`Focus mode on for ${m >= 60 ? `${m / 60} hr` : `${m} min`}. Connect is locked until you’ve watched that much.`);
+            toast(`Focus on: ${m >= 60 ? `${+(m / 60).toFixed(1)} hr` : `${m} min`} of lessons.`);
           }}
         />
       )}
@@ -686,6 +687,9 @@ function AlertsSheet({ level, onClose, onPick, onTest }: { level: AlertLevel; on
 const FOCUS_TIMES = [15, 30, 45, 60, 90, 120];
 function FocusPrompt({ onClose, onStart }: { onClose: () => void; onStart: (minutes: number) => void }) {
   const [m, setM] = useState(30);
+  const [own, setOwn] = useState('');
+  const custom = own !== '';
+  const mins = custom ? Math.min(300, Math.max(5, Math.round(Number(own) || 0))) : m;
   return (
     <div className="cx-sheet-wrap" onClick={onClose}>
       <div className="cx-sheet cx-focus-ask" role="dialog" aria-label="Focus mode" onClick={(e) => e.stopPropagation()}>
@@ -693,16 +697,21 @@ function FocusPrompt({ onClose, onStart }: { onClose: () => void; onStart: (minu
           <Icon name="lock" size={26} />
         </span>
         <h2 className="cx-fwd-title">How long do you want to study?</h2>
-        <p className="cx-fwd-note">Connect locks until you’ve watched that much. Messages wait until you’re done.</p>
+        <p className="cx-fwd-note">Connect stays on Learn until you’ve watched that much.</p>
         <div className="cx-focus-times" role="radiogroup" aria-label="Study time">
           {FOCUS_TIMES.map((t) => (
-            <button key={t} type="button" role="radio" aria-checked={m === t} className={m === t ? 'is-on' : ''} onClick={() => setM(t)}>
+            <button key={t} type="button" role="radio" aria-checked={!custom && m === t} className={!custom && m === t ? 'is-on' : ''} onClick={() => (setM(t), setOwn(''))}>
               {t < 60 ? `${t} min` : t === 60 ? '1 hr' : `${t / 60} hr`}
             </button>
           ))}
         </div>
-        <button type="button" className="btn btn-primary cx-addp-go" onClick={() => onStart(m)}>
-          Start focus mode
+        <label className={custom ? 'cx-focus-own is-on' : 'cx-focus-own'}>
+          <span>Your own</span>
+          <input type="number" inputMode="numeric" min={5} max={300} placeholder="e.g. 40" value={own} onChange={(e) => setOwn(e.target.value.replace(/\D/g, '').slice(0, 3))} />
+          <span>min</span>
+        </label>
+        <button type="button" className="btn btn-primary cx-addp-go" disabled={custom && !(Number(own) >= 5)} onClick={() => onStart(mins)}>
+          Lock for {mins >= 60 ? `${+(mins / 60).toFixed(1)} hr` : `${mins} min`}
         </button>
         <button type="button" className="btn btn-light cx-addp-go" onClick={onClose}>
           Not now

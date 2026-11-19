@@ -15,7 +15,7 @@ import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { TypingBubble, AttachSheet, Bubble, canUnsend, TOO_LATE, clock, dayLabel, kindOf, openFile, loadDownloaded, makeThumb, MAX_VOICE_SECONDS, rememberDownloaded, saveToPhone, SendPreview, Viewer, type Picked } from './chat';
 import { ForwardSheet } from './forward';
 import { MessageField, plainText, smartChange, useDraft } from './format';
-import { EmojiButton } from './emoji';
+import { EmojiButton, EmojiSheet } from './emoji';
 import { specialLine } from './special';
 import { StudyNudge } from './learning';
 import { LiveCard, LiveSheet, PollCard, PollSheet } from './polls-live';
@@ -124,6 +124,8 @@ function GroupChatInner() {
   const typers = useTyping(chatKey);
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [held, setHeld] = useState<GroupMessage | null>(null);
+  // + : any emoji as a reaction
+  const [rxMore, setRxMore] = useState<GroupMessage | null>(null);
   const [forwarding, setForwarding] = useState<GroupMessage | null>(null);
   const [readers, setReaders] = useState<GroupReader[]>([]);
   const [seenOf, setSeenOf] = useState<GroupMessage | null>(null);
@@ -857,6 +859,7 @@ function GroupChatInner() {
         );
       })()}
 
+      {rxMore && <EmojiSheet onClose={() => setRxMore(null)} onPick={(e) => (react(rxMore, e), setRxMore(null))} />}
       {held && (
         <div className="cx-sheet-wrap" onClick={() => setHeld(null)}>
           <div className="cx-sheet cx-drag" role="menu" ref={heldSheet} onClick={(e) => e.stopPropagation()}>
@@ -867,7 +870,10 @@ function GroupChatInner() {
                   {e}
                 </button>
               ))}
-            </div>
+              <button type="button" className="cx-rx-more" onClick={() => (setRxMore(held), setHeld(null))} aria-label="More reactions">
+                  <Icon name="plus" size={20} />
+                </button>
+              </div>
             {canSend && (
               <button
                 type="button"
