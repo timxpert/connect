@@ -264,8 +264,10 @@ export function Avatar({ p, size = 44 }: { p: Pick<Profile, 'name' | 'avatar_url
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('');
   const tint = TINTS[[...p.handle].reduce((n, c) => n + c.charCodeAt(0), 0) % TINTS.length];
-  return p.avatar_url ? (
-    <img className="cx-avatar" src={p.avatar_url} alt="" width={size} height={size} decoding="async" style={{ width: size, height: size, background: tint }} />
+  // a photo that can't load (slow network, removed file) falls back to the initials
+  const [broken, setBroken] = React.useState<string | null>(null);
+  return p.avatar_url && broken !== p.avatar_url ? (
+    <img className="cx-avatar" src={p.avatar_url} alt="" width={size} height={size} decoding="async" onError={() => setBroken(p.avatar_url)} style={{ width: size, height: size, background: tint }} />
   ) : (
     <span className="cx-avatar cx-avatar-initials" aria-hidden="true" style={{ width: size, height: size, background: tint, fontSize: size * 0.38 }}>
       {initials || '?'}

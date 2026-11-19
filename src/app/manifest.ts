@@ -9,8 +9,9 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    background_color: '#f6f4fb',
-    theme_color: '#ffffff',
+    // the screen shown while the app opens from the home screen
+    background_color: '#121016',
+    theme_color: '#121016',
     icons: [
       { src: '/assets/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/assets/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

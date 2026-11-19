@@ -908,7 +908,6 @@ details[open] > :not(summary) {
 .cx-wide,
 .cx-narrow {
   margin-inline: auto;
-  animation: cx-in 0.18s var(--ease);
 }
 .cx-col {
   max-width: 640px;
