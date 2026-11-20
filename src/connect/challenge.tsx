@@ -284,8 +284,8 @@ export function ChallengeTab() {
                 {pickEntry.user && (
                   <A path={`/u/${pickEntry.user.handle}`} className="cx-ch-who">
                     <Avatar p={pickEntry.user} size={36} />
-                    <span>
-                      <b>{pickEntry.user.name}</b>
+                    <span className="cx-ch-name">
+                      <b className="cx-name-text">{pickEntry.user.name}</b>
                       <BeltBadge p={pickEntry.user} small />
                     </span>
                   </A>
@@ -457,8 +457,8 @@ export function ChallengeScreen({ id }: { id: string }) {
               {e.user && (
                 <A path={`/u/${e.user.handle}`} className="cx-ch-who">
                   <Avatar p={e.user} size={36} />
-                  <span>
-                    <b>{e.user.name}</b>
+                  <span className="cx-ch-name">
+                    <b className="cx-name-text">{e.user.name}</b>
                     <BeltBadge p={e.user} small />
                   </span>
                 </A>

@@ -33,20 +33,24 @@ export function ForwardSheet({ m, onClose }: { m: Message; onClose: () => void }
   useEffect(() => {
     let live = true;
     (async () => {
-      const [convs, status, group, members] = await Promise.all([
+      const [convs, status, group, connections] = await Promise.all([
         api.listConversations().catch(() => []),
         api.groupStatus().catch(() => 'none' as const),
         api.groupPreview().catch(() => null),
-        api.groupMembers().catch(() => [] as Profile[]),
+        api.listConnections().catch(() => [] as Profile[]),
       ]);
+      // people you're connected with (the Grand Sensei can forward to anyone he has a chat with)
+      const connected = new Set(connections.map((p) => p.id));
+      const allowed = (id: string) => connected.has(id) || Boolean(me?.is_sensei);
       const list: Target[] = [];
       if (status === 'member') list.push({ key: 'group', name: group?.name || 'Dojo group', group: true, photo: group?.photo_url ?? null });
       const inChats = new Set<string>();
       for (const c of convs) {
+        if (!allowed(c.other.id)) continue;
         inChats.add(c.other.id);
         list.push({ key: `c:${c.id}`, name: c.other.name, person: c.other, conversationId: c.id });
       }
-      for (const p of members) if (p.id !== me?.id && !inChats.has(p.id)) list.push({ key: `p:${p.id}`, name: p.name, person: p });
+      for (const p of connections) if (p.id !== me?.id && !inChats.has(p.id)) list.push({ key: `p:${p.id}`, name: p.name, person: p });
       if (live) setTargets(list);
     })();
     return () => {
@@ -112,7 +116,7 @@ export function ForwardSheet({ m, onClose }: { m: Message; onClose: () => void }
         </label>
         <ul className="cx-fwd-list" data-scroll>
           {!targets && <li className="cx-fwd-note">Loading chats…</li>}
-          {targets && !shown.length && <li className="cx-fwd-note">No one matches “{q}”.</li>}
+          {targets && !shown.length && <li className="cx-fwd-note">{q ? `No one matches “${q}”.` : 'Connect with people to forward messages to them.'}</li>}
           {shown.map((t) => {
             const on = chosen.includes(t.key);
             return (

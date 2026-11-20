@@ -589,7 +589,9 @@ function GroupChatInner() {
   pool.delete(me.id);
   const suggestions =
     term === null ? [] : [...pool.values()].filter((p) => p.handle.toLowerCase().startsWith(term) || p.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(term))).slice(0, 5);
-  const mention = (p: Profile) => {
+  // @everyone: tags every member of the group
+  const everyone = term !== null && 'everyone'.startsWith(term);
+  const mention = (p: Pick<Profile, 'handle'>) => {
     const start = before.length - (at ? at[2].length + 1 : 0);
     const next = `${draft.slice(0, start)}@${p.handle} ${draft.slice(caret)}`;
     setDraft(next);
@@ -759,8 +761,21 @@ function GroupChatInner() {
         </div>
       ) : (
         <div className="cx-group-foot">
-          {suggestions.length > 0 && (
+          {(suggestions.length > 0 || everyone) && (
             <ul className="cx-mentions" role="listbox" aria-label="Mention someone">
+              {everyone && (
+                <li>
+                  <button type="button" role="option" aria-selected="false" onMouseDown={(e) => e.preventDefault()} onClick={() => mention({ handle: 'everyone' })}>
+                    <span className="cx-mention-all" aria-hidden="true">
+                      <Icon name="people" size={16} />
+                    </span>
+                    <span>
+                      <b>Everyone</b>
+                      <small>@everyone · tags all {pool.size + 1} members</small>
+                    </span>
+                  </button>
+                </li>
+              )}
               {suggestions.map((p) => (
                 <li key={p.id}>
                   <button type="button" role="option" aria-selected="false" onMouseDown={(e) => e.preventDefault()} onClick={() => mention(p)}>
@@ -1222,7 +1237,7 @@ function MemberRow({ p, me, onMenu }: { p: Profile; me: string; onMenu?: (p: Pro
         </span>
         <span className="cx-gi-text">
           <b>
-            {p.id === me ? 'You' : p.name}
+            <span className="cx-name-text">{p.id === me ? 'You' : p.name}</span>
             {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
           </b>
           <small>@{p.handle}</small>
@@ -1589,7 +1604,7 @@ function AddPeople({ gid, have, onClose, onDone }: { gid: string; have: Set<stri
                 <button type="button" className="cx-fwd-row cx-addp-row" aria-pressed={pick.has(p.id)} onClick={() => flip(p.id)}>
                   <Avatar p={p} size={40} />
                   <span className="cx-fwd-name">
-                    {p.name}
+                    <span className="cx-name-text">{p.name}</span>
                     {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
                   </span>
                   <span className={pick.has(p.id) ? 'cx-addp-tick is-on' : 'cx-addp-tick'} aria-hidden="true">

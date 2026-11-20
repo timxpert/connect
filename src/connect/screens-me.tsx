@@ -255,7 +255,7 @@ export function Settings() {
         country: me.country,
         skills: me.skills,
         phase: me.phase,
-        phase_public: me.phase_public !== false,
+        phase_public: true,
         instagram: me.instagram,
         youtube: me.youtube,
         website: me.website,
@@ -421,12 +421,6 @@ export function Settings() {
               {me.phase ? `Phase ${me.phase} · ${BELTS[me.phase - 1]}` : me.phase_request ? `Phase ${me.phase_request} · waiting for confirmation` : 'Not chosen yet'}
             </p>
           </div>
-        )}
-        {me?.is_student && !me.is_sensei && f.phase && (
-          <label className="cx-check">
-            <input type="checkbox" checked={f.phase_public} onChange={(e) => set('phase_public', e.target.checked)} />
-            <span>Show my belt to other members</span>
-          </label>
         )}
 
         <fieldset className="cx-fieldset">

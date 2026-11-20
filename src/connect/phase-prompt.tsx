@@ -11,7 +11,6 @@ import { BELTS, Icon } from './ui';
 export function PhasePrompt() {
   const { api, me, refreshMe, toast } = useConnect();
   const [phase, setPhase] = useState<number | null>(null);
-  const [show, setShow] = useState(true);
   const [busy, setBusy] = useState(false);
 
   if (!me || !me.is_student || me.is_sensei || me.is_moderator || me.phase || me.phase_request) return null;
@@ -21,7 +20,7 @@ export function PhasePrompt() {
     setBusy(true);
     try {
       await api.requestPhase(phase);
-      if (me.phase_public !== show) await api.updateProfile({ phase_public: show }).catch(() => {});
+      if (me.phase_public === false) await api.updateProfile({ phase_public: true }).catch(() => {});
       await refreshMe();
       toast('Sent for confirmation');
     } catch (e) {
@@ -56,10 +55,6 @@ export function PhasePrompt() {
             </button>
           ))}
         </div>
-        <label className="cx-check">
-          <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
-          <span>Show my belt</span>
-        </label>
         <div className="cx-phase-btns">
           <button type="button" className="btn btn-primary" disabled={!phase || busy} onClick={save}>
             {busy ? 'Sending…' : 'Send'}

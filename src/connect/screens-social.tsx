@@ -24,7 +24,7 @@ function Who({ p }: { p: Profile }) {
       <Avatar p={p} size={48} />
       <span className="cx-person-text">
         <span className="cx-person-name">
-          {p.name}
+          <span className="cx-name-text">{p.name}</span>
           {p.is_sensei && <SenseiBadge />}
           {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
           {p.sample && <SampleTag />}

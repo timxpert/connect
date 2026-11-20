@@ -7538,7 +7538,7 @@ html[data-cx-theme='dark'] .cx-toast {
   color: var(--ink);
   text-decoration: none;
 }
-.cx-ch-who > span {
+.cx-ch-who > span:not(.cx-avatar) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -9850,4 +9850,304 @@ html[data-cx-theme='dark'] {
 /* lesson titles: medium weight, not bold */
 .cx-ln-phase .cx-ln-text b {
   font-weight: 500;
+}
+
+/* A name and its belt always share one line: a long name ends in "…" instead of pushing the belt down */
+.cx-person-name,
+.cx-mlist-name,
+.cx-fwd-name,
+.cx-gi-text > b,
+.cx-ch-name,
+.cx-hit-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.cx-name-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx-person-name > :not(.cx-name-text),
+.cx-mlist-name > :not(.cx-name-text),
+.cx-fwd-name > :not(.cx-name-text),
+.cx-gi-text > b > :not(.cx-name-text),
+.cx-ch-name > :not(.cx-name-text) {
+  flex: none;
+}
+.cx-person-text,
+.cx-mlist-who {
+  min-width: 0;
+}
+.cx-person-text {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* the name always keeps room for a few letters; the belt and badges sit right after it */
+.cx-name-text {
+  flex: 0 1 auto;
+  min-width: 5ch;
+}
+.cx-person-name,
+.cx-mlist-name {
+  overflow: hidden;
+}
+.cx-person-name > .cx-sample,
+.cx-mlist-name > .cx-sample {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Assignment page: plain status lines, links that fit the screen */
+.cx-ln-files {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 12px 0 4px;
+}
+.cx-ln-files a {
+  min-width: 0;
+  font-weight: 500;
+  background: var(--tint);
+}
+.cx-ln-files a > :last-child,
+.cx-ln-files a {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx-ln-files a svg {
+  flex: none;
+}
+.cx-ln-notes a {
+  overflow-wrap: anywhere;
+}
+.cx-asg-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 18px 0 6px;
+  color: var(--muted);
+}
+.cx-asg-state.is-ok {
+  color: var(--ink);
+  font-weight: 500;
+}
+.cx-asg-state.is-ok svg {
+  flex: none;
+  margin-top: 2px;
+  color: #2f9e44;
+}
+.cx-asg-state a {
+  color: var(--violet);
+  font-weight: 600;
+}
+html[data-cx-theme='dark'] .cx-asg-state a {
+  color: #c9b0ff;
+}
+/* A Google Drive folder: its files in a grid */
+.cx-media-folder {
+  display: grid;
+  gap: 0;
+  aspect-ratio: auto;
+  background: var(--tint);
+}
+.cx-media-folder iframe {
+  position: static;
+  width: 100%;
+  height: 320px;
+  border: 0;
+  background: #fff;
+}
+.cx-media-folder a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  color: var(--violet);
+  font-weight: 600;
+  text-decoration: none;
+}
+html[data-cx-theme='dark'] .cx-media-folder a {
+  color: #c9b0ff;
+}
+
+/* Belts: a verified-style seal in the belt's colour */
+.cx-seal {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}
+.cx-seal.is-sm {
+  width: 17px;
+  height: 17px;
+}
+.cx-seal > svg:first-child {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.cx-seal .cx-seal-bg {
+  stroke-width: 1.2;
+  stroke: transparent;
+}
+.cx-seal > svg + svg {
+  position: relative;
+}
+.cx-seal-1 .cx-seal-bg {
+  fill: #fff;
+  stroke: rgba(20, 10, 46, 0.28) !important;
+}
+.cx-seal-1 {
+  color: #140a2e;
+}
+.cx-seal-2 .cx-seal-bg {
+  fill: #ffcf24;
+}
+.cx-seal-2 {
+  color: #140a2e;
+}
+.cx-seal-3 .cx-seal-bg {
+  fill: #1e8449;
+}
+.cx-seal-3 {
+  color: #fff;
+}
+.cx-seal-4 .cx-seal-bg {
+  fill: #111014;
+}
+.cx-seal-4 {
+  color: #c8ff3d;
+}
+html[data-cx-theme='dark'] .cx-seal-1 .cx-seal-bg {
+  stroke: transparent !important;
+}
+html[data-cx-theme='dark'] .cx-seal-4 .cx-seal-bg {
+  stroke: rgba(255, 255, 255, 0.35) !important;
+}
+.cx-seal-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* the seal: belt colour with a check in the middle */
+.cx-seal {
+  width: 20px;
+  height: 20px;
+}
+.cx-seal.is-sm {
+  width: 18px;
+  height: 18px;
+}
+.cx-seal .cx-seal-tick {
+  fill: none;
+  stroke: currentColor !important;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cx-seal-1 .cx-seal-tick,
+.cx-seal-2 .cx-seal-tick {
+  stroke: #140a2e !important;
+}
+/* names give way before the seal does; nothing reserves blank space after a short name */
+.cx-name-text {
+  min-width: 0;
+}
+.cx-person-name > .cx-badge,
+.cx-person-name > .cx-role-tag,
+.cx-mlist-name > .cx-role-tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* the belt inside the seal */
+.cx-seal {
+  width: 22px;
+  height: 22px;
+}
+.cx-seal.is-sm {
+  width: 19px;
+  height: 19px;
+}
+.cx-seal-belt rect {
+  fill: currentColor;
+}
+.cx-seal-belt path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.cx-seal-1,
+.cx-seal-2 {
+  color: #140a2e;
+}
+/* the knot stands out from the band */
+.cx-seal-belt rect + rect {
+  stroke: var(--seal-fill, transparent);
+  stroke-width: 0.8;
+}
+.cx-seal-1 { --seal-fill: #fff; }
+.cx-seal-2 { --seal-fill: #ffcf24; }
+.cx-seal-3 { --seal-fill: #1e8449; }
+.cx-seal-4 { --seal-fill: #111014; }
+
+/* Work handed in on a lesson */
+.cx-work-switch {
+  margin: 4px 0 18px;
+}
+.cx-work-form {
+  gap: 12px;
+}
+.cx-work-btns {
+  display: flex;
+  gap: 10px;
+}
+.cx-work-note {
+  margin: 10px 0 0;
+}
+.cx-work-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.cx-work-meta .cx-link-btn {
+  color: var(--violet);
+  font-weight: 600;
+}
+html[data-cx-theme='dark'] .cx-work-meta .cx-link-btn {
+  color: #c9b0ff;
+}
+.cx-work-list {
+  display: grid;
+  gap: 22px;
+}
+.cx-work-item .cx-asg-who {
+  margin-bottom: 10px;
+}
+/* @everyone in the mention list */
+.cx-mentions .cx-mention-all {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
 }

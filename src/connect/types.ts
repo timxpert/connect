@@ -193,6 +193,9 @@ export type ProfileInput = Partial<
 /** A live class recording (YouTube, Unlisted) */
 export type LiveRecording = { message_id: string; group_id: string | null; title: string; video: string; held_at: string; on_learn: boolean };
 
+/** Work a student handed in on one lesson */
+export type LessonWork = { id: string; lesson_id: string; user_id: string; url: string; note: string; created_at: string; student?: Profile | null };
+
 export type Lesson = {
   id: string;
   phase: number;
@@ -351,6 +354,13 @@ export interface ConnectApi {
 
   /** Learn: the course outline (no videos), one lesson, progress */
   listLessons(): Promise<Lesson[]>;
+  /** Lessons where students hand in work (the Grand Sensei turns it on per lesson) */
+  lessonWorkOpen(lessonId: string): Promise<boolean>;
+  setLessonWorkOpen(lessonId: string, open: boolean): Promise<void>;
+  myLessonWork(lessonId: string): Promise<LessonWork | null>;
+  lessonWorkAll(lessonId: string): Promise<LessonWork[]>;
+  handInLessonWork(lessonId: string, url: string, note: string): Promise<void>;
+  removeLessonWork(lessonId: string): Promise<void>;
   /** Throws 'members_only', 'locked' or 'not_found' */
   getLesson(id: string): Promise<Lesson>;
   setLessonDone(id: string, done: boolean): Promise<void>;

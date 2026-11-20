@@ -28,6 +28,9 @@ const CACHED = new Set<keyof ConnectApi>([
 // Reads that must always be fresh (polling, auth)
 const LIVE = new Set<keyof ConnectApi>([
   'session',
+  'lessonWorkOpen',
+  'myLessonWork',
+  'lessonWorkAll',
   'subscribe',
   'presence',
   'listComments',

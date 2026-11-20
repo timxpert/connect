@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { onLinkClick, to } from './router';
 import { useConnect } from './context';
-import { isTall, timeAgo, toEmbed } from './media';
+import { driveFolderId, isTall, timeAgo, toEmbed } from './media';
 import { PHASES, type Post, type Profile } from './types';
 import { play } from './sounds';
 
@@ -282,24 +282,35 @@ export const BELTS = ['White Belt', 'Yellow Belt', 'Green Belt', 'Black Belt'];
 export function visiblePhase(p: Pick<Profile, 'id' | 'phase' | 'phase_public'>, viewer: Profile | null | undefined): number | null {
   if (!p.phase || !viewer) return null;
   if (viewer.id === p.id || viewer.is_sensei || viewer.is_moderator) return p.phase;
-  if (!viewer.is_student) return null;
-  return p.phase_public === false ? null : p.phase;
+  // every belt shows to members (it can't be hidden any more)
+  return viewer.is_student ? p.phase : null;
 }
 
+/** A scalloped seal, like a verified badge (made for Connect) */
+const SEAL = 'M12.00 0.87L12.69 1.03L13.33 1.46L13.91 2.01L14.44 2.50L14.99 2.80L15.61 2.88L16.33 2.79L17.12 2.69L17.89 2.72L18.54 3.00L19.00 3.53L19.27 4.25L19.42 5.03L19.56 5.75L19.82 6.31L20.28 6.74L20.92 7.10L21.61 7.48L22.22 7.95L22.58 8.56L22.64 9.27L22.44 10.01L22.09 10.72L21.79 11.38L21.67 12.00L21.79 12.62L22.09 13.28L22.44 13.99L22.64 14.73L22.58 15.44L22.22 16.05L21.61 16.52L20.92 16.90L20.28 17.26L19.82 17.69L19.56 18.25L19.42 18.97L19.27 19.75L19.00 20.47L18.54 21.00L17.89 21.28L17.12 21.31L16.33 21.21L15.61 21.12L14.99 21.20L14.44 21.50L13.91 21.99L13.33 22.54L12.69 22.97L12.00 23.13L11.31 22.97L10.67 22.54L10.09 21.99L9.56 21.50L9.01 21.20L8.39 21.12L7.67 21.21L6.88 21.31L6.11 21.28L5.46 21.00L5.00 20.47L4.73 19.75L4.58 18.97L4.44 18.25L4.18 17.69L3.72 17.26L3.08 16.90L2.39 16.52L1.78 16.05L1.42 15.44L1.36 14.73L1.56 13.99L1.91 13.28L2.21 12.62L2.33 12.00L2.21 11.38L1.91 10.72L1.56 10.01L1.36 9.27L1.42 8.56L1.78 7.95L2.39 7.48L3.08 7.10L3.72 6.74L4.18 6.31L4.44 5.75L4.58 5.03L4.73 4.25L5.00 3.53L5.46 3.00L6.11 2.72L6.88 2.69L7.67 2.79L8.39 2.88L9.01 2.80L9.56 2.50L10.09 2.01L10.67 1.46L11.31 1.03Z';
+
+/** The belt as a verified-style seal in the belt's colour, right after a name */
 export function BeltBadge({ p, small = false, showRole = true }: { p: Pick<Profile, 'id' | 'phase' | 'phase_public'> & { team_role?: string | null }; small?: boolean; showRole?: boolean }) {
   const { me } = useConnect();
   const phase = visiblePhase(p, me);
   const belt = phase ? BELTS[phase - 1] : null;
   // team members who are students: their role sits next to the belt
-  const role = showRole && p.team_role ?<span className={small ? 'cx-role-tag is-sm' : 'cx-role-tag'}>{p.team_role}</span> : null;
+  const role = showRole && p.team_role ? <span className={small ? 'cx-role-tag is-sm' : 'cx-role-tag'}>{p.team_role}</span> : null;
   if (!belt) return role;
-  const cls = ['cx-badge', small ? 'cx-badge-sm' : '', `cx-belt cx-belt-${phase}`].filter(Boolean).join(' ');
   return (
     <>
-      <span className={cls} title={`${belt}: phase ${phase}, ${PHASES[phase! - 1]}`}>
-        <Icon name="obi" size={small ? 13 : 15} />
-        {small ? <span className="sr-only">{belt}</span> : belt}
+      <span className={`cx-seal cx-seal-${phase}${small ? ' is-sm' : ''}`} role="img" aria-label={`${belt}, phase ${phase}`} title={`${belt}: phase ${phase}, ${PHASES[phase! - 1]}`}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path className="cx-seal-bg" d={SEAL} />
+          {/* the belt: a band, its knot and two hanging ends */}
+          <g className="cx-seal-belt">
+            <rect x="5" y="9.4" width="14" height="2.6" rx="0.9" />
+            <rect x="10.3" y="8.6" width="3.4" height="4.2" rx="0.8" />
+            <path d="M11 12.4 8.6 16.6M13 12.4l2.4 4.2" />
+          </g>
+        </svg>
       </span>
+      {!small && <span className="cx-seal-name">{belt}</span>}
       {role}
     </>
   );
@@ -358,7 +369,7 @@ export function PersonLine({ p, when }: { p: Profile; when?: string }) {
       <Avatar p={p} size={40} />
       <span className="cx-person-text">
         <span className="cx-person-name">
-          {p.name}
+          <span className="cx-name-text">{p.name}</span>
           {p.is_sensei && <SenseiBadge />}
           {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
           {p.sample && <SampleTag />}
@@ -400,6 +411,19 @@ export function Media({ post, priority = false }: { post: Pick<Post, 'kind' | 'm
     return (
       <div className="cx-media cx-media-file">
         <video src={url} controls playsInline preload="metadata" />
+      </div>
+    );
+  }
+  // a Google Drive folder: its files in a grid, and a link to open it
+  const folder = driveFolderId(url);
+  if (folder) {
+    return (
+      <div className="cx-media cx-media-folder">
+        <iframe src={`https://drive.google.com/embeddedfolderview?id=${folder}#grid`} title="Google Drive folder" loading="lazy" />
+        <a href={url} target="_blank" rel="noopener noreferrer">
+          <Icon name="out" size={16} />
+          Open the folder in Google Drive
+        </a>
       </div>
     );
   }

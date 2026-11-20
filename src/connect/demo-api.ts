@@ -3,7 +3,7 @@
    be clicked through before Supabase is connected. Every sample profile is
    flagged `sample: true` and the UI labels it. Nothing here is real. */
 
-import type { Assignment, BriefItem, Challenge, ChallengeEntry, Comment, ConnectApi, GroupMessage, ConnectionStatus, Conversation, Lesson, LessonInput, LiveRecording, Message, Notice, Post, Profile } from './types';
+import type { Assignment, BriefItem, Challenge, ChallengeEntry, Comment, ConnectApi, GroupMessage, ConnectionStatus, Conversation, Lesson, LessonInput, LessonWork, LiveRecording, Message, Notice, Post, Profile } from './types';
 
 const now = Date.now();
 const ago = (h: number) => new Date(now - h * 3600_000).toISOString();
@@ -163,6 +163,8 @@ let pins: string[] = [];
 const plays: { message_id: string; user_id: string; played_at: string }[] = [];
 const pollVotes = new Map<string, { option: number; user_id: string }[]>();
 const recordings = new Map<string, LiveRecording>();
+const workOpen = new Set<string>();
+const lessonWork: LessonWork[] = [];
 const invites = new Map<string, { gid: string; message: string; expires: number }>();
 const og = (gid: string) => {
   const g = ownGroups.find((x) => x.id === gid);
@@ -310,7 +312,7 @@ export function createDemoApi(): ConnectApi {
           (p) =>
             p.is_student &&
             (!f.skill || p.skills.includes(f.skill)) &&
-            (!f.phase || (p.phase === f.phase && p.phase_public !== false)) &&
+            (!f.phase || p.phase === f.phase) &&
             (!q || `${p.name} ${p.handle} ${p.country}`.toLowerCase().includes(q)),
         ),
       );
@@ -630,6 +632,30 @@ export function createDemoApi(): ConnectApi {
       const edit = (m: RawGroup) => (m.id === id ? { ...m, body, edited_at: new Date().toISOString() } : m);
       group = group.map(edit);
       for (const g of ownGroups) g.msgs = g.msgs.map(edit);
+    },
+    async lessonWorkOpen(lid) {
+      return wait(workOpen.has(lid));
+    },
+    async setLessonWorkOpen(lid, open) {
+      if (open) workOpen.add(lid);
+      else workOpen.delete(lid);
+    },
+    async myLessonWork(lid) {
+      return wait(lessonWork.find((w) => w.lesson_id === lid && w.user_id === current) ?? null);
+    },
+    async lessonWorkAll(lid) {
+      return wait(lessonWork.filter((w) => w.lesson_id === lid).map((w) => ({ ...w, student: people.find((p) => p.id === w.user_id) ?? null })));
+    },
+    async handInLessonWork(lid, url, note) {
+      const me = needMe();
+      const i = lessonWork.findIndex((w) => w.lesson_id === lid && w.user_id === me);
+      const w: LessonWork = { id: `w${Date.now()}`, lesson_id: lid, user_id: me, url, note, created_at: new Date().toISOString() };
+      if (i >= 0) lessonWork[i] = w;
+      else lessonWork.push(w);
+    },
+    async removeLessonWork(lid) {
+      const i = lessonWork.findIndex((w) => w.lesson_id === lid && w.user_id === current);
+      if (i >= 0) lessonWork.splice(i, 1);
     },
     async addLiveRecording(mid, video, onLearn) {
       const all = [...group, ...ownGroups.flatMap((g) => g.msgs)];

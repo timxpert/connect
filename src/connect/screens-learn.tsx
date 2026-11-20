@@ -8,9 +8,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useConnect } from './context';
 import { peek } from './cache';
 import { navigate } from './router';
-import { PHASES, type Assignment, type BriefItem, type DeviceRow, type Lesson, type LessonInput, type LiveRecording, type PhaseRequest } from './types';
+import { PHASES, type Assignment, type BriefItem, type DeviceRow, type Lesson, type LessonInput, type LessonWork, type LiveRecording, type PhaseRequest } from './types';
 import { A, Avatar, Empty, Icon, Loading, Media } from './ui';
-import { timeAgo, toEmbed } from './media';
+import { driveFolderId, timeAgo, toEmbed } from './media';
 import { YouTubePlayer, isShort, youtubeId, ytRatio, ytThumb } from './youtube';
 
 const MAIN_SITE = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://joinmotiondojo.com';
@@ -187,7 +187,7 @@ export function Learn() {
         ) : (
           <p>Every lesson in Black Belt in Motion Design.</p>
         )}
-        {team && (
+        {me?.is_sensei && (
           <A path="/learn/new" className="btn btn-primary btn-sm">
             <Icon name="plus" size={18} />
             Add lesson
@@ -311,7 +311,7 @@ export function Learn() {
                           {body}
                         </div>
                       )}
-                      {team && (
+                      {me?.is_sensei && (
                         <span className="cx-ln-order">
                           <button type="button" aria-label={`Move “${l.title}” up`} disabled={n === 0} onClick={() => move(l, -1)}>
                             <Icon name="up" size={16} />
@@ -637,7 +637,7 @@ export function LessonScreen({ id }: { id: string }) {
             <Icon name="out" size={16} />
           </A>
         )}
-        {team && (
+        {me?.is_sensei && (
           <A path={`/learn/${lesson.id}/edit`} className="btn btn-sm cx-ln-edit">
             Edit lesson
           </A>
@@ -680,6 +680,8 @@ export function LessonScreen({ id }: { id: string }) {
         </section>
       )}
 
+      <LessonWorkBlock lessonId={lesson.id} />
+
       <nav className="cx-ln-pager" aria-label="Lessons">
         {prev ? (
           <A path={`/learn/${prev.id}`}>
@@ -707,6 +709,151 @@ export function LessonScreen({ id }: { id: string }) {
       </div>
       </div>
     </div>
+  );
+}
+
+/* ================= Work handed in on a lesson ================= */
+/** The Grand Sensei turns it on for a lesson; students hand in a link with a
+    short note (and can change it); the team sees everyone's. */
+function LessonWorkBlock({ lessonId }: { lessonId: string }) {
+  const { api, me, toast } = useConnect();
+  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  const learner = Boolean(me?.is_student);
+  const [open, setOpen] = useState<boolean | null>(null);
+  const [mine, setMine] = useState<LessonWork | null>(null);
+  const [all, setAll] = useState<LessonWork[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [link, setLink] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let live = true;
+    api.lessonWorkOpen(lessonId).then((o) => live && setOpen(o)).catch(() => live && setOpen(false));
+    if (learner) api.myLessonWork(lessonId).then((w) => live && setMine(w)).catch(() => {});
+    if (team) api.lessonWorkAll(lessonId).then((w) => live && setAll(w)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [api, lessonId, learner, team]);
+
+  if (open === null) return null;
+  const toggle = async () => {
+    try {
+      await api.setLessonWorkOpen(lessonId, !open);
+      setOpen(!open);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = link.trim();
+    setError('');
+    if (!url) return setError('Paste the link to your work.');
+    if (!toEmbed(url) && !driveFolderId(url)) return setError('Use a Google Drive file or folder link, or a YouTube, Instagram, TikTok or Vimeo link.');
+    setBusy(true);
+    try {
+      await api.handInLessonWork(lessonId, url, note.trim());
+      setMine(await api.myLessonWork(lessonId));
+      setEditing(false);
+      setLink('');
+      setNote('');
+      toast('Handed in');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async () => {
+    await api.removeLessonWork(lessonId).catch(() => {});
+    setMine(null);
+  };
+
+  return (
+    <>
+      {me?.is_sensei && (
+        <label className="cx-check cx-work-switch">
+          <input type="checkbox" checked={open} onChange={toggle} />
+          <span>Students hand in work for this lesson</span>
+        </label>
+      )}
+      {open && learner && !me?.is_sensei && (
+        <section className="cx-ln-block cx-work">
+          <h2>Hand in your work</h2>
+          {mine && !editing ? (
+            <div className="cx-work-mine">
+              <Media post={{ kind: 'video', media_url: mine.url, caption: mine.note }} />
+              {mine.note && <p className="cx-work-note">{mine.note}</p>}
+              <p className="cx-work-meta">
+                Handed in {timeAgo(mine.created_at)}
+                <button type="button" className="cx-link-btn" onClick={() => (setEditing(true), setLink(mine.url), setNote(mine.note))}>
+                  Change
+                </button>
+                <button type="button" className="cx-link-btn" onClick={remove}>
+                  Remove
+                </button>
+              </p>
+            </div>
+          ) : (
+            <form className="cx-form cx-work-form" onSubmit={send} noValidate>
+              <label className="field">
+                <span>Link to your work</span>
+                <input value={link} inputMode="url" placeholder="https://drive.google.com/…" onChange={(e) => setLink(e.target.value)} />
+                <small>A Google Drive file or folder (shared with “Anyone with the link”), or YouTube, Instagram, TikTok or Vimeo.</small>
+              </label>
+              <label className="field">
+                <span>A note (optional)</span>
+                <textarea rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} />
+              </label>
+              {error && (
+                <p className="cx-error" role="alert">
+                  {error}
+                </p>
+              )}
+              <div className="cx-work-btns">
+                <button type="submit" className="btn btn-primary" disabled={busy}>
+                  {busy ? 'Sending…' : 'Hand in'}
+                </button>
+                {editing && (
+                  <button type="button" className="btn btn-light" onClick={() => setEditing(false)}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </form>
+          )}
+        </section>
+      )}
+      {open && team && (
+        <section className="cx-ln-block cx-work">
+          <h2>Students’ work{all.length ? ` · ${all.length}` : ''}</h2>
+          {all.length === 0 ? (
+            <p className="cx-muted">No one has handed in work for this lesson yet.</p>
+          ) : (
+            <div className="cx-work-list">
+              {all.map((w) => (
+                <div key={w.id} className="cx-work-item">
+                  {w.student && (
+                    <A path={`/u/${w.student.handle}`} className="cx-asg-who">
+                      <Avatar p={w.student} size={36} />
+                      <span>
+                        <b>{w.student.name}</b>
+                        <small>{timeAgo(w.created_at)}</small>
+                      </span>
+                    </A>
+                  )}
+                  <Media post={{ kind: 'video', media_url: w.url, caption: w.note }} />
+                  {w.note && <p className="cx-work-note">{w.note}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+    </>
   );
 }
 
@@ -757,7 +904,8 @@ function PicturesField({ images, onChange }: { images: string[]; onChange: (fn: 
 
 export function LessonEditor({ id }: { id?: string }) {
   const { api, me } = useConnect();
-  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  // only the Grand Sensei adds or changes lessons
+  const team = Boolean(me?.is_sensei);
   const [f, setF] = useState<LessonInput | null>(id ? null : EMPTY);
   const { list: lessonsAll } = useLessons();
   const [error, setError] = useState('');
@@ -1123,6 +1271,8 @@ function BriefItemsEditor({ items, onChange }: { items: BriefItem[]; onChange: (
 export function AssignmentScreen({ phase }: { phase: number }) {
   const { api, me } = useConnect();
   const team = Boolean(me?.is_sensei || me?.is_moderator);
+  // only the Grand Sensei changes the brief; moderators who are students hand in like everyone
+  const editor = Boolean(me?.is_sensei);
   const learner = Boolean(me?.is_student);
   const { list } = useLessons();
   const [mine, setMine] = useState<Assignment[] | null>(null);
@@ -1161,7 +1311,7 @@ export function AssignmentScreen({ phase }: { phase: number }) {
     );
   }
 
-  const status = team ? 'team' : phaseStatus(list, mine, phase);
+  const status = editor ? 'team' : phaseStatus(list, mine, phase);
   const history = mine.filter((a) => a.phase === phase);
   const approvedPost = history.find((a) => a.status === 'approved')?.post_id;
 
@@ -1170,7 +1320,7 @@ export function AssignmentScreen({ phase }: { phase: number }) {
     setError('');
     const url = link.trim();
     if (!url) return setError('Paste the link to your project.');
-    if (!toEmbed(url)) return setError('Use a Google Drive link to the file, or a YouTube, Instagram, TikTok or Vimeo link.');
+    if (!toEmbed(url) && !driveFolderId(url)) return setError('Use a Google Drive file or folder link, or a YouTube, Instagram, TikTok or Vimeo link.');
     setBusy(true);
     try {
       await api.submitAssignment(phase, 'video', url, caption.trim());
@@ -1193,7 +1343,7 @@ export function AssignmentScreen({ phase }: { phase: number }) {
       </p>
       <h1 className="cx-h1">Phase {phase} assignment</h1>
 
-      {team ? (
+      {editor ? (
         <form
           className="cx-form"
           onSubmit={async (e) => {
@@ -1227,21 +1377,29 @@ export function AssignmentScreen({ phase }: { phase: number }) {
           {brief ? <Notes text={brief} /> : <p className="cx-ln-summary">Hand in the project you made in this phase.</p>}
           <BriefItemsView items={items} />
 
-          {status === 'locked' && <p className="cx-ln-note">Finish every lesson in phase {phase} to hand it in.</p>}
-          {status === 'pending' && <p className="cx-ln-note">Handed in. The next phase opens when it’s approved.</p>}
-          {status === 'approved' && (
-            <p className="cx-ln-note is-ok">
-              Approved. {phase < 4 ? `Phase ${phase + 1} is open.` : 'You’ve finished Black Belt.'}{' '}
-              {approvedPost && <A path={`/p/${approvedPost}`}>See it on the feed</A>}
+          {!learner && team && (
+            <A path="/reviews" className="btn cx-ln-edit">
+              Review assignments
+            </A>
+          )}
+          {learner && status === 'locked' && <p className="cx-asg-state">Finish every lesson in phase {phase} to hand it in.</p>}
+          {learner && status === 'pending' && <p className="cx-asg-state">Handed in. The next phase opens when it’s approved.</p>}
+          {learner && status === 'approved' && (
+            <p className="cx-asg-state is-ok">
+              <Icon name="check" size={18} />
+              <span>
+                Approved. {phase < 4 ? `Phase ${phase + 1} is open.` : 'You’ve finished Black Belt.'}{' '}
+                {approvedPost && <A path={`/p/${approvedPost}`}>See it on the feed</A>}
+              </span>
             </p>
           )}
 
-          {(status === 'due' || status === 'changes') && (
+          {learner && (status === 'due' || status === 'changes') && (
             <form className="cx-form cx-asg-form" onSubmit={submit} noValidate>
               <label className="field">
                 <span>Link to your project</span>
-                <input value={link} inputMode="url" placeholder="https://drive.google.com/file/d/…" onChange={(e) => setLink(e.target.value)} />
-                <small>A Google Drive link (Anyone with the link), or YouTube, Instagram, TikTok or Vimeo.</small>
+                <input value={link} inputMode="url" placeholder="https://drive.google.com/…" onChange={(e) => setLink(e.target.value)} />
+                <small>A Google Drive file or folder (shared with “Anyone with the link”), or YouTube, Instagram, TikTok or Vimeo.</small>
               </label>
               <label className="field">
                 <span>About your project</span>

@@ -8,7 +8,7 @@ import { markPushOn, pushSubscription } from './alerts';
 import { plainText } from './format';
 import { specialLine } from './special';
 import { to } from './router';
-import type { CallSignal, TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, LiveRecording, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
+import type { CallSignal, TypingSignal, Assignment, BriefItem, Challenge, ChallengeEntry, ChallengeStat, Comment, ConnectApi, ConnectionStatus, Conversation, DeviceRow, GroupInfo, GroupMessage, Lesson, LessonWork, LiveRecording, Message, Notice, PhaseRequest, Post, Profile, ProfileInput, StudentFilter } from './types';
 
 /** Shown when the database is missing the chat changes */
 const NEEDS_UPDATE = 'Voice notes and files need the latest database update. Run supabase/update-all.sql in Supabase, then try again.';
@@ -496,7 +496,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       let q = sb.from('profiles').select('*').eq('is_student', true).order('created_at', { ascending: false }).limit(200);
       if (filter.skill) q = q.contains('skills', [filter.skill]);
       // Private phases never show up in a phase filter
-      if (filter.phase) q = q.eq('phase', filter.phase).neq('phase_public', false);
+      if (filter.phase) q = q.eq('phase', filter.phase);
       if (filter.q) {
         const term = filter.q.replace(/[%,()]/g, ' ').trim();
         if (term) q = q.or(`name.ilike.%${term}%,handle.ilike.%${term}%,country.ilike.%${term}%`);
@@ -962,6 +962,41 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
       const r = ((data ?? []) as { id: string; phase: number; lesson_position: number; title: string; summary: string; duration: string; video_url: string; notes: string; files: Lesson['files']; published: boolean; done: boolean; is_open: boolean; size_mb: number | null; portrait?: boolean; images?: string[] | null; section?: string | null }[])[0];
       if (!r) throw new Error('not_found');
       return { id: r.id, phase: r.phase, position: r.lesson_position, title: r.title, summary: r.summary, duration: r.duration, published: r.published, has_video: Boolean(r.video_url), done: r.done, open: r.is_open, size_mb: r.size_mb ?? null, portrait: r.portrait ?? true, images: r.images ?? [], section: r.section ?? '', video_url: r.video_url, notes: r.notes, files: r.files ?? [] };
+    },
+    async lessonWorkOpen(lid) {
+      const { data, error } = await sb.from('lesson_work_open').select('lesson_id').eq('lesson_id', lid).maybeSingle();
+      return !error && Boolean(data);
+    },
+    async setLessonWorkOpen(lid, open) {
+      const { error } = open ? await sb.from('lesson_work_open').upsert({ lesson_id: lid }) : await sb.from('lesson_work_open').delete().eq('lesson_id', lid);
+      if (error && /lesson_work/.test(error.message)) throw new Error('Lesson work needs a database update: run nov20.sql in Supabase.');
+      fail(error);
+    },
+    async myLessonWork(lid) {
+      const me = await needUid();
+      const { data, error } = await sb.from('lesson_work').select('*').eq('lesson_id', lid).eq('user_id', me).maybeSingle();
+      if (error) return null;
+      return (data as LessonWork | null) ?? null;
+    },
+    async lessonWorkAll(lid) {
+      const { data, error } = await sb
+        .from('lesson_work')
+        .select('*, student:profiles!lesson_work_user_id_fkey(id, handle, name, avatar_url, phase, phase_public, team_role, is_student, is_moderator, is_sensei)')
+        .eq('lesson_id', lid)
+        .order('created_at', { ascending: false });
+      if (error) return [];
+      return (data ?? []) as unknown as LessonWork[];
+    },
+    async handInLessonWork(lid, url, note) {
+      const me = await needUid();
+      const { error } = await sb.from('lesson_work').upsert({ lesson_id: lid, user_id: me, url, note, created_at: new Date().toISOString() }, { onConflict: 'lesson_id,user_id' });
+      if (error && /lesson_work/.test(error.message)) throw new Error('Handing in work needs a database update: run nov20.sql in Supabase.');
+      fail(error);
+    },
+    async removeLessonWork(lid) {
+      const me = await needUid();
+      const { error } = await sb.from('lesson_work').delete().eq('lesson_id', lid).eq('user_id', me);
+      fail(error);
     },
     async setLessonDone(id, done) {
       const { error } = await sb.rpc('set_lesson_done', { lid: id, is_done: done });

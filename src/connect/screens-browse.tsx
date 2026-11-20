@@ -235,7 +235,7 @@ function MembersList() {
                   <Avatar p={p} size={44} />
                   <span className="cx-mlist-who">
                     <span className="cx-mlist-name">
-                      {p.name}
+                      <span className="cx-name-text">{p.name}</span>
                       <BeltBadge p={p} small />
                       {p.sample && <SampleTag />}
                     </span>
@@ -308,7 +308,7 @@ function Likers({ postId, tick }: { postId: string; tick: number }) {
                   <A path={`/u/${p.handle}`} onClick={() => setOpen(false)}>
                     <Avatar p={p} size={40} />
                     <span>
-                      <b>{p.name}</b>
+                      <b className="cx-name-text">{p.name}</b>
                       <BeltBadge p={p} small />
                     </span>
                   </A>

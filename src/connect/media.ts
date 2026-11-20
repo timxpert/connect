@@ -2,6 +2,17 @@
    Supported: YouTube, Vimeo (incl. unlisted), Instagram posts/reels, TikTok,
    Google Drive files shared with "Anyone with the link". */
 
+/** A Google Drive folder link's id (drive.google.com/drive/folders/<id>) */
+export function driveFolderId(url: string): string | null {
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname.replace(/^www\./, '') !== 'drive.google.com') return null;
+    return u.pathname.match(/\/folders\/([\w-]+)/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function toEmbed(url: string): string | null {
   let u: URL;
   try {

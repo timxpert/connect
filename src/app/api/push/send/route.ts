@@ -51,12 +51,14 @@ async function byAlertLevel(admin: Admin, ids: string[], msg: GroupMsg | null, s
     repliedTo = (r as { sender_id: string } | null)?.sender_id ?? '';
   }
   const text = (msg.body || '').toLowerCase();
+  // @everyone tags the whole group
+  const all = /(^|\s)@everyone\b/.test(text);
   return ((people ?? []) as { id: string; handle: string; alert_level: string | null }[])
     .filter((p) => {
       const level = p.alert_level || 'all';
       if (level === 'off') return false;
       if (level === 'all') return true;
-      return team || msg.kind === 'poll' || msg.kind === 'live' || p.id === repliedTo || (!!p.handle && text.includes(`@${p.handle.toLowerCase()}`));
+      return team || all || msg.kind === 'poll' || msg.kind === 'live' || p.id === repliedTo || (!!p.handle && text.includes(`@${p.handle.toLowerCase()}`));
     })
     .map((p) => p.id);
 }
