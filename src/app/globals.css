@@ -10507,26 +10507,6 @@ html.cx-kb-overlay body {
   }
 }
 
-/* hidden keyboard check panel */
-.cx-kbcheck {
-  position: fixed;
-  top: env(safe-area-inset-top, 0px);
-  left: 0;
-  right: 0;
-  z-index: 300;
-  padding: 6px 10px;
-  background: rgba(0, 0, 0, 0.82);
-  color: #c8ff3d;
-  font: 11px/1.35 ui-monospace, monospace;
-  pointer-events: none;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-.cx-kbcheck hr {
-  margin: 4px 0;
-  border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.25);
-}
 /* in a chat: no extra room below the page (the chat already fits above the keyboard) */
 html.cx-in-chat.cx-kb-open body {
   padding-bottom: 0;

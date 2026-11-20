@@ -11,7 +11,6 @@ import type { Attachment, Conversation, GroupRow, Message, Profile } from './typ
 import { peek } from './cache';
 import { coalesce } from './coalesce';
 import { useHidden } from './hidden';
-import { toggleKbCheck } from './kbcheck';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge, TeamRole, type IconName } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
@@ -1973,7 +1972,6 @@ const KIND_ICON = { voice: 'mic', image: 'image', video: 'video', file: 'file' }
 
 export function Inbox() {
   const { api, me, signedIn, toast } = useConnect();
-  const taps = useRef<number[]>([]);
   const [list, setList] = useState<Conversation[] | null>(() => peek<Conversation[]>('listConversations') ?? null);
   const [people, setPeople] = useState<Profile[]>(() => peek<Profile[]>('listConnections') ?? []);
   const [q, setQ] = useState('');
@@ -2071,20 +2069,7 @@ export function Inbox() {
   return (
     <div className="cx-col cx-inbox-page">
       <div className="cx-inbox-head">
-        <h1
-          className="cx-inbox-title"
-          onClick={() => {
-            // hidden keyboard check: five quick taps
-            const t = Date.now();
-            taps.current = taps.current.filter((x) => t - x < 2000).concat(t);
-            if (taps.current.length >= 5) {
-              taps.current = [];
-              toggleKbCheck();
-            }
-          }}
-        >
-          Messages
-        </h1>
+        <h1 className="cx-inbox-title">Messages</h1>
         {me.is_sensei && (
           <button type="button" className="cx-new-group" onClick={() => setNewGroup(true)}>
             <Icon name="people" size={18} />

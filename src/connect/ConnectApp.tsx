@@ -8,7 +8,6 @@ import { play, setSoundOn, soundOn } from './sounds';
 import { alertsAllowed, alertsSupported, askForAlerts, notify, pushOn, registerAlerts } from './alerts';
 import { startPresence } from './presence';
 import { keyboardOver, useKeyboardOverlay } from './keyboard';
-import { KeyboardCheck } from './kbcheck';
 import { guardDevice } from './device';
 import { CHAT_COLORS, useAppearance } from './appearance';
 import { Appearance as AppearanceScreen } from './screens-appearance';
@@ -633,7 +632,6 @@ function Shell({ route }: { route: Route }) {
       <Composer />
       {route.name !== 'settings' && route.name !== 'login' && <PhasePrompt />}
       {me && member && !strict && <CallLayer />}
-      <KeyboardCheck />
       {askFocus && (
         <FocusPrompt
           onClose={() => navigate('/learn')}
