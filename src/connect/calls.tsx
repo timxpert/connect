@@ -107,14 +107,14 @@ function prepareRingtone() {
   window.addEventListener('pointerdown', unlock, true);
   window.addEventListener('keydown', unlock, true);
 }
-/** Starts the ringtone; calls back with false if the phone won't play it */
-function startRingtone(onBlocked: () => void) {
+/** Starts the ringtone (softer for the caller); calls back if the phone won't play it */
+function startRingtone(onBlocked: () => void, volume = 1) {
   const el = ringEl;
   if (!el) return onBlocked();
   ringOn = true;
   el.muted = false;
   el.currentTime = 0;
-  el.volume = 1;
+  el.volume = volume;
   el.play().catch(onBlocked);
 }
 function stopRingtone() {
@@ -325,10 +325,15 @@ export function CallLayer() {
       const ringOnce = () => api.callSend(peer.id, { type: 'ring', call, from: meAsPeer(), conv, video });
       ringOnce();
       api.ringPhone(conv, video).catch(() => {});
-      tune(SOUNDS.ringback);
+      // the caller hears Marimba too, softer (the old two-note pulse only if the phone blocks it)
+      let blocked = false;
+      startRingtone(() => {
+        blocked = true;
+        tune(SOUNDS.ringback);
+      }, 0.45);
       ring.current = window.setInterval(() => {
         ringOnce();
-        tune(SOUNDS.ringback);
+        if (blocked) tune(SOUNDS.ringback);
       }, 3000);
       timers.current.push(
         window.setTimeout(() => {
