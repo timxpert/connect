@@ -64,9 +64,9 @@ drop policy if exists lw_read on public.lesson_work;
 drop policy if exists lw_add on public.lesson_work;
 drop policy if exists lw_change on public.lesson_work;
 drop policy if exists lw_remove on public.lesson_work;
--- you see your own; the team sees everyone's
+-- you see your own; only the Grand Sensei sees everyone's
 create policy lw_read on public.lesson_work for select to authenticated
-  using (user_id = auth.uid() or public.is_team(auth.uid()));
+  using (user_id = auth.uid() or public.is_sensei(auth.uid()));
 -- students hand in on lessons the Grand Sensei opened for work
 create policy lw_add on public.lesson_work for insert to authenticated
   with check (user_id = auth.uid() and public.is_student(auth.uid())

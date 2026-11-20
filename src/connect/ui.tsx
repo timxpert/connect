@@ -218,6 +218,7 @@ export function Icon({ name, size = 22, filled = false }: { name: IconName; size
       strokeLinejoin="round"
       aria-hidden="true"
       focusable="false"
+      className={name === 'play' ? 'play-icon' : undefined}
     >
       {PATHS[name]}
     </svg>

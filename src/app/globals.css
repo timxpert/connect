@@ -10151,3 +10151,8 @@ html[data-cx-theme='dark'] .cx-work-meta .cx-link-btn {
   background: var(--violet);
   color: #fff;
 }
+
+/* A play triangle looks off-centre in a circle; nudge it right */
+.play-icon {
+  transform: translateX(15%);
+}

@@ -714,10 +714,11 @@ export function LessonScreen({ id }: { id: string }) {
 
 /* ================= Work handed in on a lesson ================= */
 /** The Grand Sensei turns it on for a lesson; students hand in a link with a
-    short note (and can change it); the team sees everyone's. */
+    short note (and can change it); only the Grand Sensei sees everyone's. */
 function LessonWorkBlock({ lessonId }: { lessonId: string }) {
   const { api, me, toast } = useConnect();
-  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  // only the Grand Sensei sees everyone's work
+  const team = Boolean(me?.is_sensei);
   const learner = Boolean(me?.is_student);
   const [open, setOpen] = useState<boolean | null>(null);
   const [mine, setMine] = useState<LessonWork | null>(null);
