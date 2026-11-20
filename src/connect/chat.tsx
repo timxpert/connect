@@ -685,7 +685,26 @@ export function withMentions(text: string) {
 }
 
 /* ---------- One message ---------- */
-export function Bubble({
+// Typing re-draws the chat screen on every key. Messages that haven't changed
+// skip that work, so typing stays smooth in long chats. Handlers only use
+// state setters and refs, so an older copy of them still does the right thing.
+const sameish = (a: unknown, b: unknown, depth = 0): boolean => {
+  if (a === b) return true;
+  if (typeof a === 'function' && typeof b === 'function') return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || depth > 2) return false;
+  if (React.isValidElement(a) || React.isValidElement(b)) {
+    if (!React.isValidElement(a) || !React.isValidElement(b) || a.type !== b.type || a.key !== b.key) return false;
+    return sameish(a.props, b.props, depth + 1);
+  }
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a as object);
+  const kb = Object.keys(b as object);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => sameish((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth + 1));
+};
+export const Bubble = React.memo(BubbleView, (a, b) => sameish(a, b));
+
+function BubbleView({
   m,
   mine,
   ready,

@@ -10547,3 +10547,70 @@ html.cx-kb-overlay body {
   color: var(--muted);
   font-size: 0.92rem;
 }
+
+/* Colour rule, every page: white text on Dojo Violet, black text on Electric Lime.
+   Last in the file so it wins over earlier rules (more specific theme rules that
+   change the fill also set their own text colour). */
+.btn-primary,
+.btn-primary:hover,
+.cx .btn-danger:hover,
+.cx-addp-tick.is-on,
+.cx-auth-top,
+.cx-chip.is-on,
+.cx-inbox-page .cx-inbox-count,
+.cx-conn-label .cx-inbox-count,
+.cx-continue-go,
+.cx-focusbar,
+.cx-fwd-row.is-on .cx-fwd-check,
+.cx-gi-act-ico,
+.cx-group-initial,
+.cx-guest,
+.cx-live-rec-play,
+.cx-ln-mark.is-open,
+.cx-lock-line,
+.cx-mentions .cx-mention-all,
+.cx-phases li.is-done,
+.cx-send,
+.cx-sheet .btn-primary,
+.cx-tab-post .cx-tab-ico,
+.cx-talent-card:hover .cx-talent-go,
+.cx-thumb-text,
+.cx-voice-btn,
+html[data-cx-theme='dark'] .cx-chip.is-on,
+html[data-cx-theme='dark'] .cx-inbox-page .cx-inbox-count,
+html[data-cx-theme='dark'] .cx-look-seg button.is-on {
+  color: #ffffff;
+}
+.btn-lime,
+.btn-lime:hover,
+.cx-badge-sensei,
+.cx-cmp-tools .cx-cmp-fb.is-on,
+.cx-inbox-count,
+.cx-ln-done,
+.cx-ln-mark.is-done,
+.cx-ln-next-ico,
+.cx-player-play,
+.cx-preview-bar,
+.cx-sample,
+.cx-tag-passed,
+html[data-cx-theme='dark'] .btn-lime,
+html[data-cx-theme='dark'] .cx-ln-done,
+html[data-cx-theme='dark'] .cx-ln-mark.is-done,
+html[data-cx-theme='dark'] .cx-ln-next-ico,
+html[data-cx-theme='dark'] .cx-player-play,
+html[data-cx-theme='dark'] .cx-preview-bar,
+html[data-cx-theme='dark'] .cx-tag-passed,
+html[data-cx-theme='dark'] .cx-cmp-tools .cx-cmp-fb.is-on {
+  color: #000000;
+}
+/* "seen" on my violet messages: the number is white, the ticks stay lime */
+.cx-msg.is-mine .cx-tick.is-seen {
+  color: #ffffff;
+}
+.cx-msg.is-mine .cx-tick.is-seen svg {
+  color: var(--lime);
+}
+.cx-msg.is-mine .cx-seen-count span,
+html[data-cx-theme='dark'] .cx-conn-label .cx-inbox-count {
+  color: #ffffff;
+}
