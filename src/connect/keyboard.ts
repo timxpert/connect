@@ -1,50 +1,14 @@
 'use client';
-/* Installed app (opened from the home screen): the keyboard slides over the
-   page instead of shrinking the window. Shrinking showed a flash of the app's
-   fixed background colour every time the keyboard opened. The height the
-   keyboard covers is kept in --kb, and the page makes room for it. In a normal
-   browser tab nothing changes. */
+/* The keyboard shrinks the window and the chat fits the space that's left
+   (see the keyboard-fit effect in ConnectApp). We tried letting the keyboard
+   slide over the page in the installed app, but on Android the space Chrome
+   reports for the keyboard didn't match where it's drawn: a white band showed
+   and the message box was hidden. So the page always resizes, like in a
+   browser tab. */
 
-import { useEffect } from 'react';
-
-type VirtualKeyboard = EventTarget & { overlaysContent: boolean; boundingRect: DOMRect };
-let covered = 0;
-
-/** Height the keyboard covers right now (0 outside the installed app) */
-export const keyboardOver = () => covered;
+/** Height the keyboard covers on top of the page: always 0 now (the window shrinks instead) */
+export const keyboardOver = () => 0;
 
 export function useKeyboardOverlay() {
-  useEffect(() => {
-    const vk = (navigator as Navigator & { virtualKeyboard?: VirtualKeyboard }).virtualKeyboard;
-    const installed = window.matchMedia('(display-mode: standalone)').matches;
-    if (!vk || !installed) return;
-    const root = document.documentElement;
-    vk.overlaysContent = true;
-    // the page moves with the keyboard (see .cx-kb-overlay in the styles)
-    root.classList.add('cx-kb-overlay');
-    const change = () => {
-      covered = Math.round(vk.boundingRect.height);
-      root.style.setProperty('--kb', `${covered}px`);
-      root.classList.toggle('cx-kb-open', covered > 0);
-      window.dispatchEvent(new Event('cx:keyboard'));
-      // keep what you're typing in view
-      const el = document.activeElement as HTMLElement | null;
-      // chats size themselves above the keyboard; only other pages scroll
-      if (covered > 0 && el && /^(INPUT|TEXTAREA)$/.test(el.tagName) && !root.classList.contains('cx-in-chat')) {
-        window.setTimeout(() => {
-          const r = el.getBoundingClientRect();
-          const room = window.innerHeight - covered;
-          if (r.bottom > room - 12) window.scrollBy({ top: r.bottom - room + 24 });
-        }, 280);
-      }
-    };
-    vk.addEventListener('geometrychange', change);
-    return () => {
-      vk.removeEventListener('geometrychange', change);
-      vk.overlaysContent = false;
-      covered = 0;
-      root.style.removeProperty('--kb');
-      root.classList.remove('cx-kb-open', 'cx-kb-overlay');
-    };
-  }, []);
+  // nothing to do: kept so callers don't change
 }
