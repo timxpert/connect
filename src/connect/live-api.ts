@@ -1191,13 +1191,15 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async listGroupMessages(gid) {
       const me = await uid();
       // only the parts of the sender a chat shows (not their bio, links and skills)
-      const slim = 'id, handle, name, avatar_url, phase, phase_public, team_role, is_student, is_moderator, is_sensei';
-      const pick = (who: string) => () => sb.from('group_messages').select(`*, sender:profiles!group_messages_sender_id_fkey(${who})`).order('created_at', { ascending: false }).limit(200);
-      let q = pick(slim);
+      const FULL = '*, sender:profiles!group_messages_sender_id_fkey(*)';
+      const SLIM = '*, sender:profiles!group_messages_sender_id_fkey(id, handle, name, avatar_url, phase, phase_public, team_role, is_student, is_moderator, is_sensei)';
+      // (typed as the full select: the rows are read as GroupMessage below either way)
+      const pick = (sel: string) => () => sb.from('group_messages').select(sel as typeof FULL).order('created_at', { ascending: false }).limit(200);
+      let q = pick(SLIM);
       let { data, error } = await (gid ? q().eq('group_id', gid) : q().is('group_id', null));
       // a database without team roles yet
       if (error && /team_role|phase_public/.test(error.message)) {
-        q = pick('*');
+        q = pick(FULL);
         ({ data, error } = await (gid ? q().eq('group_id', gid) : q().is('group_id', null)));
       }
       // database without your own groups yet (groups.sql): everything is the community group
