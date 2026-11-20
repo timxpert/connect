@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   twitter: { card: 'summary', title, description },
   icons: { icon: '/assets/favicon-128.png', apple: '/assets/icon-192.png' },
   appleWebApp: { capable: true, title: 'Connect', statusBarStyle: 'default' },
-  manifest: '/manifest.webmanifest',
+  manifest: '/api/manifest',
 };
 
 export const viewport: Viewport = {
