@@ -10434,3 +10434,55 @@ html[data-cx-theme='dark'] {
 html[data-cx-theme='light'] {
   background: #ffffff;
 }
+
+/* Call: the small video can be dragged and tapped to swap with the big one */
+.cx-call-self.is-pip,
+.cx-call-remote.is-pip {
+  position: absolute;
+  inset: auto;
+  right: 16px;
+  bottom: calc(130px + env(safe-area-inset-bottom));
+  width: 104px;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  object-fit: cover;
+  z-index: 2;
+  touch-action: none;
+  cursor: grab;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.cx-call-self.is-main {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  z-index: 0;
+}
+.cx-call-self.is-main.is-back,
+.cx-call-self.is-pip.is-back {
+  transform: none;
+}
+/* connection notice under the name */
+.cx-call-net {
+  margin-top: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.cx-call-net.is-poor {
+  color: #ffd166;
+}
+.cx-call-net.is-reconnecting,
+.cx-call-net.is-offline {
+  color: #ff9b9b;
+}
+/* the name, time and connection notice stay above the small video */
+.cx-call-who {
+  position: relative;
+  z-index: 3;
+}

@@ -10,6 +10,7 @@ import { useDragToClose } from './drag';
 import type { Attachment, Conversation, GroupRow, Message, Profile } from './types';
 import { peek } from './cache';
 import { coalesce } from './coalesce';
+import { useHidden } from './hidden';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge, TeamRole, type IconName } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
@@ -949,6 +950,7 @@ export function Chat({ id }: { id: string }) {
   const [blocked, setBlocked] = useState(false);
   const [menu, setMenu] = useState(false);
   const [held, setHeld] = useState<Message | null>(null);
+  const { hidden, hide } = useHidden(me?.id);
   // + : any emoji as a reaction
   const [rxMore, setRxMore] = useState<Message | null>(null);
   // editing one of my messages: the box holds its text until saved
@@ -1023,7 +1025,7 @@ export function Chat({ id }: { id: string }) {
     };
   }, [api, id, me, load]);
 
-  const all = [...msgs, ...local];
+  const all = [...msgs, ...local].filter((m) => !hidden.has(m.id));
   // Open where you left off: at the first message you haven't read (under an
   // "Unread messages" line), or at the newest one if you've read everything.
   // New messages after that glide into view. Only the message list moves.
@@ -1638,6 +1640,18 @@ export function Chat({ id }: { id: string }) {
                 <Icon name="pen" /> Edit
               </button>
             )}
+            <button
+              type="button"
+              role="menuitem"
+              className="cx-danger"
+              onClick={() => {
+                hide(held.id);
+                setHeld(null);
+                toast('Deleted for you');
+              }}
+            >
+              <Icon name="trash" /> Delete for me
+            </button>
             {held.sender_id === me.id ? (
               canUnsend(held.created_at, held.read_at) ? (
                 <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>

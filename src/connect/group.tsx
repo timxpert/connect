@@ -23,6 +23,7 @@ import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing'
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
 import { A, Avatar, BeltBadge, Empty, Icon, Loading, TeamRole } from './ui';
 import { coalesce } from './coalesce';
+import { useHidden } from './hidden';
 
 const MAX_FILE = 50 * 1024 * 1024;
 const EMOJI = ['👍', '❤️', '😂', '🔥', '👏', '🙏'];
@@ -125,6 +126,7 @@ function GroupChatInner() {
   const typers = useTyping(chatKey);
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [held, setHeld] = useState<GroupMessage | null>(null);
+  const { hidden, hide } = useHidden(me?.id);
   // + : any emoji as a reaction
   const [rxMore, setRxMore] = useState<GroupMessage | null>(null);
   const [forwarding, setForwarding] = useState<GroupMessage | null>(null);
@@ -251,7 +253,7 @@ function GroupChatInner() {
   /** Members (not me) who opened the group after this message arrived */
   const seenBy = (m: GroupMessage) => readers.filter((r) => r.id !== m.sender_id && r.read_at >= m.created_at);
 
-  const all = [...msgs, ...local];
+  const all = [...msgs, ...local].filter((m) => !hidden.has(m.id));
   // Open where you left off: at the first message you haven't read (under an
   // "Unread messages" line), or at the newest one if you've read everything.
   // New messages after that glide into view. Only the message list moves.
@@ -1012,6 +1014,18 @@ function GroupChatInner() {
                 <Icon name="pen" /> Edit
               </button>
             )}
+            <button
+              type="button"
+              role="menuitem"
+              className="cx-danger"
+              onClick={() => {
+                hide(held.id);
+                setHeld(null);
+                toast('Deleted for you');
+              }}
+            >
+              <Icon name="trash" /> Delete for me
+            </button>
             {team || (held.sender_id === me.id && canUnsend(held.created_at, held.seen_at)) ? (
               <button type="button" role="menuitem" className="cx-danger" onClick={() => remove(held)}>
                 <Icon name="trash" /> {held.sender_id === me.id ? 'Delete for everyone' : 'Delete message'}

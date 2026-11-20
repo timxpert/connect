@@ -193,6 +193,13 @@ export function CallLayer() {
   const { api, me, toast } = useConnect();
   const [st, setSt] = useState<State | null>(null);
   const [now, setNow] = useState(Date.now());
+  // how the connection is doing, shown on the call screen
+  const [net, setNet] = useState<'ok' | 'poor' | 'reconnecting' | 'offline'>('ok');
+  const dropTimer = useRef(0);
+  // the small video: where it sits, and whether it's swapped with the big one
+  const [swapped, setSwapped] = useState(false);
+  const [pipAt, setPipAt] = useState<{ x: number; y: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; ox: number; oy: number; moved: boolean } | null>(null);
   const s = useRef<State | null>(null);
   s.current = st;
   const pc = useRef<RTCPeerConnection | null>(null);
@@ -228,6 +235,10 @@ export function CallLayer() {
     local.current = null;
     remoteStream.current = null;
     pendingIce.current = [];
+    window.clearTimeout(dropTimer.current);
+    setNet('ok');
+    setSwapped(false);
+    setPipAt(null);
     setSt(null);
   };
   /** The caller writes the line in the chat */
@@ -268,11 +279,27 @@ export function CallLayer() {
         tune(SOUNDS.connected);
         setSt((c) => (c && c.phase !== 'live' ? { ...c, phase: 'live', startedAt: Date.now() } : c));
       }
-      if (p.connectionState === 'failed') {
-        toast('The call dropped. Check your connection and try again.');
-        send('hangup');
-        log(s.current?.startedAt ? 'ended' : 'missed');
-        cleanup();
+      if (p.connectionState === 'connected') {
+        window.clearTimeout(dropTimer.current);
+        setNet((n) => (n === 'offline' ? n : 'ok'));
+      }
+      // the line went quiet: try to get it back for 20 seconds before giving up
+      if (p.connectionState === 'disconnected' || p.connectionState === 'failed') {
+        setNet(navigator.onLine ? 'reconnecting' : 'offline');
+        if (p.connectionState === 'failed' && s.current?.role === 'caller') {
+          p.restartIce?.();
+          p.createOffer({ iceRestart: true })
+            .then((o) => p.setLocalDescription(o).then(() => send('offer', { sdp: o })))
+            .catch(() => {});
+        }
+        window.clearTimeout(dropTimer.current);
+        dropTimer.current = window.setTimeout(() => {
+          if (pc.current !== p || p.connectionState === 'connected') return;
+          toast('The call dropped. Check your connection and try again.');
+          send('hangup');
+          log(s.current?.startedAt ? 'ended' : 'missed');
+          cleanup();
+        }, 20000);
       }
     };
     return p;
@@ -456,6 +483,47 @@ export function CallLayer() {
     return () => window.removeEventListener('pagehide', bye);
   }, []);
 
+  // during a call: watch the line every 3 seconds (delay and lost sound), and the phone's internet
+  const live = st?.phase === 'live';
+  useEffect(() => {
+    if (!live) return;
+    let prev = { lost: 0, got: 0 };
+    const check = async () => {
+      const p = pc.current;
+      if (!p || p.connectionState !== 'connected') return;
+      try {
+        let rtt = 0;
+        let lost = 0;
+        let got = 0;
+        (await p.getStats()).forEach((r) => {
+          const x = r as Record<string, unknown>;
+          if (x.type === 'candidate-pair' && x.state === 'succeeded' && typeof x.currentRoundTripTime === 'number') rtt = Math.max(rtt, x.currentRoundTripTime);
+          if (x.type === 'inbound-rtp' && x.kind === 'audio') {
+            lost += Number(x.packetsLost ?? 0);
+            got += Number(x.packetsReceived ?? 0);
+          }
+        });
+        const dl = lost - prev.lost;
+        const dg = got - prev.got;
+        prev = { lost, got };
+        const poor = rtt > 0.6 || (dl + dg > 20 && dl / (dl + dg) > 0.08);
+        setNet((n) => (n === 'reconnecting' || n === 'offline' ? n : poor ? 'poor' : 'ok'));
+      } catch {
+        /* no stats this time */
+      }
+    };
+    const t = window.setInterval(check, 3000);
+    const off = () => setNet('offline');
+    const on = () => setNet(pc.current?.connectionState === 'connected' ? 'ok' : 'reconnecting');
+    window.addEventListener('offline', off);
+    window.addEventListener('online', on);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener('offline', off);
+      window.removeEventListener('online', on);
+    };
+  }, [live]);
+
   if (!st) return null;
 
   const accept = async () => {
@@ -554,15 +622,79 @@ export function CallLayer() {
   const showVideo = st.video && (st.phase === 'live' || st.phase === 'connecting');
   const first = st.peer.name.split(' ')[0];
   const shownStatus = st.asking === 'out' ? `Asking ${first} to switch to video…` : status;
+  const netLine =
+    st.phase === 'live' || st.phase === 'connecting'
+      ? net === 'offline'
+        ? 'No internet. Trying to reconnect…'
+        : net === 'reconnecting'
+          ? 'Reconnecting…'
+          : net === 'poor'
+            ? 'Poor connection'
+            : null
+      : null;
+  /* the small video: drag it anywhere (it settles on the nearest side), tap it to swap */
+  const pipStyle: React.CSSProperties | undefined = pipAt ? { left: pipAt.x, top: pipAt.y, right: 'auto', bottom: 'auto' } : undefined;
+  const pipHandlers = {
+    onPointerDown: (e: React.PointerEvent<HTMLVideoElement>) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drag.current = { x: e.clientX, y: e.clientY, ox: r.left, oy: r.top, moved: false };
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLVideoElement>) => {
+      const d = drag.current;
+      if (!d) return;
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      if (!d.moved && Math.hypot(dx, dy) < 6) return;
+      d.moved = true;
+      setPipAt({ x: d.ox + dx, y: d.oy + dy });
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLVideoElement>) => {
+      const d = drag.current;
+      drag.current = null;
+      if (!d) return;
+      if (!d.moved) return setSwapped((v) => !v);
+      const r = e.currentTarget.getBoundingClientRect();
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const x = r.left + r.width / 2 < W / 2 ? 16 : W - r.width - 16;
+      const y = Math.min(H - r.height - 120, Math.max(150, r.top));
+      setPipAt({ x, y });
+    },
+  };
   return (
     <div className={showVideo ? 'cx-call is-video' : 'cx-call'} role="dialog" aria-label={`Call with ${st.peer.name}`}>
       <audio ref={remoteAudio} autoPlay />
-      {st.video && <video ref={remoteVideo} className="cx-call-remote" autoPlay playsInline />}
-      {st.video && <video ref={localVideo} className={['cx-call-self', st.camOff ? 'is-off' : '', st.facing === 'environment' ? 'is-back' : ''].join(' ').trim()} autoPlay playsInline muted />}
+      {st.video && (
+        <video
+          ref={remoteVideo}
+          className={swapped ? 'cx-call-remote is-pip' : 'cx-call-remote'}
+          style={swapped ? pipStyle : undefined}
+          {...(swapped ? pipHandlers : {})}
+          autoPlay
+          playsInline
+        />
+      )}
+      {st.video && (
+        <video
+          ref={localVideo}
+          className={['cx-call-self', st.camOff ? 'is-off' : '', st.facing === 'environment' ? 'is-back' : '', swapped ? 'is-main' : 'is-pip'].join(' ').trim()}
+          style={swapped ? undefined : pipStyle}
+          {...(swapped ? {} : pipHandlers)}
+          autoPlay
+          playsInline
+          muted
+        />
+      )}
       <div className="cx-call-who">
         {!showVideo && <Avatar p={{ name: st.peer.name, avatar_url: st.peer.avatar_url, handle: '' } as Profile} size={112} />}
         <b>{st.peer.name}</b>
         <span>{shownStatus}</span>
+        {netLine && (
+          <span className={`cx-call-net is-${net}`} role="status">
+            {netLine}
+          </span>
+        )}
       </div>
       {st.asking === 'in' && (
         <div className="cx-call-ask" role="alertdialog" aria-label="Switch to video">
