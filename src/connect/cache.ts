@@ -85,6 +85,7 @@ const TTL = 45_000;
 const KEEP = new Set<string>(['myGroups', 'listLessons', 'listPosts', 'listStudents', 'getProfile', 'counts', 'getPost', 'me', 'groupPreview', 'groupInfo']);
 const LAST_TOO = new Set<string>(['listPins', 'groupLastRead', 'listChallenges', 'challengeStats', 'listProjects', 'myAssignments', 'groupMembers', 'myGroups', 'groupPreview', 'listGroupMessages', 'groupInfo', 'getLesson', 'listRequests', 'listConversations', 'listMessages', 'listConnections', 'listNotices', 'listSaved', 'getConversation', 'connectionStatus', 'isBlocked']);
 const SAVE_KEY = 'cx-last-v1';
+const TRIM = new Set<string>(['listMessages', 'listGroupMessages']);
 const last = new Map<string, unknown>();
 let saveTimer = 0;
 const k = (name: string, args: unknown[]) => `${name}:${JSON.stringify(args)}`;
@@ -100,18 +101,29 @@ function save() {
   window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
     try {
-      const keep = [...last].filter(([key]) => { const n = key.slice(0, key.indexOf(':')); return KEEP.has(n) || LAST_TOO.has(n); });
-      let json = JSON.stringify(keep);
-      // stay well inside the browser's storage limit
-      while (json.length > 900_000 && keep.length) {
-        keep.shift();
-        json = JSON.stringify(keep);
+      // Each entry is turned into text once. (This used to redo the whole lot
+      // for every entry it dropped, which could hold the phone up for seconds.)
+      const parts: string[] = [];
+      for (const [key, v] of last) {
+        const n = key.slice(0, key.indexOf(':'));
+        if (!KEEP.has(n) && !LAST_TOO.has(n)) continue;
+        // a chat only needs its newest messages to open in place
+        const value = TRIM.has(n) && Array.isArray(v) && v.length > 80 ? v.slice(-80) : v;
+        try {
+          parts.push(JSON.stringify([key, value]));
+        } catch {
+          /* skip what can't be saved */
+        }
       }
-      localStorage.setItem(SAVE_KEY, json);
+      // stay well inside the browser's storage limit: drop the oldest first
+      let size = parts.reduce((t, x) => t + x.length + 1, 2);
+      let from = 0;
+      while (size > 900_000 && from < parts.length) size -= parts[from++].length + 1;
+      localStorage.setItem(SAVE_KEY, `[${parts.slice(from).join(',')}]`);
     } catch {
       /* storage full or blocked: memory still works */
     }
-  }, 400);
+  }, 1500);
 }
 
 function remember(name: string, args: unknown[], value: unknown) {
