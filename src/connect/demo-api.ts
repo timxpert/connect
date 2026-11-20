@@ -171,7 +171,7 @@ const og = (gid: string) => {
   if (!g) throw new Error('This group no longer exists.');
   return g;
 };
-const briefItems: Record<number, BriefItem[]> = {};
+const briefItems: Record<number, BriefItem[]> = { 1: [{ kind: 'link', url: 'https://drive.google.com/drive/folders/1jXKdtmyNal7aSampleFolderId', name: '' }] };
 const briefs: Record<number, string> = { 1: 'Sample brief: animate a 5-second logo reveal using what you learned in phase 1.' };
 
 function outline(): Lesson[] {

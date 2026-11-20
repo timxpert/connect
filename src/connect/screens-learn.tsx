@@ -1137,6 +1137,20 @@ function Submission({ a, showStudent = false }: { a: Assignment; showStudent?: b
   );
 }
 
+/** A readable name for a link: "Google Drive folder" rather than the address */
+function linkLabel(i: BriefItem): { title: string; where: string } {
+  if (i.kind !== 'link') return { title: i.name || 'Document', where: 'Download' };
+  let host = '';
+  try {
+    host = new URL(i.url).hostname.replace(/^www\./, '');
+  } catch {
+    host = i.url;
+  }
+  if (driveFolderId(i.url)) return { title: i.name || 'Files for this assignment', where: 'Google Drive folder' };
+  if (host === 'drive.google.com' || host === 'docs.google.com') return { title: i.name || 'File for this assignment', where: 'Google Drive' };
+  return { title: i.name || host, where: host };
+}
+
 /* ---------- Brief attachments: pictures, documents and links ---------- */
 function BriefItemsView({ items }: { items: BriefItem[] }) {
   const { me } = useConnect();
@@ -1162,15 +1176,24 @@ function BriefItemsView({ items }: { items: BriefItem[] }) {
         </div>
       )}
       {rest.length > 0 && (
-        <ul className="cx-ln-files">
-          {rest.map((i) => (
-            <li key={i.url}>
-              <a href={i.url} target="_blank" rel="noopener noreferrer">
-                <Icon name={i.kind === 'link' ? 'link' : 'download'} size={18} />
-                {i.name || (i.kind === 'link' ? i.url.replace(/^https?:\/\//, '') : 'Document')}
-              </a>
-            </li>
-          ))}
+        <ul className="cx-brief-links">
+          {rest.map((i) => {
+            const { title, where } = linkLabel(i);
+            return (
+              <li key={i.url}>
+                <a href={i.url} target="_blank" rel="noopener noreferrer">
+                  <span className="cx-brief-link-ico" aria-hidden="true">
+                    <Icon name={i.kind === 'link' ? 'link' : 'file'} size={18} />
+                  </span>
+                  <span className="cx-brief-link-text">
+                    <b>{title}</b>
+                    <small>{where}</small>
+                  </span>
+                  <Icon name={i.kind === 'link' ? 'out' : 'download'} size={18} />
+                </a>
+              </li>
+            );
+          })}
         </ul>
       )}
     </>
