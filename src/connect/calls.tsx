@@ -68,52 +68,61 @@ function tune(notes: Note[]) {
   }
 }
 /* The incoming ringtone (Marimba): one 3-second ring, looped, with the phone
-   vibrating on each ring. Falls back to the made-on-the-phone tune until it loads. */
+   vibrating on each ring. Phones only let a page make sound after it has been
+   tapped, so the first tap anywhere in Connect unlocks the ringtone. */
 const RING_SECS = 3;
 const RING_BUZZ = [450, 150, 450];
-let ringBuf: AudioBuffer | null = null;
-let ringSrc: AudioBufferSourceNode | null = null;
-function loadRingtone() {
-  if (ringBuf || typeof window === 'undefined') return;
-  try {
-    audio ??= new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-    const ctx = audio;
-    fetch('/assets/sounds/ringtone.mp3')
-      .then((r) => r.arrayBuffer())
-      .then((b) => ctx.decodeAudioData(b))
-      .then((buf) => {
-        ringBuf = buf;
+let ringEl: HTMLAudioElement | null = null;
+let ringOn = false;
+function prepareRingtone() {
+  if (ringEl || typeof window === 'undefined') return;
+  ringEl = new Audio('/assets/sounds/ringtone.mp3');
+  ringEl.loop = true;
+  ringEl.preload = 'auto';
+  const unlock = () => {
+    window.removeEventListener('pointerdown', unlock, true);
+    window.removeEventListener('keydown', unlock, true);
+    // the sound player for the made-on-the-phone tones
+    try {
+      audio ??= new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume().catch(() => {});
+    } catch {
+      /* no sound */
+    }
+    // play the ringtone silently for a moment so the phone allows it later
+    const el = ringEl;
+    if (!el || ringOn) return;
+    el.muted = true;
+    el.play()
+      .then(() => {
+        if (ringOn) return;
+        el.pause();
+        el.currentTime = 0;
+        el.muted = false;
       })
-      .catch(() => {});
-  } catch {
-    /* the fallback tune plays */
-  }
+      .catch(() => {
+        el.muted = false;
+      });
+  };
+  window.addEventListener('pointerdown', unlock, true);
+  window.addEventListener('keydown', unlock, true);
 }
-function startRingtone(): boolean {
-  if (!audio || !ringBuf) return false;
-  try {
-    if (audio.state === 'suspended') audio.resume().catch(() => {});
-    const src = audio.createBufferSource();
-    const g = audio.createGain();
-    g.gain.value = 0.9;
-    src.buffer = ringBuf;
-    src.loop = true;
-    src.loopEnd = Math.min(RING_SECS, ringBuf.duration);
-    src.connect(g).connect(audio.destination);
-    src.start();
-    ringSrc = src;
-    return true;
-  } catch {
-    return false;
-  }
+/** Starts the ringtone; calls back with false if the phone won't play it */
+function startRingtone(onBlocked: () => void) {
+  const el = ringEl;
+  if (!el) return onBlocked();
+  ringOn = true;
+  el.muted = false;
+  el.currentTime = 0;
+  el.volume = 1;
+  el.play().catch(onBlocked);
 }
 function stopRingtone() {
-  try {
-    ringSrc?.stop();
-  } catch {
-    /* already stopped */
+  ringOn = false;
+  if (ringEl) {
+    ringEl.pause();
+    ringEl.currentTime = 0;
   }
-  ringSrc = null;
   navigator.vibrate?.(0);
 }
 
@@ -292,7 +301,7 @@ export function CallLayer() {
 
   // get the ringtone ready before anyone calls
   useEffect(() => {
-    loadRingtone();
+    prepareRingtone();
   }, []);
 
   /* placing a call */
@@ -347,12 +356,16 @@ export function CallLayer() {
         const next: State = { call: sig.call, peer: sig.from, conv: sig.conv, video: Boolean(sig.video), role: 'callee', phase: 'incoming', muted: false, camOff: false };
         s.current = next;
         setSt(next);
-        // Marimba, looping; the phone buzzes in time with each ring
-        const looped = startRingtone();
-        if (!looped) tune(SOUNDS.ring);
+        // Marimba, looping; the phone buzzes in time with each ring.
+        // If the phone won't play it, the made-on-the-phone tune rings instead.
+        let blocked = false;
+        startRingtone(() => {
+          blocked = true;
+          tune(SOUNDS.ring);
+        });
         navigator.vibrate?.(RING_BUZZ);
         ring.current = window.setInterval(() => {
-          if (!looped) tune(SOUNDS.ring);
+          if (blocked) tune(SOUNDS.ring);
           navigator.vibrate?.(RING_BUZZ);
         }, RING_SECS * 1000);
         // the caller stops after 45 s; tidy up if their hang-up never arrives
