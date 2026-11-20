@@ -188,7 +188,7 @@ function outline(): Lesson[] {
     const { video_url, notes, files, ...rest } = l;
     void notes;
     void files;
-    return { ...rest, has_video: Boolean(video_url), done, open: team || (learner && prevDone) };
+    return { ...rest, has_video: Boolean(video_url), done, open: team || l.phase === 0 || (learner && prevDone) };
   });
 }
 
@@ -950,8 +950,9 @@ export function createDemoApi(): ConnectApi {
     },
     async getLesson(id) {
       const me = current ? who(current) : null;
-      if (!me || !(me.is_student || me.is_sensei || me.is_moderator)) throw new Error('members_only');
       const o = outline().find((l) => l.id === id);
+      // the orientation is open to visitors too
+      if (o?.phase !== 0 && (!me || !(me.is_student || me.is_sensei || me.is_moderator))) throw new Error('members_only');
       const raw = lessons.find((l) => l.id === id);
       if (!o || !raw) throw new Error('not_found');
       if (!o.open) throw new Error('locked');

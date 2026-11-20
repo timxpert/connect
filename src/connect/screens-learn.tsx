@@ -577,7 +577,7 @@ export function LessonScreen({ id }: { id: string }) {
 
   // The orientation can't be ticked off by hand: it ticks itself once the
   // student has really watched it (skipped parts don't count)
-  const mustWatch = Boolean(lesson && lesson.phase === 0 && !lesson.done && !team && youtubeId(lesson.video_url ?? ''));
+  const mustWatch = Boolean(lesson && lesson.phase === 0 && !lesson.done && !team && me?.is_student && youtubeId(lesson.video_url ?? ''));
   const [watched, setWatched] = useState(0);
   const ticking = useRef(false);
   const watchedSome = useCallback(
@@ -617,7 +617,8 @@ export function LessonScreen({ id }: { id: string }) {
     </A>
   );
 
-  if (error === 'members_only' || (!signedIn && me !== undefined)) {
+  // visitors can watch the orientation; everything else is for members
+  if (error === 'members_only' || (!signedIn && me !== undefined && lesson && lesson.phase !== 0)) {
     return (
       <div className="cx-col">
         {back}
@@ -672,7 +673,11 @@ export function LessonScreen({ id }: { id: string }) {
       </div>
 
       <div className="cx-ln-actions">
-        {mustWatch ? (
+        {!me?.is_student && !team ? (
+          <a href={`${MAIN_SITE}/blackbelt`} className="btn btn-lime btn-sm">
+            Become a member
+          </a>
+        ) : mustWatch ? (
           <p className="cx-ln-watch">
             <Icon name="lock" size={16} />
             Watch to the end to open your lessons · {Math.floor(watched * 100)}% watched
@@ -732,7 +737,7 @@ export function LessonScreen({ id }: { id: string }) {
         </section>
       )}
 
-      <LessonWorkBlock lessonId={lesson.id} />
+      {me && <LessonWorkBlock lessonId={lesson.id} />}
 
       <nav className="cx-ln-pager" aria-label="Lessons">
         {prev ? (

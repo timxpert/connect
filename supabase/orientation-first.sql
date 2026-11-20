@@ -1,5 +1,6 @@
 -- Orientation first: a student's lessons in phase 1 and up stay locked until
 -- every published orientation lesson (phase 0) is done. The team sees everything.
+-- The orientation itself is open to everyone, visitors included.
 -- Run once in Supabase → SQL Editor. Safe to run again.
 create or replace function public.course_outline()
 returns table (id uuid, phase int, lesson_position int, title text, summary text, duration text,
@@ -31,7 +32,7 @@ language sql stable security definer set search_path = public as $$
   select o.id, o.phase, o.position, o.title, o.summary, o.duration, o.published,
          o.video_url <> '', o.done,
          me.team
-         or (o.phase = 0 and me.student)
+         or o.phase = 0
          or (
            me.student and me.cur is not null and me.oriented
            and (o.phase < me.cur
@@ -65,3 +66,29 @@ begin
   end if;
 end $$;
 grant execute on function public.set_lesson_done(uuid, boolean) to authenticated;
+
+-- visitors can open the orientation (every other lesson stays members only)
+create or replace function public.get_lesson(lid uuid)
+returns table (id uuid, phase int, lesson_position int, title text, summary text, duration text,
+               video_url text, notes text, files jsonb, published boolean, done boolean, is_open boolean, size_mb int, portrait boolean,
+               images jsonb, section text)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  o record;
+begin
+  select * into o from public.course_outline() c where c.id = lid;
+  if not found then
+    raise exception 'not_found';
+  end if;
+  if o.phase <> 0 and not (public.is_student(auth.uid()) or public.is_team(auth.uid())) then
+    raise exception 'members_only';
+  end if;
+  if not o.is_open then
+    raise exception 'locked';
+  end if;
+  return query
+    select l.id, l.phase, l.position, l.title, l.summary, l.duration, l.video_url, l.notes, l.files,
+           l.published, o.done, true, l.size_mb, l.portrait, l.images, l.section
+    from public.lessons l where l.id = lid;
+end $$;
+grant execute on function public.get_lesson(uuid) to anon, authenticated;
