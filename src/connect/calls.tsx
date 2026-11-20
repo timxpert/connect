@@ -67,7 +67,58 @@ function tune(notes: Note[]) {
     /* no sound */
   }
 }
+/* The incoming ringtone (Marimba): one 3-second ring, looped, with the phone
+   vibrating on each ring. Falls back to the made-on-the-phone tune until it loads. */
+const RING_SECS = 3;
+const RING_BUZZ = [450, 150, 450];
+let ringBuf: AudioBuffer | null = null;
+let ringSrc: AudioBufferSourceNode | null = null;
+function loadRingtone() {
+  if (ringBuf || typeof window === 'undefined') return;
+  try {
+    audio ??= new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const ctx = audio;
+    fetch('/assets/sounds/ringtone.mp3')
+      .then((r) => r.arrayBuffer())
+      .then((b) => ctx.decodeAudioData(b))
+      .then((buf) => {
+        ringBuf = buf;
+      })
+      .catch(() => {});
+  } catch {
+    /* the fallback tune plays */
+  }
+}
+function startRingtone(): boolean {
+  if (!audio || !ringBuf) return false;
+  try {
+    if (audio.state === 'suspended') audio.resume().catch(() => {});
+    const src = audio.createBufferSource();
+    const g = audio.createGain();
+    g.gain.value = 0.9;
+    src.buffer = ringBuf;
+    src.loop = true;
+    src.loopEnd = Math.min(RING_SECS, ringBuf.duration);
+    src.connect(g).connect(audio.destination);
+    src.start();
+    ringSrc = src;
+    return true;
+  } catch {
+    return false;
+  }
+}
+function stopRingtone() {
+  try {
+    ringSrc?.stop();
+  } catch {
+    /* already stopped */
+  }
+  ringSrc = null;
+  navigator.vibrate?.(0);
+}
+
 const hush = () => {
+  stopRingtone();
   playing.forEach((o) => {
     try {
       o.stop();
@@ -239,6 +290,11 @@ export function CallLayer() {
   const camera = (facing: 'user' | 'environment') =>
     navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } } }).then((m) => m.getVideoTracks()[0]);
 
+  // get the ringtone ready before anyone calls
+  useEffect(() => {
+    loadRingtone();
+  }, []);
+
   /* placing a call */
   useEffect(() => {
     const onStart = async (e: Event) => {
@@ -291,12 +347,14 @@ export function CallLayer() {
         const next: State = { call: sig.call, peer: sig.from, conv: sig.conv, video: Boolean(sig.video), role: 'callee', phase: 'incoming', muted: false, camOff: false };
         s.current = next;
         setSt(next);
-        tune(SOUNDS.ring);
-        navigator.vibrate?.([500, 300, 500]);
+        // Marimba, looping; the phone buzzes in time with each ring
+        const looped = startRingtone();
+        if (!looped) tune(SOUNDS.ring);
+        navigator.vibrate?.(RING_BUZZ);
         ring.current = window.setInterval(() => {
-          tune(SOUNDS.ring);
-          navigator.vibrate?.([500, 300, 500]);
-        }, 3200);
+          if (!looped) tune(SOUNDS.ring);
+          navigator.vibrate?.(RING_BUZZ);
+        }, RING_SECS * 1000);
         // the caller stops after 45 s; tidy up if their hang-up never arrives
         timers.current.push(window.setTimeout(() => s.current?.call === sig.call && s.current?.phase === 'incoming' && cleanup(), 50000));
         return;

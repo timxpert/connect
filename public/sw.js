@@ -100,7 +100,7 @@ self.addEventListener('push', (e) => {
         tag,
         renotify: !quiet,
         silent: quiet,
-        vibrate: quiet ? [] : d.call ? [400, 200, 400, 200, 400, 200, 400] : [120, 60, 120],
+        vibrate: quiet ? [] : d.call ? [450, 150, 450, 1950, 450, 150, 450, 1950, 450, 150, 450] : [120, 60, 120],
         requireInteraction: Boolean(d.call),
         icon: d.icon || '/assets/icon-192.png',
         // Android shows this small one in white: the Motion Dojo mark
