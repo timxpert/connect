@@ -39,7 +39,21 @@ export function embedSrc(url: string) {
 /** Phase 0 is the orientation: open to every member, whatever their phase */
 const phaseLabel = (p: number) => (p === 0 ? 'Orientation' : `Phase ${p}`);
 const phaseName = (p: number) => (p === 0 ? 'Watch this first' : PHASES[p - 1]);
-const lessonNo = (list: Lesson[], l: Lesson) => list.filter((x) => x.phase === l.phase).indexOf(l) + 1;
+/** Lessons in course order: phase by phase, in the order set on each phase */
+const courseOrder = (list: Lesson[]) => [0, 1, 2, 3, 4].flatMap((p) => list.filter((l) => l.phase === p));
+/** A lesson's number in the whole course (1, 2, 3… across sections and phases); drafts have none */
+const lessonNo = (list: Lesson[], l: Lesson) => (l.published ? courseOrder(list).filter((x) => x.published).findIndex((x) => x.id === l.id) + 1 : 0);
+/** Course progress: each phase (1–4) is a quarter, filled lesson by lesson; phases before yours count as done */
+function courseProgress(list: Lesson[], cur: number | null) {
+  let pct = 0;
+  for (let p = 1; p <= PHASES.length; p++) {
+    const pub = list.filter((l) => l.phase === p && l.published);
+    const share = 100 / PHASES.length;
+    if (cur && p < cur) pct += share;
+    else if (pub.length) pct += (share * pub.filter((l) => l.done).length) / pub.length;
+  }
+  return Math.min(100, pct);
+}
 
 function useLessons() {
   const { api, me } = useConnect();
@@ -148,6 +162,7 @@ export function Learn() {
   const cur = !team && me?.is_student ? (me.phase ?? null) : null;
   const published = useMemo(() => (list ?? []).filter((l) => l.published && (!cur || l.phase >= cur)), [list, cur]);
   const done = published.filter((l) => l.done).length;
+  const pct = useMemo(() => courseProgress(list ?? [], cur), [list, cur]);
   const next = published.find((l) => l.open && !l.done);
   const mine = useAssignments(learner && !team);
   const status = (phase: number) => phaseStatus(list ?? [], mine, phase, cur);
@@ -189,16 +204,17 @@ export function Learn() {
       )}
 
       {learner && !team && !unplaced && published.length > 0 && (
-        <section className="cx-ln-progress" aria-label="Your progress">
+        <section className="cx-ln-progress" aria-label="Course progress">
           <div className="cx-ln-progress-row">
-            <b>
-              {done} of {published.length} lessons done
-            </b>
-            <span>{Math.round((done / published.length) * 100)}%</span>
+            <b>Course progress</b>
+            <span>{Math.floor(pct)}%</span>
           </div>
-          <div className="cx-ln-bar" role="progressbar" aria-valuemin={0} aria-valuemax={published.length} aria-valuenow={done}>
-            <span style={{ width: `${(done / published.length) * 100}%` }} />
+          <div className="cx-ln-bar" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(pct)}>
+            <span style={{ width: `${pct}%` }} />
           </div>
+          <p className="cx-ln-count">
+            {done} of {published.length} lessons done
+          </p>
           {!next && due ? (
             <A path={`/learn/assignment/${due}`} className="cx-ln-next">
               <span className="cx-ln-next-ico">
@@ -217,7 +233,7 @@ export function Learn() {
                 <Icon name="play" size={20} filled />
               </span>
               <span>
-                <small>{done ? 'Up next' : 'Start here'} · {phaseLabel(next.phase)}, lesson {lessonNo(list, next)}</small>
+                <small>{done ? 'Up next' : 'Start here'} · lesson {lessonNo(list, next)} · {phaseLabel(next.phase)}</small>
                 <b>{next.title}</b>
               </span>
             </A>
@@ -260,19 +276,19 @@ export function Learn() {
               </header>
               <ol className="cx-ln-list">
                 {items.map((l, n) => {
-                  // sections: a heading where a new one starts, and numbers restart inside it
+                  // sections: a heading where a new one starts; numbers run on through the whole course
                   const sec = (l.section ?? '').trim();
                   const newSec = sec && sec !== (items[n - 1]?.section ?? '').trim();
-                  let start = n;
-                  while (sec && start > 0 && (items[start - 1].section ?? '').trim() === sec) start--;
-                  const num = sec ? n - start + 1 : n + 1;
+                  const num = lessonNo(list, l) || '–';
                   const body = (
                     <>
                       <span className={`cx-ln-mark${l.done ? ' is-done' : l.open ? ' is-open' : ''}`} aria-hidden="true">
-                        {l.done ? <Icon name="check" size={18} /> : l.open ? num : <Icon name="lock" size={16} />}
+                        {l.done ? <Icon name="check" size={18} /> : l.open ? <Icon name="play" size={14} filled /> : <Icon name="lock" size={16} />}
                       </span>
                       <span className="cx-ln-text">
-                        <b>{l.title}</b>
+                        <b>
+                          <span className="cx-ln-no">{num}.</span> {l.title}
+                        </b>
                         <small>
                           {[l.duration || (l.has_video ? 'Video' : 'No video yet'), l.size_mb ? `${l.size_mb} MB` : ''].filter(Boolean).join(' · ')}
                           {team && !l.published && <em className="cx-ln-tag">Draft</em>}

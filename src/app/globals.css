@@ -9836,3 +9836,14 @@ html[data-cx-theme='dark'] {
 .cx-ln-body a {
   overflow-wrap: anywhere;
 }
+
+/* "12 of 64 lessons done" under the course bar */
+.cx-ln-count {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.cx-ln-no {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
