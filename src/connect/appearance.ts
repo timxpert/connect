@@ -77,8 +77,9 @@ export function saveAppearance(next: Partial<Appearance>) {
 
 /** The current appearance, kept up to date when it changes anywhere in the app */
 export function useAppearance() {
-  const [a, setA] = useState<Appearance>(DEFAULT);
-  const [systemDark, setSystemDark] = useState(false);
+  // read the saved look straight away (starting from the default made a dark phone flash light)
+  const [a, setA] = useState<Appearance>(() => (typeof window === 'undefined' ? DEFAULT : readAppearance()));
+  const [systemDark, setSystemDark] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   useEffect(() => {
     setA(readAppearance());
     const on = (e: Event) => setA((e as CustomEvent<Appearance>).detail);
