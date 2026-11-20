@@ -10527,3 +10527,11 @@ html.cx-kb-overlay body {
   border: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.25);
 }
+/* in a chat: no extra room below the page (the chat already fits above the keyboard) */
+html.cx-in-chat.cx-kb-open body {
+  padding-bottom: 0;
+}
+html.cx-in-chat,
+html.cx-in-chat body {
+  height: 100%;
+}

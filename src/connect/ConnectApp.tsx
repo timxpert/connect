@@ -321,13 +321,20 @@ function Shell({ route }: { route: Route }) {
       if (window.scrollY) window.scrollTo(0, 0);
     };
     fit();
+    // in a chat the page itself never scrolls (Chrome tries to, to show the message box,
+    // and that pushed the chat out of place and showed the background)
+    const pin = () => {
+      if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+    };
     vv.addEventListener('resize', fit);
     vv.addEventListener('scroll', fit);
     window.addEventListener('cx:keyboard', fit);
+    window.addEventListener('scroll', pin, { passive: true });
     return () => {
       vv.removeEventListener('resize', fit);
       vv.removeEventListener('scroll', fit);
       window.removeEventListener('cx:keyboard', fit);
+      window.removeEventListener('scroll', pin);
       root.classList.remove('cx-in-chat');
       root.style.removeProperty('--vvh');
     };

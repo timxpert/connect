@@ -29,12 +29,13 @@ export function useKeyboardOverlay() {
       window.dispatchEvent(new Event('cx:keyboard'));
       // keep what you're typing in view
       const el = document.activeElement as HTMLElement | null;
-      if (covered > 0 && el && /^(INPUT|TEXTAREA)$/.test(el.tagName)) {
-        requestAnimationFrame(() => {
+      // chats size themselves above the keyboard; only other pages scroll
+      if (covered > 0 && el && /^(INPUT|TEXTAREA)$/.test(el.tagName) && !root.classList.contains('cx-in-chat')) {
+        window.setTimeout(() => {
           const r = el.getBoundingClientRect();
           const room = window.innerHeight - covered;
           if (r.bottom > room - 12) window.scrollBy({ top: r.bottom - room + 24 });
-        });
+        }, 280);
       }
     };
     vk.addEventListener('geometrychange', change);

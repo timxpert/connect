@@ -64,7 +64,7 @@ export function KeyboardCheck() {
     `keyboard API: ${vk ? 'yes' : 'no'} · overlay: ${vk ? String(vk.overlaysContent) : '-'} · class: ${root.classList.contains('cx-kb-overlay') ? 'on' : 'off'}`,
     `keyboard now: ${vk ? Math.round(vk.boundingRect.height) : '-'} · app thinks: ${keyboardOver()}`,
     `viewport: ${Math.round(window.visualViewport?.height ?? 0)} · inner: ${window.innerHeight} · screen: ${window.screen.height}`,
-    `chat height: ${root.style.getPropertyValue('--vvh') || '-'}`,
+    `chat height: ${root.style.getPropertyValue('--vvh') || '-'} · page scrolled: ${Math.round(window.scrollY)}`,
     `meta: ${document.querySelector('meta[name=viewport]')?.getAttribute('content') ?? ''}`,
   ];
   return (
