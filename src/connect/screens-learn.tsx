@@ -59,16 +59,34 @@ function useLessons() {
   const { api, me } = useConnect();
   const [list, setList] = useState<Lesson[] | null>(() => peek<Lesson[]>('listLessons') ?? null);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
     api
       .listLessons()
-      .then((l) => live && setList(l))
+      .then((l) => {
+        if (!live) return;
+        setList(l);
+        setError('');
+      })
       .catch((e: Error) => live && setError(e.message));
     return () => {
       live = false;
     };
-  }, [api, me?.id]);
+  }, [api, me?.id, attempt]);
+  // still failing: try again when the connection comes back or Connect is opened again
+  useEffect(() => {
+    if (!error) return;
+    const again = () => document.visibilityState === 'visible' && setAttempt((n) => n + 1);
+    window.addEventListener('online', again);
+    document.addEventListener('visibilitychange', again);
+    const t = window.setInterval(again, 15000);
+    return () => {
+      window.removeEventListener('online', again);
+      document.removeEventListener('visibilitychange', again);
+      window.clearInterval(t);
+    };
+  }, [error]);
   return { list, setList, error };
 }
 
@@ -177,7 +195,7 @@ export function Learn() {
     setList(await api.listLessons());
   };
 
-  if (error) return <Empty title="Lessons can’t load right now">{<p>{error}</p>}</Empty>;
+  if (error && !list) return <Empty title="Lessons can’t load right now">{<p>Check your connection. Connect will try again by itself.</p>}</Empty>;
   if (!list) return <Loading label="Loading lessons" />;
 
   return (

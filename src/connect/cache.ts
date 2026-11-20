@@ -145,6 +145,32 @@ export function forget() {
   }
 }
 
+// A dropped connection (phone waking up, switching between Wi-Fi and data)
+// shows up as "Failed to fetch". Reads try again a few times before giving up;
+// changes are never repeated, so nothing gets sent twice.
+const NETWORK = /failed to fetch|networkerror|network request failed|load failed|fetch failed|err_network|timed? ?out/i;
+const pause = (ms: number) =>
+  new Promise<void>((done) => {
+    const t = window.setTimeout(finish, ms);
+    function finish() {
+      window.clearTimeout(t);
+      window.removeEventListener('online', finish);
+      done();
+    }
+    window.addEventListener('online', finish);
+  });
+async function retrying<T>(run: () => Promise<T>): Promise<T> {
+  const waits = [400, 1000, 2000, 4000, 8000];
+  for (let i = 0; ; i++) {
+    try {
+      return await run();
+    } catch (e) {
+      if (i >= waits.length || !NETWORK.test(String((e as Error)?.message ?? e))) throw e;
+      await pause(typeof navigator !== 'undefined' && navigator.onLine === false ? 30000 : waits[i]);
+    }
+  }
+}
+
 export function withCache(api: ConnectApi): ConnectApi {
   const store = new Map<string, { at: number; value: Promise<unknown> }>();
   // After a change, cached reads are re-fetched next time, but the last
@@ -165,7 +191,7 @@ export function withCache(api: ConnectApi): ConnectApi {
           const key = `${String(name)}:${JSON.stringify(args)}`;
           const hit = store.get(key);
           if (hit && Date.now() - hit.at < TTL) return hit.value;
-          const value = track(String(name), args, (fn as (...a: unknown[]) => Promise<unknown>).apply(target, args));
+          const value = track(String(name), args, retrying(() => (fn as (...a: unknown[]) => Promise<unknown>).apply(target, args)));
           store.set(key, { at: Date.now(), value });
           // a failed read shouldn't stick
           value.catch(() => store.delete(key));
@@ -182,7 +208,7 @@ export function withCache(api: ConnectApi): ConnectApi {
       }
       if (LIVE.has(name)) {
         if (name === 'me' || LAST_TOO.has(String(name)))
-          return (...args: unknown[]) => track(String(name), args, (fn as (...a: unknown[]) => Promise<unknown>).apply(target, args));
+          return (...args: unknown[]) => track(String(name), args, retrying(() => (fn as (...a: unknown[]) => Promise<unknown>).apply(target, args)));
         return (fn as (...a: unknown[]) => unknown).bind(target);
       }
       // Everything else changes something: forget cached reads after it
