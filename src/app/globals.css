@@ -10415,3 +10415,14 @@ html[data-cx-theme='dark'] .cx-team-role {
 .cx-gi-text > small .cx-team-role {
   flex: 0 1 auto;
 }
+
+/* Installed app with the keyboard open (it slides over the page): make room for it */
+html.cx-kb-open body {
+  padding-bottom: var(--kb, 0px);
+}
+html.cx-kb-open .cx-sheet-wrap {
+  bottom: var(--kb, 0px);
+}
+html.cx-kb-open .cx-crop {
+  bottom: var(--kb, 0px);
+}

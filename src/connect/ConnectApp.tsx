@@ -7,6 +7,7 @@ import { onVisitorChange, visitorChosen } from './visitor';
 import { play, setSoundOn, soundOn } from './sounds';
 import { alertsAllowed, alertsSupported, askForAlerts, notify, pushOn, registerAlerts } from './alerts';
 import { startPresence } from './presence';
+import { keyboardOver, useKeyboardOverlay } from './keyboard';
 import { guardDevice } from './device';
 import { CHAT_COLORS, useAppearance } from './appearance';
 import { Appearance as AppearanceScreen } from './screens-appearance';
@@ -306,19 +307,24 @@ function Shell({ route }: { route: Route }) {
       return;
     }
     const fit = () => {
-      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+      // installed app: the keyboard slides over the page, so take its height off
+      root.style.setProperty('--vvh', `${Math.round(vv.height - keyboardOver())}px`);
       if (window.scrollY) window.scrollTo(0, 0);
     };
     fit();
     vv.addEventListener('resize', fit);
     vv.addEventListener('scroll', fit);
+    window.addEventListener('cx:keyboard', fit);
     return () => {
       vv.removeEventListener('resize', fit);
       vv.removeEventListener('scroll', fit);
+      window.removeEventListener('cx:keyboard', fit);
       root.classList.remove('cx-in-chat');
       root.style.removeProperty('--vvh');
     };
   }, [inChat]);
+  // installed app: keyboard over the page instead of shrinking the window (no flash)
+  useKeyboardOverlay();
   // "typing…" in my private chats
   useTypingRoom(api, me?.id ? `u:${me.id}` : null, me?.id);
   // Alerts already allowed: make sure this phone gets messages when Connect is closed
