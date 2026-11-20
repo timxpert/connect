@@ -67,61 +67,69 @@ function tune(notes: Note[]) {
     /* no sound */
   }
 }
-/* The incoming ringtone (Marimba): one 3-second ring, looped, with the phone
-   vibrating on each ring. Phones only let a page make sound after it has been
-   tapped, so the first tap anywhere in Connect unlocks the ringtone. */
+/* Ringing: Marimba when someone calls you, a phone ring while you call
+   someone. Each is a 3-second ring, looped; the phone vibrates on each
+   incoming ring. Phones only let a page make sound after it has been tapped,
+   so the first tap anywhere in Connect unlocks both. */
 const RING_SECS = 3;
 const RING_BUZZ = [450, 150, 450];
-let ringEl: HTMLAudioElement | null = null;
+type Ring = 'incoming' | 'calling';
+const RING_FILES: Record<Ring, string> = { incoming: '/assets/sounds/ringtone.mp3', calling: '/assets/sounds/ringback.mp3' };
+const ringEls: Partial<Record<Ring, HTMLAudioElement>> = {};
 let ringOn = false;
 function prepareRingtone() {
-  if (ringEl || typeof window === 'undefined') return;
-  ringEl = new Audio('/assets/sounds/ringtone.mp3');
-  ringEl.loop = true;
-  ringEl.preload = 'auto';
+  if (ringEls.incoming || typeof window === 'undefined') return;
+  for (const k of Object.keys(RING_FILES) as Ring[]) {
+    const el = new Audio(RING_FILES[k]);
+    el.loop = true;
+    el.preload = 'auto';
+    ringEls[k] = el;
+  }
   const unlock = () => {
     window.removeEventListener('pointerdown', unlock, true);
     window.removeEventListener('keydown', unlock, true);
-    // the sound player for the made-on-the-phone tones
+    // the sound player for the short call sounds
     try {
       audio ??= new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       if (audio.state === 'suspended') audio.resume().catch(() => {});
     } catch {
       /* no sound */
     }
-    // play the ringtone silently for a moment so the phone allows it later
-    const el = ringEl;
-    if (!el || ringOn) return;
-    el.muted = true;
-    el.play()
-      .then(() => {
-        if (ringOn) return;
-        el.pause();
-        el.currentTime = 0;
-        el.muted = false;
-      })
-      .catch(() => {
-        el.muted = false;
-      });
+    // play each ring silently for a moment so the phone allows it later
+    for (const el of Object.values(ringEls)) {
+      if (!el || ringOn) continue;
+      el.muted = true;
+      el.play()
+        .then(() => {
+          if (ringOn) return;
+          el.pause();
+          el.currentTime = 0;
+          el.muted = false;
+        })
+        .catch(() => {
+          el.muted = false;
+        });
+    }
   };
   window.addEventListener('pointerdown', unlock, true);
   window.addEventListener('keydown', unlock, true);
 }
-/** Starts the ringtone (softer for the caller); calls back if the phone won't play it */
-function startRingtone(onBlocked: () => void, volume = 1) {
-  const el = ringEl;
+/** Starts a ring; calls back if the phone won't play it */
+function startRingtone(kind: Ring, onBlocked: () => void) {
+  const el = ringEls[kind];
   if (!el) return onBlocked();
   ringOn = true;
   el.muted = false;
   el.currentTime = 0;
-  el.volume = volume;
+  el.volume = kind === 'calling' ? 0.6 : 1;
   el.play().catch(onBlocked);
 }
 function stopRingtone() {
   ringOn = false;
-  if (ringEl) {
-    ringEl.pause();
-    ringEl.currentTime = 0;
+  for (const el of Object.values(ringEls)) {
+    if (!el) continue;
+    el.pause();
+    el.currentTime = 0;
   }
   navigator.vibrate?.(0);
 }
@@ -325,12 +333,12 @@ export function CallLayer() {
       const ringOnce = () => api.callSend(peer.id, { type: 'ring', call, from: meAsPeer(), conv, video });
       ringOnce();
       api.ringPhone(conv, video).catch(() => {});
-      // the caller hears Marimba too, softer (the old two-note pulse only if the phone blocks it)
+      // the phone ring while calling (the made-on-the-phone pulse only if the phone blocks it)
       let blocked = false;
-      startRingtone(() => {
+      startRingtone('calling', () => {
         blocked = true;
         tune(SOUNDS.ringback);
-      }, 0.45);
+      });
       ring.current = window.setInterval(() => {
         ringOnce();
         if (blocked) tune(SOUNDS.ringback);
@@ -364,7 +372,7 @@ export function CallLayer() {
         // Marimba, looping; the phone buzzes in time with each ring.
         // If the phone won't play it, the made-on-the-phone tune rings instead.
         let blocked = false;
-        startRingtone(() => {
+        startRingtone('incoming', () => {
           blocked = true;
           tune(SOUNDS.ring);
         });
