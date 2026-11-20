@@ -100,8 +100,19 @@ function memberNames(people: Profile[], me: string) {
 function whoLine(m: GroupMessage): { name: string; badge?: React.ReactNode } {
   const name = m.sender?.name ?? 'Member';
   if (m.sender?.is_sensei) return { name, badge: <SenseiBadge /> };
-  if (m.sender?.team_role) return { name, badge: <TeamRole role={m.sender.team_role} /> };
-  return { name };
+  // students: their belt, and a team member's role after it
+  const belt = m.sender?.is_student ? <BeltBadge p={m.sender} small /> : null;
+  if (m.sender?.team_role)
+    return {
+      name,
+      badge: (
+        <>
+          {belt}
+          <TeamRole role={m.sender.team_role} />
+        </>
+      ),
+    };
+  return { name, badge: belt };
 }
 
 export function GroupChat({ gid = null }: { gid?: string | null }) {

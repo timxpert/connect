@@ -10553,3 +10553,8 @@ html.cx-in-chat body {
 html[data-cx-theme='dark'] .cx-typing-bubble b {
   color: #c9b0ff;
 }
+/* no slide: the chat fits above the keyboard at once (the slide flickered) */
+html.cx-kb-overlay .cx.is-chat .cx-chat,
+html.cx-kb-overlay body {
+  transition: none;
+}

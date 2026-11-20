@@ -317,7 +317,18 @@ function Shell({ route }: { route: Route }) {
       // installed app: the keyboard slides over the page, so take its height off
       // (unless the phone shrank the page anyway, then it's already off)
       const shrunk = vv.height < full - 50;
+      // the messages keep their place from the bottom, so the newest ones move up with the keyboard
+      const list = document.querySelector('.cx-msgs-end')?.parentElement ?? null;
+      const fromBottom = list ? list.scrollHeight - list.scrollTop - list.clientHeight : 0;
       root.style.setProperty('--vvh', `${Math.round(vv.height - (shrunk ? 0 : over))}px`);
+      if (list) {
+        const keep = () => {
+          list.scrollTop = list.scrollHeight - list.clientHeight - Math.max(0, fromBottom);
+        };
+        keep();
+        requestAnimationFrame(keep);
+        window.setTimeout(keep, 120);
+      }
       if (window.scrollY) window.scrollTo(0, 0);
     };
     fit();
