@@ -10228,3 +10228,54 @@ html[data-cx-theme='dark'] .cx-brief-link-ico {
   border-radius: 14px;
   overflow: hidden;
 }
+/* Grand Sensei: violet seal, white crown */
+.cx-seal-sensei .cx-seal-bg {
+  fill: #6d32e8;
+}
+.cx-seal-sensei .cx-seal-crown {
+  fill: #fff;
+  stroke: none;
+}
+html[data-cx-theme='dark'] .cx-seal-sensei .cx-seal-bg {
+  fill: #8b5cf6;
+}
+
+/* Messages: connection photos without a ring, just the picture */
+.cx-inbox-people .cx-avatar,
+.cx-inbox-people .cx-av-wrap .cx-avatar {
+  box-shadow: none !important;
+  outline: none;
+  border: 0;
+}
+
+/* Pinned post: first on the profile, with a small pin */
+.cx-thumb-pin {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(20, 16, 28, 0.72);
+  color: #fff;
+}
+.cx-post-pinned {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+/* Grand Sensei: gold seal, black crown */
+.cx-seal-sensei .cx-seal-bg,
+html[data-cx-theme='dark'] .cx-seal-sensei .cx-seal-bg {
+  fill: #f2b705;
+}
+.cx-seal-sensei .cx-seal-crown {
+  fill: #1a1206;
+}

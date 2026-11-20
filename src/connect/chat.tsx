@@ -1377,7 +1377,7 @@ export function Chat({ id }: { id: string }) {
           <span className="cx-person-text">
             <span className="cx-person-name">
               <span className="cx-name-text">{other.name}</span>
-              {other.is_student && <BeltBadge p={other} small showRole={false} />}
+              {(other.is_student || other.is_sensei) && <BeltBadge p={other} small showRole={false} />}
             </span>
             {typers.length ? (
               <span className="cx-person-meta is-typing">typing…</span>
@@ -1445,7 +1445,6 @@ export function Chat({ id }: { id: string }) {
                       <b>{other.name} joined the community</b>
                       <span>
                         {new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                        {other.country ? ` · ${other.country}` : ''}
                       </span>
                       {all.length === 1 && !draft && (
                         <button type="button" className="cx-joincard-btn" onClick={() => setDraft(`Welcome to Motion Dojo, ${other.name.split(' ')[0]}. Start with the orientation video in Learn, then pick your phase.`)}>
@@ -1901,7 +1900,7 @@ function ChatRow({ c, p }: { c: Conversation; p: PinProps }) {
           <span className="cx-inbox-top">
             <span className="cx-person-name">
               <span className="cx-name-text">{c.other.name}</span>
-              {c.other.is_sensei ? null : c.other.is_student && <BeltBadge p={c.other} small showRole={false} />}
+              {(c.other.is_sensei || c.other.is_student) && <BeltBadge p={c.other} small showRole={false} />}
               {joined && unread > 0 && <span className="cx-new-tag">New</span>}
             </span>
             <span className="cx-inbox-time">{shortTime(c.last_message_at)}</span>

@@ -14,6 +14,8 @@ export type Profile = {
   phase_public?: boolean;
   /** Students on the team: their role, e.g. "Community manager" */
   team_role?: string | null;
+  /** the post shown first on their profile */
+  pinned_post_id?: string | null;
   /** The phase a student says they're in, waiting for the team to confirm */
   phase_request?: number | null;
   phase_request_at?: string | null;
@@ -186,7 +188,7 @@ export type GroupReader = { id: string; name: string; avatar_url: string | null;
 export type Attachment = { file: File; kind: Exclude<MessageKind, 'text'>; duration?: number; thumb?: string };
 
 export type ProfileInput = Partial<
-  Pick<Profile, 'handle' | 'name' | 'bio' | 'avatar_url' | 'cover_url' | 'country' | 'skills' | 'phase' | 'phase_public' | 'instagram' | 'youtube' | 'website' | 'links'>
+  Pick<Profile, 'handle' | 'name' | 'bio' | 'avatar_url' | 'cover_url' | 'country' | 'skills' | 'phase' | 'phase_public' | 'instagram' | 'youtube' | 'website' | 'links' | 'pinned_post_id'>
 >;
 
 /** A Black Belt lesson. The video, notes and files only come with getLesson(). */

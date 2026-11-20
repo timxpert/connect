@@ -460,6 +460,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     async updateProfile(input) {
       const id = await needUid();
       let { data, error } = await sb.from('profiles').update(input).eq('id', id).select().single();
+      if (error && /pinned_post_id/.test(error.message)) throw new Error('Pinning needs a database update: run nov20b.sql in Supabase.');
       if (error && /phase_public|links/.test(error.message)) {
         const { phase_public: _p, links: _l, ...rest } = input;
         ({ data, error } = await sb.from('profiles').update(rest).eq('id', id).select().single());

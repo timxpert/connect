@@ -31,7 +31,7 @@ function Who({ p }: { p: Profile }) {
         </span>
         <span className="cx-person-meta">
           @{p.handle}
-          {p.country && <> · {p.country}</>}
+          {p.team_role && <> · {p.team_role}</>}
         </span>
       </span>
     </A>

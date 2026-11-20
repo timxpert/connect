@@ -12,7 +12,7 @@ import { ContinueLearning } from './learning';
 import { ChallengeStats, ChallengeTab, MembersTabs, ProjectsTab } from './challenge';
 import { PHASES, SKILLS, type ChallengeStat, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
 
-import { A, Avatar, Empty, Icon, isVideoFile, shortBio, BELTS, LikeButton, Loading, Media, BeltBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, visiblePhase, POST_DELETED } from './ui';
+import { A, Avatar, Empty, Icon, isVideoFile, shortBio, BELTS, LikeButton, Loading, Media, BeltBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, subLine, visiblePhase, POST_DELETED } from './ui';
 
 /* ================= Feed ================= */
 type FeedName = 'community' | 'everyone' | 'connections';
@@ -236,10 +236,10 @@ function MembersList() {
                   <span className="cx-mlist-who">
                     <span className="cx-mlist-name">
                       <span className="cx-name-text">{p.name}</span>
-                      <BeltBadge p={p} small />
+                      <BeltBadge p={p} small showRole={false} />
                       {p.sample && <SampleTag />}
                     </span>
-                    <span className="cx-mlist-sub">{p.country || 'Motion designer'}</span>
+                    <span className="cx-mlist-sub">{subLine(p, me)}</span>
                   </span>
                   {st && (
                     <span className="cx-mlist-ch">
@@ -530,7 +530,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
         <div className="cx-pf-info">
           <h1 className="cx-pf-name">
             {p.name}
-            {p.is_sensei ? <SenseiBadge /> : p.is_student && <BeltBadge p={p} />}
+            {p.is_sensei ? <SenseiBadge small={false} /> : p.is_student && <BeltBadge p={p} />}
             {p.sample && <SampleTag />}
           </h1>
           <p className="cx-pf-handle">
@@ -545,7 +545,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
             ) : (
               <li>Community member</li>
             )}
-            {p.country && <li>{p.country}</li>}
+            {p.team_role && <li>{p.team_role}</li>}
           </ul>
           {links.length > 0 && (
             <ul className="cx-pf-links" aria-label="Links">
@@ -594,9 +594,14 @@ export function ProfileScreen({ handle }: { handle: string }) {
           </p>
         ) : (
           <ul className="cx-thumbs">
-            {posts.map((x) => (
+            {[...posts].sort((a, b) => Number(b.id === (p.id === me?.id ? me?.pinned_post_id : p.pinned_post_id)) - Number(a.id === (p.id === me?.id ? me?.pinned_post_id : p.pinned_post_id))).map((x) => (
               <li key={x.id}>
-                <A path={`/p/${x.id}`} className="cx-thumb" aria-label={x.caption || 'Open post'}>
+                <A path={`/p/${x.id}`} className="cx-thumb" aria-label={(x.id === (p.id === me?.id ? me?.pinned_post_id : p.pinned_post_id) ? 'Pinned: ' : '') + (x.caption || 'Open post')}>
+                  {x.id === (p.id === me?.id ? me?.pinned_post_id : p.pinned_post_id) && (
+                    <span className="cx-thumb-pin" aria-hidden="true">
+                      <Icon name="pin" size={14} />
+                    </span>
+                  )}
                   {x.kind === 'image' && x.media_url ? (
                     <img src={x.media_url} alt="" loading="lazy" />
                   ) : x.kind === 'text' ? (

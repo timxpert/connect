@@ -1238,7 +1238,7 @@ function MemberRow({ p, me, onMenu }: { p: Profile; me: string; onMenu?: (p: Pro
         <span className="cx-gi-text">
           <b>
             <span className="cx-name-text">{p.id === me ? 'You' : p.name}</span>
-            {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
+            {(p.is_student || p.is_sensei) && <BeltBadge p={p} small />}
           </b>
           <small>@{p.handle}</small>
         </span>
@@ -1605,7 +1605,7 @@ function AddPeople({ gid, have, onClose, onDone }: { gid: string; have: Set<stri
                   <Avatar p={p} size={40} />
                   <span className="cx-fwd-name">
                     <span className="cx-name-text">{p.name}</span>
-                    {p.is_student && !p.is_sensei && <BeltBadge p={p} small />}
+                    {(p.is_student || p.is_sensei) && <BeltBadge p={p} small />}
                   </span>
                   <span className={pick.has(p.id) ? 'cx-addp-tick is-on' : 'cx-addp-tick'} aria-hidden="true">
                     {pick.has(p.id) && <Icon name="check" size={16} />}
