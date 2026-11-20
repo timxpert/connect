@@ -21,7 +21,7 @@ import { StudyNudge } from './learning';
 import { LiveCard, LiveSheet, PollCard, PollSheet } from './polls-live';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
-import { A, Avatar, BeltBadge, Empty, Icon, Loading, TeamRole } from './ui';
+import { A, Avatar, BeltBadge, Empty, Icon, Loading, SenseiBadge, TeamRole } from './ui';
 import { coalesce } from './coalesce';
 import { useHidden } from './hidden';
 
@@ -96,10 +96,12 @@ function memberNames(people: Profile[], me: string) {
   return [...others.slice(0, 30), 'You'].join(', ');
 }
 
-function whoName(m: GroupMessage) {
-  const n = m.sender?.name ?? 'Member';
-  if (m.sender?.is_sensei) return /sensei/i.test(n) ? n : `${n} · Grand Sensei`;
-  return m.sender?.is_moderator ? `${n} · Team` : n;
+/** The name over a group message, with the Grand Sensei's crowns or a team member's role */
+function whoLine(m: GroupMessage): { name: string; badge?: React.ReactNode } {
+  const name = m.sender?.name ?? 'Member';
+  if (m.sender?.is_sensei) return { name, badge: <SenseiBadge /> };
+  if (m.sender?.team_role) return { name, badge: <TeamRole role={m.sender.team_role} /> };
+  return { name };
 }
 
 export function GroupChat({ gid = null }: { gid?: string | null }) {
@@ -702,7 +704,7 @@ function GroupChatInner() {
                   m={m}
                   mine={mine}
                   ready={mine || downloaded.has(m.id)}
-                  who={showWho ? { name: whoName(m) } : null}
+                  who={showWho ? whoLine(m) : null}
                   avatar={mine ? undefined : showWho ? (m.sender ?? false) : false}
                   onReactions={() => setRxOf(m)}
                   content={

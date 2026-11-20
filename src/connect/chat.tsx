@@ -711,7 +711,7 @@ export function Bubble({
   m: Message;
   mine: boolean;
   /** Group chats: who sent it (shown above other people's messages) */
-  who?: { name: string } | null;
+  who?: { name: string; badge?: React.ReactNode } | null;
   /** The message this one replies to */
   quote?: { name: string; text: string; onClick?: () => void } | null;
   reactions?: { emoji: string; count: number; mine: boolean }[];
@@ -833,7 +833,12 @@ export function Bubble({
           <Avatar p={avatar} size={30} />
         </span>
       )}
-      {who && <b className="cx-msg-who">{who.name}</b>}
+      {who && (
+        <b className="cx-msg-who">
+          {who.name}
+          {who.badge}
+        </b>
+      )}
       {m.forwarded && !m.deleted_at && (
         <span className="cx-msg-fwd">
           <Icon name="forward" size={14} /> Forwarded

@@ -10535,3 +10535,21 @@ html.cx-in-chat,
 html.cx-in-chat body {
   height: 100%;
 }
+/* name over a group message: crowns or role sit right after it */
+.cx-msg-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.cx-msg-who .cx-team-role {
+  font-size: 0.82em;
+}
+/* "typing…" bubble matches received messages (dark in dark mode) */
+.cx-typing-bubble,
+.cx-group .cx-typing-bubble {
+  background: var(--theirs, #f0eee9);
+}
+html[data-cx-theme='dark'] .cx-typing-bubble b {
+  color: #c9b0ff;
+}
