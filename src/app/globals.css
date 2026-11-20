@@ -10538,3 +10538,12 @@ html.cx-kb-overlay .cx.is-chat .cx-chat,
 html.cx-kb-overlay body {
   transition: none;
 }
+/* orientation: ticks itself once watched */
+.cx-ln-watch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}

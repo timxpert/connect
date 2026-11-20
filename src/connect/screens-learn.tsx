@@ -4,7 +4,7 @@
    next. Videos are Google Drive files shown in Drive's player, with its
    pop-out button covered and the student's name over the picture. */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useConnect } from './context';
 import { peek } from './cache';
 import { navigate } from './router';
@@ -164,6 +164,8 @@ export function Learn() {
   const done = published.filter((l) => l.done).length;
   const pct = useMemo(() => courseProgress(list ?? [], cur), [list, cur]);
   const next = published.find((l) => l.open && !l.done);
+  // the orientation comes first: nothing else opens until it's watched
+  const oriented = (list ?? []).filter((l) => l.phase === 0 && l.published).every((l) => l.done);
   const mine = useAssignments(learner && !team);
   const status = (phase: number) => phaseStatus(list ?? [], mine, phase, cur);
   const unplaced = Boolean(me?.is_student && !team && !me.phase);
@@ -183,7 +185,11 @@ export function Learn() {
       <div className="cx-intro">
         <h1 className="cx-h1">Learn</h1>
         {learner ? (
-          unplaced ? null : <p>{cur ? `Phase ${cur}. Finish a lesson to open the next.` : 'Finish a lesson to open the next.'}</p>
+          unplaced ? null : !team && !oriented ? (
+            <p>Watch the orientation to the end first. Your other lessons open after it.</p>
+          ) : (
+            <p>{cur ? `Phase ${cur}. Finish a lesson to open the next.` : 'Finish a lesson to open the next.'}</p>
+          )
         ) : (
           <p>Every lesson in Black Belt in Motion Design.</p>
         )}
@@ -478,7 +484,7 @@ function shapeOf(url: string) {
 }
 const driveThumb = (id: string) => `https://drive.google.com/thumbnail?id=${id}&sz=w720`;
 
-function Player({ url, title, mark, size, autoload = false, portrait = false, onRatio }: { url: string; title: string; mark: string; size?: number | null; autoload?: boolean; portrait?: boolean; onRatio?: (r: number) => void }) {
+function Player({ url, title, mark, size, autoload = false, portrait = false, onRatio, onWatched }: { url: string; title: string; mark: string; size?: number | null; autoload?: boolean; portrait?: boolean; onRatio?: (r: number) => void; onWatched?: (share: number) => void }) {
   const e = embedSrc(url);
   // the video's own shape when we can read it; otherwise the lesson's setting
   const found = useVideoRatio(url);
@@ -513,7 +519,7 @@ function Player({ url, title, mark, size, autoload = false, portrait = false, on
       </button>
     );
   }
-  if (y) return <YouTubePlayer id={y} className={`cx-player is-on${shape}`} style={style} watermark={<Watermark text={mark} />} />;
+  if (y) return <YouTubePlayer id={y} className={`cx-player is-on${shape}`} style={style} watermark={<Watermark text={mark} />} onWatched={onWatched} />;
   return (
     <div className={`cx-player is-on${shape}`} style={style} onContextMenu={(ev) => ev.preventDefault()}>
       {/* Drive and YouTube players need to know which site they are on, or they stay black */}
@@ -550,6 +556,27 @@ export function LessonScreen({ id }: { id: string }) {
   const i = order.findIndex((l) => l.id === id);
   const prev = i > 0 ? order[i - 1] : null;
   const next = i >= 0 && i < order.length - 1 ? order[i + 1] : null;
+
+  // The orientation can't be ticked off by hand: it ticks itself once the
+  // student has really watched it (skipped parts don't count)
+  const mustWatch = Boolean(lesson && lesson.phase === 0 && !lesson.done && !team && youtubeId(lesson.video_url ?? ''));
+  const [watched, setWatched] = useState(0);
+  const ticking = useRef(false);
+  const watchedSome = useCallback(
+    (share: number) => {
+      setWatched(share);
+      if (share < 0.92 || ticking.current || !lesson) return;
+      ticking.current = true;
+      api
+        .setLessonDone(lesson.id, true)
+        .then(async () => {
+          setLesson((l) => (l ? { ...l, done: true } : l));
+          setList(await api.listLessons());
+        })
+        .catch(() => (ticking.current = false));
+    },
+    [api, lesson],
+  );
 
   const toggleDone = async () => {
     if (!lesson) return;
@@ -612,7 +639,7 @@ export function LessonScreen({ id }: { id: string }) {
     <div className={`cx-col cx-lesson${(ratio ?? (lesson.portrait !== false ? 0.5625 : 1.78)) < 1 ? ' is-portrait' : ''}`}>
       {back}
       <div className="cx-ln-split">
-      <Player url={lesson.video_url ?? ''} title={lesson.title} mark={mark} size={lesson.size_mb} portrait={lesson.portrait !== false} onRatio={setRatio} />
+      <Player url={lesson.video_url ?? ''} title={lesson.title} mark={mark} size={lesson.size_mb} portrait={lesson.portrait !== false} onRatio={setRatio} onWatched={mustWatch ? watchedSome : undefined} />
       <div className="cx-ln-body">
 
       <div className="cx-ln-head">
@@ -627,10 +654,17 @@ export function LessonScreen({ id }: { id: string }) {
       </div>
 
       <div className="cx-ln-actions">
-        <button type="button" className={`btn btn-sm ${lesson.done ? 'cx-ln-done' : 'btn-primary'}`} onClick={toggleDone} disabled={busy} aria-pressed={lesson.done}>
-          <Icon name="check" size={18} />
-          {lesson.done ? 'Done' : 'Mark as done'}
-        </button>
+        {mustWatch ? (
+          <p className="cx-ln-watch">
+            <Icon name="lock" size={16} />
+            Watch to the end to open your lessons · {Math.floor(watched * 100)}% watched
+          </p>
+        ) : (
+          <button type="button" className={`btn btn-sm ${lesson.done ? 'cx-ln-done' : 'btn-primary'}`} onClick={toggleDone} disabled={busy || (lesson.phase === 0 && lesson.done && !team)} aria-pressed={lesson.done}>
+            <Icon name="check" size={18} />
+            {lesson.done ? 'Done' : 'Mark as done'}
+          </button>
+        )}
         {lesson.done && next && (next.open || team) && (
           <A path={`/learn/${next.id}`} className="btn btn-lime btn-sm">
             Next lesson

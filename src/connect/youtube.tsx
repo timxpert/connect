@@ -71,7 +71,12 @@ const clock = (s: number) => {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 };
 
-export function YouTubePlayer({ id, className, style, watermark, onEnded }: { id: string; className: string; style: React.CSSProperties; watermark: React.ReactNode; onEnded?: () => void }) {
+export function YouTubePlayer({ id, className, style, watermark, onEnded, onWatched }: { id: string; className: string; style: React.CSSProperties; watermark: React.ReactNode; onEnded?: () => void; onWatched?: (share: number) => void }) {
+  // which seconds have actually played (jumping ahead doesn't count), kept on this phone
+  const seen = useRef<Set<number> | null>(null);
+  const last = useRef(-1);
+  const report = useRef(onWatched);
+  report.current = onWatched;
   const box = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const player = useRef<YTPlayer | null>(null);
@@ -124,9 +129,34 @@ export function YouTubePlayer({ id, className, style, watermark, onEnded }: { id
     const tick = window.setInterval(() => {
       const p = player.current;
       if (!p?.getCurrentTime) return;
-      setTime(p.getCurrentTime());
+      const at = p.getCurrentTime();
+      setTime(at);
       const d = p.getDuration();
       if (d) setLength(d);
+      if (report.current && d) {
+        if (!seen.current) {
+          try {
+            seen.current = new Set<number>(JSON.parse(localStorage.getItem(`cx-seen-${id}`) || '[]'));
+          } catch {
+            seen.current = new Set<number>();
+          }
+        }
+        const had = seen.current.size;
+        if (p.getPlayerState?.() === 1) {
+          // fill in the seconds since the last check (fast speeds move 1–2 s per check)
+          const from = last.current >= 0 && at - last.current > 0 && at - last.current < 3 ? last.current : at;
+          for (let t = Math.floor(from); t <= Math.floor(at); t++) seen.current.add(t);
+          last.current = at;
+        } else last.current = -1;
+        if (seen.current.size !== had) {
+          try {
+            localStorage.setItem(`cx-seen-${id}`, JSON.stringify([...seen.current]));
+          } catch {
+            /* storage full or blocked */
+          }
+        }
+        report.current(Math.min(1, seen.current.size / Math.floor(d)));
+      }
     }, 500);
     const onFs = () => setFull(document.fullscreenElement === box.current);
     document.addEventListener('fullscreenchange', onFs);
