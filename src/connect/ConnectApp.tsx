@@ -172,6 +172,8 @@ function Shell({ route }: { route: Route }) {
   const look = useAppearance();
   useEffect(() => {
     document.documentElement.dataset.cxTheme = look.dark ? 'dark' : 'light';
+    // the installed app's background colour follows this (see manifest.webmanifest)
+    document.cookie = `cx-theme=${look.dark ? 'dark' : 'light'}; path=/; max-age=31536000; samesite=lax`;
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', look.dark ? '#16131c' : '#ffffff');
   }, [look.dark]);
   const bubble = CHAT_COLORS[look.chat] ?? CHAT_COLORS.violet;

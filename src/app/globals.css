@@ -10426,3 +10426,11 @@ html.cx-kb-open .cx-sheet-wrap {
 html.cx-kb-open .cx-crop {
   bottom: var(--kb, 0px);
 }
+
+/* Behind the app: Dojo Midnight in dark, white in light (same as the installed app's colour) */
+html[data-cx-theme='dark'] {
+  background: #140a2e;
+}
+html[data-cx-theme='light'] {
+  background: #ffffff;
+}
