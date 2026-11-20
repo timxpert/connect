@@ -20,6 +20,8 @@ export function useKeyboardOverlay() {
     if (!vk || !installed) return;
     const root = document.documentElement;
     vk.overlaysContent = true;
+    // the page moves with the keyboard (see .cx-kb-overlay in the styles)
+    root.classList.add('cx-kb-overlay');
     const change = () => {
       covered = Math.round(vk.boundingRect.height);
       root.style.setProperty('--kb', `${covered}px`);
@@ -41,7 +43,7 @@ export function useKeyboardOverlay() {
       vk.overlaysContent = false;
       covered = 0;
       root.style.removeProperty('--kb');
-      root.classList.remove('cx-kb-open');
+      root.classList.remove('cx-kb-open', 'cx-kb-overlay');
     };
   }, []);
 }

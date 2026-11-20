@@ -10486,3 +10486,23 @@ html[data-cx-theme='light'] {
   position: relative;
   z-index: 3;
 }
+
+/* Installed app: as the keyboard slides up (Android takes about a quarter of a
+   second, fast start, soft stop), the chat and sheets slide with it instead of
+   jumping once it's open. Only here: in a browser tab the browser moves the page. */
+html.cx-kb-overlay .cx.is-chat .cx-chat {
+  transition: height 0.26s cubic-bezier(0.2, 0, 0, 1);
+}
+html.cx-kb-overlay .cx-sheet-wrap {
+  transition: bottom 0.26s cubic-bezier(0.2, 0, 0, 1);
+}
+html.cx-kb-overlay body {
+  transition: padding-bottom 0.26s cubic-bezier(0.2, 0, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  html.cx-kb-overlay .cx.is-chat .cx-chat,
+  html.cx-kb-overlay .cx-sheet-wrap,
+  html.cx-kb-overlay body {
+    transition: none;
+  }
+}

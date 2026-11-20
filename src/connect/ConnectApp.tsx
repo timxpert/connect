@@ -308,9 +308,15 @@ function Shell({ route }: { route: Route }) {
       root.style.removeProperty('--vvh');
       return;
     }
+    // the full height with no keyboard, to tell whether the phone already shrank the page
+    let full = vv.height;
     const fit = () => {
+      const over = keyboardOver();
+      if (!over) full = Math.max(full, vv.height);
       // installed app: the keyboard slides over the page, so take its height off
-      root.style.setProperty('--vvh', `${Math.round(vv.height - keyboardOver())}px`);
+      // (unless the phone shrank the page anyway, then it's already off)
+      const shrunk = vv.height < full - 50;
+      root.style.setProperty('--vvh', `${Math.round(vv.height - (shrunk ? 0 : over))}px`);
       if (window.scrollY) window.scrollTo(0, 0);
     };
     fit();
