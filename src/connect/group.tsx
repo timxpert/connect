@@ -273,6 +273,7 @@ function GroupChatInner() {
   const opened = useRef(false);
   // Hidden until it's scrolled into place, so it never shows old messages and then jumps
   const [placed, setPlaced] = useState(false);
+  const settle = useRef<() => void>(() => {});
   useLayoutEffect(() => {
     const el = end.current;
     const list = el?.parentElement;
@@ -288,8 +289,10 @@ function GroupChatInner() {
       setPlaced(true);
       // Photos and videos load after this and push things down: keep the same
       // spot for a few seconds, unless the person starts scrolling themselves.
+      // (a new message, sent or received, also ends this)
       let touched = false;
       const stop = () => (touched = true);
+      settle.current = stop;
       const again = () => !touched && place();
       list.addEventListener('load', again, true);
       list.addEventListener('loadedmetadata', again, true);
@@ -303,7 +306,20 @@ function GroupChatInner() {
       }, 6000);
       return;
     }
-    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    // a new message: show it, and keep showing it while the message box
+    // shrinks back and the keyboard settles
+    settle.current();
+    const toEnd = () => {
+      list.scrollTop = list.scrollHeight;
+    };
+    toEnd();
+    requestAnimationFrame(toEnd);
+    const t1 = window.setTimeout(toEnd, 150);
+    const t2 = window.setTimeout(toEnd, 400);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [all.length, unreadFrom]);
 
   useEffect(

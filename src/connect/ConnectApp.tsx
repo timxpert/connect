@@ -322,7 +322,8 @@ function Shell({ route }: { route: Route }) {
       root.style.setProperty('--vvh', `${Math.round(vv.height - (shrunk ? 0 : over))}px`);
       if (list) {
         const keep = () => {
-          list.scrollTop = list.scrollHeight - list.clientHeight - Math.max(0, fromBottom);
+          // near the newest message: stay on it
+          list.scrollTop = fromBottom < 80 ? list.scrollHeight : list.scrollHeight - list.clientHeight - fromBottom;
         };
         keep();
         requestAnimationFrame(keep);
