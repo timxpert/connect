@@ -9844,6 +9844,10 @@ html[data-cx-theme='dark'] {
   font-size: 0.9rem;
 }
 .cx-ln-no {
-  color: var(--muted);
+  color: inherit;
   font-variant-numeric: tabular-nums;
+}
+/* lesson titles: medium weight, not bold */
+.cx-ln-phase .cx-ln-text b {
+  font-weight: 500;
 }
