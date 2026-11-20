@@ -9818,3 +9818,21 @@ html[data-cx-theme='dark'] {
   background: #2f9e44;
   color: #fff;
 }
+
+/* Long links never widen the page: the list keeps to the screen width and the link ends in "…" */
+.cx-brief-edit {
+  grid-template-columns: minmax(0, 1fr);
+}
+.cx-brief-edit li,
+.cx .field {
+  min-width: 0;
+}
+/* and if anything is ever too wide, the page itself doesn't slide sideways */
+.cx-main {
+  overflow-x: clip;
+}
+.cx-brief a,
+.cx-brief p,
+.cx-ln-body a {
+  overflow-wrap: anywhere;
+}
