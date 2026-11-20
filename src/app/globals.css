@@ -9758,3 +9758,8 @@ html[data-cx-theme='dark'] .cx-pf-links a:hover {
   width: 100%;
   height: calc(100% + 54px + 260px);
 }
+
+/* Dark theme: the page behind the app is dark too (shows while the keyboard opens) */
+html[data-cx-theme='dark'] {
+  background: #121016;
+}
