@@ -10279,3 +10279,23 @@ html[data-cx-theme='dark'] .cx-seal-sensei .cx-seal-bg {
 .cx-seal-sensei .cx-seal-crown {
   fill: #1a1206;
 }
+/* Grand Sensei: a gold and a purple crown seal side by side */
+.cx-seal-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.cx-seal-sensei.is-gold .cx-seal-bg {
+  fill: #f2b705;
+}
+.cx-seal-sensei.is-gold .cx-seal-crown {
+  fill: #1a1206;
+}
+.cx-seal-sensei.is-purple .cx-seal-bg,
+html[data-cx-theme='dark'] .cx-seal-sensei.is-purple .cx-seal-bg {
+  fill: #6d32e8;
+}
+.cx-seal-sensei.is-purple .cx-seal-crown {
+  fill: #fff;
+}

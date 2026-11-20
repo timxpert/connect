@@ -336,17 +336,22 @@ export function Crown({ size = 16 }: { size?: number }) {
   );
 }
 
-/** The Grand Sensei: a gold seal with a crown, no words */
+/** The Grand Sensei: a gold and a purple crown seal, no words */
 export function SenseiBadge({ small = true }: { small?: boolean }) {
+  const seal = (tone: 'gold' | 'purple') => (
+    <span className={`cx-seal cx-seal-sensei is-${tone}${small ? ' is-sm' : ''}`} aria-hidden="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path className="cx-seal-bg" d={SEAL} />
+        <path className="cx-seal-crown" d="M7.2 9.6a.5.5 0 0 1 .8-.45l1.8 1.45 1.4-2.45a.5.5 0 0 1 .8 0l1.4 2.45 1.8-1.45a.5.5 0 0 1 .8.45l-.55 4.8a.8.8 0 0 1-.8.7H8.55a.8.8 0 0 1-.8-.7z" />
+      </svg>
+    </span>
+  );
+  // two crown seals, gold and purple, side by side
   return (
-    <>
-      <span className={`cx-seal cx-seal-sensei${small ? ' is-sm' : ''}`} role="img" aria-label="Grand Sensei" title="Grand Sensei of Motion Dojo">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path className="cx-seal-bg" d={SEAL} />
-          <path className="cx-seal-crown" d="M7.2 9.6a.5.5 0 0 1 .8-.45l1.8 1.45 1.4-2.45a.5.5 0 0 1 .8 0l1.4 2.45 1.8-1.45a.5.5 0 0 1 .8.45l-.55 4.8a.8.8 0 0 1-.8.7H8.55a.8.8 0 0 1-.8-.7z" />
-        </svg>
-      </span>
-    </>
+    <span className="cx-seal-pair" role="img" aria-label="Grand Sensei" title="Grand Sensei of Motion Dojo">
+      {seal('gold')}
+      {seal('purple')}
+    </span>
   );
 }
 
