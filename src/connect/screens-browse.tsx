@@ -12,7 +12,7 @@ import { ContinueLearning } from './learning';
 import { ChallengeStats, ChallengeTab, MembersTabs, ProjectsTab } from './challenge';
 import { PHASES, SKILLS, type ChallengeStat, type Comment, type ConnectionStatus, type Post, type Profile } from './types';
 
-import { A, Avatar, Empty, Icon, isVideoFile, shortBio, BELTS, LikeButton, Loading, Media, BeltBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, subLine, visiblePhase, POST_DELETED } from './ui';
+import { A, Avatar, Empty, Icon, isVideoFile, shortBio, BELTS, LikeButton, Loading, Media, BeltBadge, PersonLine, PostCard, SampleTag, SaveButton, SenseiBadge, shareLink, subLine, TeamRole, visiblePhase, POST_DELETED } from './ui';
 
 /* ================= Feed ================= */
 type FeedName = 'community' | 'everyone' | 'connections';
@@ -239,7 +239,7 @@ function MembersList() {
                       <BeltBadge p={p} small showRole={false} />
                       {p.sample && <SampleTag />}
                     </span>
-                    <span className="cx-mlist-sub">{subLine(p, me)}</span>
+                    <span className="cx-mlist-sub">{p.team_role ? <TeamRole role={p.team_role} /> : subLine(p, me)}</span>
                   </span>
                   {st && (
                     <span className="cx-mlist-ch">
@@ -545,7 +545,11 @@ export function ProfileScreen({ handle }: { handle: string }) {
             ) : (
               <li>Community member</li>
             )}
-            {p.team_role && <li>{p.team_role}</li>}
+            {p.team_role && (
+              <li>
+                <TeamRole role={p.team_role} full />
+              </li>
+            )}
           </ul>
           {links.length > 0 && (
             <ul className="cx-pf-links" aria-label="Links">

@@ -6,7 +6,7 @@ import { navigate } from './router';
 import { timeAgo } from './media';
 import type { Notice, Post, Profile } from './types';
 import { peek } from './cache';
-import { A, Avatar, Empty, Icon, Loading, BeltBadge, PostCard, SampleTag, SenseiBadge } from './ui';
+import { A, Avatar, Empty, Icon, Loading, BeltBadge, PostCard, SampleTag, SenseiBadge, TeamRole } from './ui';
 
 function Gate({ profile = false }: { profile?: boolean }) {
   return (
@@ -31,7 +31,12 @@ function Who({ p }: { p: Profile }) {
         </span>
         <span className="cx-person-meta">
           @{p.handle}
-          {p.team_role && <> · {p.team_role}</>}
+          {p.team_role && (
+            <>
+              {' · '}
+              <TeamRole role={p.team_role} />
+            </>
+          )}
         </span>
       </span>
     </A>

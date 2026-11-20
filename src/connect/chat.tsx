@@ -10,7 +10,7 @@ import { useDragToClose } from './drag';
 import type { Attachment, Conversation, GroupRow, Message, Profile } from './types';
 import { peek } from './cache';
 import { coalesce } from './coalesce';
-import { A, Avatar, Empty, Icon, Loading, BeltBadge, type IconName } from './ui';
+import { A, Avatar, Empty, Icon, Loading, BeltBadge, TeamRole, type IconName } from './ui';
 import { compressVideo, MAX_VIDEO_SECONDS, videoSeconds } from './compress';
 import { ForwardSheet } from './forward';
 import { CameraScreen } from './camera';
@@ -1383,7 +1383,12 @@ export function Chat({ id }: { id: string }) {
               <span className="cx-person-meta is-typing">typing…</span>
             ) : (
               <span className={otherOnline ? 'cx-person-meta is-online' : 'cx-person-meta'}>
-                {other.team_role ? `${other.team_role} · ` : ''}
+                {other.team_role && (
+                  <>
+                    <TeamRole role={other.team_role} />
+                    {' · '}
+                  </>
+                )}
                 {presenceLabel(otherOnline, other.id, other.last_seen_at)}
               </span>
             )}

@@ -10299,3 +10299,35 @@ html[data-cx-theme='dark'] .cx-seal-sensei.is-purple .cx-seal-bg {
 .cx-seal-sensei.is-purple .cx-seal-crown {
   fill: #fff;
 }
+
+/* A role given by Motion Dojo: the brand mark and the role in violet */
+.cx-team-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: bottom;
+  color: var(--violet);
+  font-weight: 600;
+}
+html[data-cx-theme='dark'] .cx-team-role {
+  color: #c9b0ff;
+}
+.cx-team-role img {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.cx-team-role-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cx-team-role-org {
+  flex: none;
+  color: var(--muted);
+  font-weight: 500;
+}

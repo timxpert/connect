@@ -375,6 +375,18 @@ export function PhaseTrack({ phase }: { phase: number }) {
   );
 }
 
+/** A role given by Motion Dojo: the Motion Dojo mark and the role in violet,
+    so it reads as official (members can't set it themselves) */
+export function TeamRole({ role, full = false }: { role: string; full?: boolean }) {
+  return (
+    <span className="cx-team-role" title="A role given by Motion Dojo">
+      <img src="/assets/icon-192.png" alt="" width={14} height={14} />
+      <span className="cx-team-role-text">{role}</span>
+      {full && <span className="cx-team-role-org">· Motion Dojo team</span>}
+    </span>
+  );
+}
+
 /** What shows under a name in lists: a team member's role, else the student's phase */
 export function subLine(p: Pick<Profile, 'id' | 'phase' | 'phase_public' | 'team_role' | 'is_sensei' | 'is_student'>, viewer: Profile | null | undefined) {
   if (p.is_sensei) return '';
@@ -395,7 +407,7 @@ export function PersonLine({ p, when }: { p: Profile; when?: string }) {
           {p.sample && <SampleTag />}
         </span>
         <span className="cx-person-meta">
-          {p.team_role || `@${p.handle}`}
+          {p.team_role ? <TeamRole role={p.team_role} /> : `@${p.handle}`}
           {when && <> · {timeAgo(when)}</>}
         </span>
       </span>

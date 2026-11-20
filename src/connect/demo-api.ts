@@ -40,7 +40,7 @@ const people: Profile[] = [
   profile({ id: 's1', handle: 'sample_ada', name: 'Ada', country: 'Nigeria', phase: null, skills: ['Alight Motion', 'Typography'], bio: 'Sample profile for the preview. Practising kinetic type.' }),
   profile({ id: 's2', handle: 'sample_tunde', name: 'Tunde', country: 'Nigeria', phase: 3, skills: ['Logo animation', 'Transitions'], bio: 'Sample profile for the preview. Logo reveals and smooth transitions.' }),
   profile({ id: 's3', handle: 'sample_amaka', name: 'Amaka', country: 'Ghana', phase: 1, skills: ['Alight Motion', 'Graphic design'], bio: 'Sample profile for the preview. Graphic designer starting out with motion.' }),
-  profile({ id: 's4', handle: 'sample_kemi', name: 'Kemi', country: 'Nigeria', phase: 4, skills: ['Product visuals', '2D animation', 'Sound design'], bio: 'Sample profile for the preview. Building my portfolio in phase four.' }),
+  profile({ id: 's4', handle: 'sample_kemi', name: 'Kemi', country: 'Nigeria', phase: 4, team_role: 'Moderator', skills: ['Product visuals', '2D animation', 'Sound design'], bio: 'Sample profile for the preview. Building my portfolio in phase four.' }),
   profile({ id: 's5', handle: 'sample_jide', name: 'Jide', country: 'Kenya', phase: null, phase_request: 2, phase_request_at: ago(3), skills: ['Video editing', 'AI video'], bio: 'Sample profile for the preview. Editor learning motion.' }),
   profile({ id: 'v1', handle: 'sample_visitor', name: 'Visitor', is_student: false, phase: null, bio: 'Sample visitor account for the preview.' }),
   profile({ id: 'g1', handle: 'sample_sensei', name: 'Grand Sensei', is_student: false, is_sensei: true, phase: null, bio: 'Sample grand sensei account for the preview.' }),
