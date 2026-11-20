@@ -10331,3 +10331,87 @@ html[data-cx-theme='dark'] .cx-team-role {
   color: var(--muted);
   font-weight: 500;
 }
+
+/* Crop a photo before upload */
+.cx-crop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  background: #0e0b14;
+  color: #fff;
+}
+.cx-crop-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.cx-crop-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  touch-action: none;
+  cursor: grab;
+  background: #000;
+}
+.cx-crop-frame img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.cx-crop-frame.is-round {
+  border-radius: 0;
+}
+/* the circle: everything outside it is dimmed */
+.cx-crop-frame.is-round .cx-crop-mask {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 999px rgba(14, 11, 20, 0.62);
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+}
+.cx-crop-zoom {
+  width: min(360px, 100%);
+}
+.cx-crop-zoom input {
+  width: 100%;
+  accent-color: #a77bff;
+}
+.cx-crop-hint {
+  margin: -8px 0 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+}
+.cx-crop-btns {
+  display: flex;
+  gap: 10px;
+  width: min(360px, 100%);
+}
+.cx-crop-btns .btn {
+  flex: 1;
+}
+.cx-crop .btn-light {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+/* group members: role before the username, on one line */
+.cx-gi-text > small {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.cx-gi-text > small .cx-team-role {
+  flex: 0 1 auto;
+}

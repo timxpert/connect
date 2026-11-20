@@ -21,7 +21,7 @@ import { StudyNudge } from './learning';
 import { LiveCard, LiveSheet, PollCard, PollSheet } from './polls-live';
 import { typingLine, useTyping, useTypingRoom, useTypingSender } from './typing';
 import type { Attachment, GroupHistory, GroupInfo, GroupInvite, GroupMessage, GroupReader, Profile } from './types';
-import { A, Avatar, BeltBadge, Empty, Icon, Loading } from './ui';
+import { A, Avatar, BeltBadge, Empty, Icon, Loading, TeamRole } from './ui';
 import { coalesce } from './coalesce';
 
 const MAX_FILE = 50 * 1024 * 1024;
@@ -1240,9 +1240,16 @@ function MemberRow({ p, me, onMenu }: { p: Profile; me: string; onMenu?: (p: Pro
             <span className="cx-name-text">{p.id === me ? 'You' : p.name}</span>
             {(p.is_student || p.is_sensei) && <BeltBadge p={p} small />}
           </b>
-          <small>@{p.handle}</small>
+          <small>
+            @{p.handle}
+            {p.team_role && (
+              <>
+                {'\u00a0·\u00a0'}
+                <TeamRole role={p.team_role} />
+              </>
+            )}
+          </small>
         </span>
-        {p.is_sensei ? <em className="cx-gi-role">Grand Sensei</em> : p.is_moderator ? <em className="cx-gi-role">Team</em> : null}
       </A>
       {onMenu && p.id !== me && !p.is_sensei && !p.is_moderator && (
         <button type="button" className="cx-icon-btn cx-icon-flat" aria-label={`Options for ${p.name}`} onClick={() => onMenu(p)}>

@@ -4,6 +4,7 @@ import { takeKicked } from './device';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { shakeField } from './shake';
 import { useConnect } from './context';
+import { CropSheet } from './crop';
 import { navigate } from './router';
 import { setVisitor } from './visitor';
 import { describeLink, legacyLinks } from './links';
@@ -284,12 +285,17 @@ export function Settings() {
   // Gallery photos show at once from the phone; the upload runs behind them
   const jobs = useRef<{ avatar_url?: Promise<string>; cover_url?: Promise<string> }>({});
   const [uploading, setUploading] = useState(0);
-  const pick = (key: 'avatar_url' | 'cover_url', folder: 'avatars' | 'covers') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  // a picked photo goes to the crop screen first
+  const [cropping, setCropping] = useState<{ file: File; key: 'avatar_url' | 'cover_url' } | null>(null);
+  const pick = (key: 'avatar_url' | 'cover_url') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/')) return toast('Pick a photo.');
     if (file.size > 20 * 1024 * 1024) return toast('Pick a photo under 20 MB.');
+    setCropping({ file, key });
+  };
+  const upload = (key: 'avatar_url' | 'cover_url', folder: 'avatars' | 'covers', file: File) => {
     const before = f[key];
     const preview = URL.createObjectURL(file);
     set(key, preview);
@@ -309,8 +315,8 @@ export function Settings() {
       })
       .finally(() => setUploading((n) => n - 1));
   };
-  const pickAvatar = pick('avatar_url', 'avatars');
-  const pickCover = pick('cover_url', 'covers');
+  const pickAvatar = pick('avatar_url');
+  const pickCover = pick('cover_url');
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -376,6 +382,21 @@ export function Settings() {
             <input type="file" accept="image/*" className="sr-only" onChange={pickCover} />
           </label>
         </div>
+        {cropping && (
+          <CropSheet
+            file={cropping.file}
+            aspect={cropping.key === 'avatar_url' ? 1 : 3}
+            round={cropping.key === 'avatar_url'}
+            outWidth={cropping.key === 'avatar_url' ? 800 : 1500}
+            title={cropping.key === 'avatar_url' ? 'Crop your photo' : 'Crop your cover'}
+            onCancel={() => setCropping(null)}
+            onDone={(file) => {
+              const k = cropping.key;
+              setCropping(null);
+              upload(k, k === 'avatar_url' ? 'avatars' : 'covers', file);
+            }}
+          />
+        )}
         <div className="cx-avatar-pick">
           <Avatar p={{ name: f.name || '?', handle: f.handle || 'x', avatar_url: f.avatar_url }} size={88} />
           <label className="btn btn-light btn-sm">
