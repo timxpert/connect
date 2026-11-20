@@ -53,7 +53,7 @@ async function byAlertLevel(admin: Admin, ids: string[], msg: GroupMsg | null, s
   const text = (msg.body || '').toLowerCase();
   return ((people ?? []) as { id: string; handle: string; alert_level: string | null }[])
     .filter((p) => {
-      const level = p.alert_level || 'important';
+      const level = p.alert_level || 'all';
       if (level === 'off') return false;
       if (level === 'all') return true;
       return team || msg.kind === 'poll' || msg.kind === 'live' || p.id === repliedTo || (!!p.handle && text.includes(`@${p.handle.toLowerCase()}`));
@@ -145,7 +145,7 @@ export async function POST(req: Request) {
   } else {
     return Response.json({ ok: false });
   }
-  // Group messages: each student chooses all, important only (the default) or off
+  // Group messages: each person chooses all (the default), important only or off
   if (body.kind === 'group' && to.length) to = await byAlertLevel(admin, to, gmsg, sender);
   if (!to.length) return Response.json({ ok: true, sent: 0 });
 

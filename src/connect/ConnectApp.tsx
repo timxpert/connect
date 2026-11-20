@@ -234,8 +234,8 @@ function Shell({ route }: { route: Route }) {
   useEffect(() => {
     if (route.name === 'lesson') lessonOpened();
   }, [route]);
-  // Group sounds follow the person's choice: important only (default), all, or off
-  const alertLevel = me?.alert_level ?? 'important';
+  // Group sounds follow the person's choice: all (default), important only, or off
+  const alertLevel = me?.alert_level ?? 'all';
   // Alerts are phone notifications, even while Connect is open. With push on the
   // server sends them; with only permission, this page shows one; with neither,
   // a sound and a short note in the app.
@@ -632,8 +632,8 @@ function Shell({ route }: { route: Route }) {
 
 /** Account menu > Notifications: which group messages notify you, and a test */
 const LEVELS: { v: AlertLevel; t: string; d: string }[] = [
-  { v: 'important', t: 'Important only', d: 'The Grand Sensei and the team, polls, live classes, and replies or @mentions to you.' },
   { v: 'all', t: 'All messages', d: 'Every message in your groups.' },
+  { v: 'important', t: 'Important only', d: 'The Grand Sensei and the team, polls, live classes, and replies or @mentions to you.' },
   { v: 'off', t: 'Off', d: 'No group notifications. Private chats still notify you.' },
 ];
 function AlertsSheet({ level, onClose, onPick, onTest }: { level: AlertLevel; onClose: () => void; onPick: (l: AlertLevel) => Promise<void>; onTest: () => void }) {
