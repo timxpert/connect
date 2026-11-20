@@ -20,6 +20,10 @@ type State = {
   startedAt?: number;
   muted: boolean;
   camOff: boolean;
+  /** which camera: front (mirrored) or back */
+  facing?: 'user' | 'environment';
+  /** switching a voice call to video: 'out' = I asked, 'in' = they asked */
+  asking?: 'out' | 'in';
 };
 
 const START = 'cx:call';
@@ -28,29 +32,92 @@ export function startCall(peer: Peer, conv: string, video: boolean) {
   window.dispatchEvent(new CustomEvent(START, { detail: { peer, conv, video } }));
 }
 
-/* soft ring tones, made on the phone (nothing to download) */
+/* Call sounds, made on the phone (nothing to download): a soft bell-like
+   note with a quick fade, put together into short tunes. */
 let audio: AudioContext | null = null;
-function tone(freqs: number[], dur: number) {
+const playing = new Set<OscillatorNode>();
+type Note = [freq: number, at: number, dur: number, vol?: number];
+function tune(notes: Note[]) {
   try {
     audio ??= new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     if (audio.state === 'suspended') audio.resume().catch(() => {});
-    const t = audio.currentTime;
-    for (const f of freqs) {
-      const o = audio.createOscillator();
-      const g = audio.createGain();
-      o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.12, t + 0.03);
-      g.gain.setValueAtTime(0.12, t + dur - 0.05);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g).connect(audio.destination);
-      o.start(t);
-      o.stop(t + dur + 0.02);
+    const t0 = audio.currentTime + 0.02;
+    for (const [f, at, dur, vol = 0.22] of notes) {
+      // the note and a quieter octave above it: rounder than a plain beep
+      for (const [mult, share] of [
+        [1, 1],
+        [2, 0.18],
+      ] as const) {
+        const o = audio.createOscillator();
+        const g = audio.createGain();
+        o.type = 'sine';
+        o.frequency.value = f * mult;
+        const t = t0 + at;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol * share, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g).connect(audio.destination);
+        o.start(t);
+        o.stop(t + dur + 0.05);
+        playing.add(o);
+        o.onended = () => playing.delete(o);
+      }
     }
   } catch {
     /* no sound */
   }
 }
+const hush = () => {
+  playing.forEach((o) => {
+    try {
+      o.stop();
+    } catch {
+      /* already stopped */
+    }
+  });
+  playing.clear();
+};
+const SOUNDS = {
+  // incoming: a bright little run, played twice
+  ring: [
+    [659.25, 0, 0.5],
+    [783.99, 0.16, 0.5],
+    [987.77, 0.32, 0.5],
+    [1318.5, 0.48, 0.9],
+    [659.25, 1.1, 0.5],
+    [783.99, 1.26, 0.5],
+    [987.77, 1.42, 0.5],
+    [1318.5, 1.58, 0.9],
+  ] as Note[],
+  // while calling: a calm two-note pulse
+  ringback: [
+    [523.25, 0, 1.1, 0.12],
+    [659.25, 0.35, 1.1, 0.1],
+  ] as Note[],
+  connected: [
+    [783.99, 0, 0.25, 0.18],
+    [1046.5, 0.12, 0.45, 0.18],
+  ] as Note[],
+  ended: [
+    [659.25, 0, 0.3, 0.18],
+    [523.25, 0.16, 0.3, 0.18],
+    [392, 0.32, 0.6, 0.18],
+  ] as Note[],
+  ask: [
+    [880, 0, 0.3, 0.16],
+    [1174.66, 0.14, 0.5, 0.16],
+  ] as Note[],
+};
+
+/** A round call button with its label underneath */
+const Btn = ({ label, className = 'cx-call-btn', onClick, on, children }: { label: string; className?: string; onClick: () => void; on?: boolean; children: React.ReactNode }) => (
+  <div className="cx-call-act">
+    <button type="button" className={on ? `${className} is-on` : className} onClick={onClick} aria-label={label} aria-pressed={on}>
+      {children}
+    </button>
+    <small aria-hidden="true">{label}</small>
+  </div>
+);
 
 const clockOf = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -79,9 +146,12 @@ export function CallLayer() {
   const stopTones = () => {
     window.clearInterval(ring.current);
     ring.current = 0;
+    hush();
   };
   const cleanup = () => {
     stopTones();
+    // every call that closes ends with the same short "call ended" sound
+    if (s.current) tune(SOUNDS.ended);
     timers.current.forEach((t) => window.clearTimeout(t));
     timers.current = [];
     pc.current?.close();
@@ -115,13 +185,21 @@ export function CallLayer() {
     local.current?.getTracks().forEach((t) => p.addTrack(t, local.current!));
     p.onicecandidate = (e) => e.candidate && send('ice', { ice: e.candidate.toJSON() });
     p.ontrack = (e) => {
-      const stream = e.streams[0] ?? new MediaStream([e.track]);
+      // a camera added mid-call joins the same stream; set it again so the picture starts
+      const stream = e.streams[0] ?? remoteStream.current ?? new MediaStream();
+      if (!stream.getTracks().includes(e.track)) stream.addTrack(e.track);
       remoteStream.current = stream;
-      if (remoteVideo.current) remoteVideo.current.srcObject = stream;
-      if (remoteAudio.current) remoteAudio.current.srcObject = stream;
+      if (remoteVideo.current) {
+        remoteVideo.current.srcObject = null;
+        remoteVideo.current.srcObject = stream;
+      }
+      if (remoteAudio.current && remoteAudio.current.srcObject !== stream) remoteAudio.current.srcObject = stream;
     };
     p.onconnectionstatechange = () => {
-      if (p.connectionState === 'connected') setSt((c) => (c && c.phase !== 'live' ? { ...c, phase: 'live', startedAt: Date.now() } : c));
+      if (p.connectionState === 'connected' && s.current && s.current.phase !== 'live') {
+        tune(SOUNDS.connected);
+        setSt((c) => (c && c.phase !== 'live' ? { ...c, phase: 'live', startedAt: Date.now() } : c));
+      }
       if (p.connectionState === 'failed') {
         toast('The call dropped. Check your connection and try again.');
         send('hangup');
@@ -136,6 +214,30 @@ export function CallLayer() {
     if (!p?.remoteDescription) return;
     for (const c of pendingIce.current.splice(0)) await p.addIceCandidate(c).catch(() => {});
   };
+
+  /** My camera into the call, on the video slot the other phone opened */
+  const attachCamera = async (p: RTCPeerConnection) => {
+    const vt = local.current?.getVideoTracks()[0];
+    if (!vt || p.getSenders().some((x) => x.track === vt)) return;
+    const slot = p.getTransceivers().find((t) => t.receiver.track.kind === 'video' && !t.sender.track);
+    if (slot) {
+      await slot.sender.replaceTrack(vt);
+      slot.direction = 'sendrecv';
+    } else p.addTrack(vt, local.current!);
+  };
+  /** Back to voice: my camera off and out of the call */
+  const dropCamera = () => {
+    const p = pc.current;
+    local.current?.getVideoTracks().forEach((t) => {
+      const sender = p?.getSenders().find((x) => x.track === t);
+      if (sender) sender.replaceTrack(null).catch(() => {});
+      t.stop();
+      local.current?.removeTrack(t);
+    });
+    setSt((x) => (x ? { ...x, video: false, asking: undefined, camOff: false } : x));
+  };
+  const camera = (facing: 'user' | 'environment') =>
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } } }).then((m) => m.getVideoTracks()[0]);
 
   /* placing a call */
   useEffect(() => {
@@ -158,10 +260,10 @@ export function CallLayer() {
       const ringOnce = () => api.callSend(peer.id, { type: 'ring', call, from: meAsPeer(), conv, video });
       ringOnce();
       api.ringPhone(conv, video).catch(() => {});
-      tone([440, 480], 1.2);
+      tune(SOUNDS.ringback);
       ring.current = window.setInterval(() => {
         ringOnce();
-        tone([440, 480], 1.2);
+        tune(SOUNDS.ringback);
       }, 3000);
       timers.current.push(
         window.setTimeout(() => {
@@ -189,12 +291,12 @@ export function CallLayer() {
         const next: State = { call: sig.call, peer: sig.from, conv: sig.conv, video: Boolean(sig.video), role: 'callee', phase: 'incoming', muted: false, camOff: false };
         s.current = next;
         setSt(next);
-        tone([660, 880], 0.35);
+        tune(SOUNDS.ring);
+        navigator.vibrate?.([500, 300, 500]);
         ring.current = window.setInterval(() => {
-          tone([660, 880], 0.35);
-          window.setTimeout(() => tone([660, 880], 0.35), 450);
-        }, 2200);
-        navigator.vibrate?.([400, 200, 400]);
+          tune(SOUNDS.ring);
+          navigator.vibrate?.([500, 300, 500]);
+        }, 3200);
         // the caller stops after 45 s; tidy up if their hang-up never arrives
         timers.current.push(window.setTimeout(() => s.current?.call === sig.call && s.current?.phase === 'incoming' && cleanup(), 50000));
         return;
@@ -207,9 +309,11 @@ export function CallLayer() {
         const offer = await p.createOffer();
         await p.setLocalDescription(offer);
         send('offer', { sdp: offer });
-      } else if (sig.type === 'offer' && c.role === 'callee' && sig.sdp) {
+      } else if (sig.type === 'offer' && sig.sdp) {
+        // the first offer, or a new one when a voice call switches to video
         const p = pc.current ?? (await connect());
         await p.setRemoteDescription(sig.sdp);
+        await attachCamera(p);
         const answer = await p.createAnswer();
         await p.setLocalDescription(answer);
         send('answer', { sdp: answer });
@@ -220,6 +324,17 @@ export function CallLayer() {
       } else if (sig.type === 'ice' && sig.ice) {
         if (pc.current?.remoteDescription) await pc.current.addIceCandidate(sig.ice).catch(() => {});
         else pendingIce.current.push(sig.ice);
+      } else if (sig.type === 'upgrade') {
+        tune(SOUNDS.ask);
+        setSt({ ...c, asking: 'in' });
+      } else if (sig.type === 'upgrade-ok' && pc.current) {
+        setSt((x) => (x ? { ...x, asking: undefined } : x));
+        const offer = await pc.current.createOffer();
+        await pc.current.setLocalDescription(offer);
+        send('offer', { sdp: offer });
+      } else if (sig.type === 'upgrade-no') {
+        dropCamera();
+        toast(`${c.peer.name.split(' ')[0]} wants to stay on voice`);
       } else if (sig.type === 'decline') {
         log('declined');
         toast(`${c.peer.name.split(' ')[0]} can’t talk right now`);
@@ -277,6 +392,57 @@ export function CallLayer() {
     send('decline');
     cleanup();
   };
+  // front ↔ back camera
+  const flip = async () => {
+    const old = local.current?.getVideoTracks()[0];
+    const next = st.facing === 'environment' ? 'user' : 'environment';
+    old?.stop(); // many phones can't open both cameras at once
+    try {
+      const t = await camera(next);
+      t.enabled = !st.camOff;
+      if (old) local.current?.removeTrack(old);
+      local.current?.addTrack(t);
+      const sender = old ? pc.current?.getSenders().find((x) => x.track === old) : undefined;
+      await sender?.replaceTrack(t);
+      if (localVideo.current) {
+        localVideo.current.srcObject = null;
+        localVideo.current.srcObject = local.current;
+      }
+      setSt({ ...st, facing: next });
+    } catch {
+      toast('Couldn’t switch the camera.');
+    }
+  };
+  // voice → video: ask the other person
+  const askVideo = async () => {
+    if (!pc.current || !local.current) return;
+    try {
+      const t = await camera('user');
+      local.current.addTrack(t);
+      pc.current.addTrack(t, local.current);
+      setSt({ ...st, video: true, facing: 'user', camOff: false, asking: 'out' });
+      send('upgrade');
+    } catch {
+      toast('Allow the camera to switch to video.');
+    }
+  };
+  const answerVideo = async (yes: boolean) => {
+    if (!yes) {
+      setSt({ ...st, asking: undefined });
+      send('upgrade-no');
+      return;
+    }
+    try {
+      const t = await camera('user');
+      local.current?.addTrack(t);
+      setSt({ ...st, video: true, facing: 'user', camOff: false, asking: undefined });
+      send('upgrade-ok');
+    } catch {
+      toast('Allow the camera to switch to video.');
+      setSt({ ...st, asking: undefined });
+      send('upgrade-no');
+    }
+  };
   const end = () => {
     send('hangup');
     log(st.startedAt ? 'ended' : 'missed');
@@ -302,41 +468,67 @@ export function CallLayer() {
           ? 'Connecting…'
           : clockOf(Math.max(0, Math.round((now - (st.startedAt ?? now)) / 1000)));
   const showVideo = st.video && (st.phase === 'live' || st.phase === 'connecting');
+  const first = st.peer.name.split(' ')[0];
+  const shownStatus = st.asking === 'out' ? `Asking ${first} to switch to video…` : status;
   return (
     <div className={showVideo ? 'cx-call is-video' : 'cx-call'} role="dialog" aria-label={`Call with ${st.peer.name}`}>
       <audio ref={remoteAudio} autoPlay />
       {st.video && <video ref={remoteVideo} className="cx-call-remote" autoPlay playsInline />}
-      {st.video && <video ref={localVideo} className={st.camOff ? 'cx-call-self is-off' : 'cx-call-self'} autoPlay playsInline muted />}
+      {st.video && <video ref={localVideo} className={['cx-call-self', st.camOff ? 'is-off' : '', st.facing === 'environment' ? 'is-back' : ''].join(' ').trim()} autoPlay playsInline muted />}
       <div className="cx-call-who">
         {!showVideo && <Avatar p={{ name: st.peer.name, avatar_url: st.peer.avatar_url, handle: '' } as Profile} size={112} />}
         <b>{st.peer.name}</b>
-        <span>{status}</span>
+        <span>{shownStatus}</span>
       </div>
+      {st.asking === 'in' && (
+        <div className="cx-call-ask" role="alertdialog" aria-label="Switch to video">
+          <p>{first} wants to switch to video</p>
+          <div>
+            <button type="button" className="cx-call-ask-no" onClick={() => answerVideo(false)}>
+              Not now
+            </button>
+            <button type="button" className="cx-call-ask-yes" onClick={() => answerVideo(true)}>
+              Switch
+            </button>
+          </div>
+        </div>
+      )}
       <div className="cx-call-btns">
         {st.phase === 'incoming' ? (
           <>
-            <button type="button" className="cx-call-btn is-end" onClick={decline} aria-label="Decline">
+            <Btn label="Decline" className="cx-call-btn is-end" onClick={decline}>
               <Icon name="phone" size={26} />
-            </button>
-            <button type="button" className="cx-call-btn is-answer" onClick={accept} aria-label="Answer">
+            </Btn>
+            <Btn label="Accept" className="cx-call-btn is-answer" onClick={accept}>
               <Icon name={st.video ? 'cam' : 'phone'} size={26} />
-            </button>
+            </Btn>
           </>
         ) : (
           <>
-            <button type="button" className={st.muted ? 'cx-call-btn is-on' : 'cx-call-btn'} onClick={toggleMute} aria-label={st.muted ? 'Unmute' : 'Mute'} aria-pressed={st.muted}>
+            <Btn label={st.muted ? 'Unmute' : 'Mute'} onClick={toggleMute} on={st.muted}>
               <Icon name="mic" size={24} />
               {st.muted && <span className="cx-call-slash" aria-hidden="true" />}
-            </button>
-            {st.video && (
-              <button type="button" className={st.camOff ? 'cx-call-btn is-on' : 'cx-call-btn'} onClick={toggleCam} aria-label={st.camOff ? 'Turn camera on' : 'Turn camera off'} aria-pressed={st.camOff}>
-                <Icon name="cam" size={24} />
-                {st.camOff && <span className="cx-call-slash" aria-hidden="true" />}
-              </button>
+            </Btn>
+            {st.video ? (
+              <>
+                <Btn label={st.camOff ? 'Camera on' : 'Camera'} onClick={toggleCam} on={st.camOff}>
+                  <Icon name="cam" size={24} />
+                  {st.camOff && <span className="cx-call-slash" aria-hidden="true" />}
+                </Btn>
+                <Btn label="Flip" onClick={flip}>
+                  <Icon name="flip" size={24} />
+                </Btn>
+              </>
+            ) : (
+              st.phase === 'live' && (
+                <Btn label="Video" onClick={askVideo}>
+                  <Icon name="cam" size={24} />
+                </Btn>
+              )
             )}
-            <button type="button" className="cx-call-btn is-end" onClick={end} aria-label="End call">
+            <Btn label="End" className="cx-call-btn is-end" onClick={end}>
               <Icon name="phone" size={26} />
-            </button>
+            </Btn>
           </>
         )}
       </div>

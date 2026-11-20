@@ -169,7 +169,7 @@ export type BriefItem = { kind: 'image' | 'file' | 'link' | 'video'; url: string
 export type PhaseRequest = { id: string; name: string; handle: string; avatar_url: string | null; phase_request: number; phase_request_at: string };
 
 export type CallSignal = {
-  type: 'ring' | 'accept' | 'decline' | 'busy' | 'offer' | 'answer' | 'ice' | 'hangup';
+  type: 'ring' | 'accept' | 'decline' | 'busy' | 'offer' | 'answer' | 'ice' | 'hangup' | 'upgrade' | 'upgrade-ok' | 'upgrade-no';
   call: string;
   from: { id: string; name: string; avatar_url: string | null };
   conv: string;

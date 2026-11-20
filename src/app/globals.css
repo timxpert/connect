@@ -9763,3 +9763,58 @@ html[data-cx-theme='dark'] .cx-pf-links a:hover {
 html[data-cx-theme='dark'] {
   background: #121016;
 }
+
+/* Call buttons with a label under each (like WhatsApp) */
+.cx-call-btns {
+  gap: 22px;
+  align-items: flex-start;
+}
+.cx-call-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.cx-call-act small {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+/* back camera: not mirrored */
+.cx-call-self.is-back {
+  transform: none;
+}
+/* "wants to switch to video" */
+.cx-call-ask {
+  z-index: 2;
+  width: min(100%, 340px);
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(20, 16, 28, 0.92);
+  text-align: center;
+}
+.cx-call-ask p {
+  margin: 0 0 14px;
+  font-weight: 600;
+}
+.cx-call-ask > div {
+  display: flex;
+  gap: 10px;
+}
+.cx-call-ask button {
+  flex: 1;
+  min-height: 46px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cx-call-ask-no {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.cx-call-ask-yes {
+  background: #2f9e44;
+  color: #fff;
+}
