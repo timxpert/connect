@@ -547,7 +547,7 @@ export function ProfileScreen({ handle }: { handle: string }) {
             )}
             {p.team_role && (
               <li>
-                <TeamRole role={p.team_role} full />
+                <TeamRole role={p.team_role} />
               </li>
             )}
           </ul>
