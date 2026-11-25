@@ -4,6 +4,7 @@
    itself goes straight between the phones, or through Cloudflare's relay
    when a network blocks that. Only the caller writes the line in the chat. */
 
+import { createPortal } from 'react-dom';
 import React, { useEffect, useRef, useState } from 'react';
 import { useConnect } from './context';
 import type { CallSignal, Profile } from './types';
@@ -199,6 +200,8 @@ export function CallLayer() {
   // the small video: where it sits, and whether it's swapped with the big one
   const [swapped, setSwapped] = useState(false);
   const [pipAt, setPipAt] = useState<{ x: number; y: number } | null>(null);
+  // the call shrunk to a bar at the top, so you can chat (and play voice notes) while on it
+  const [mini, setMini] = useState(false);
   const drag = useRef<{ x: number; y: number; ox: number; oy: number; moved: boolean } | null>(null);
   const s = useRef<State | null>(null);
   s.current = st;
@@ -524,7 +527,12 @@ export function CallLayer() {
     };
   }, [live]);
 
-  if (!st) return null;
+  if (!st) {
+    if (mini) setMini(false);
+    return null;
+  }
+  // a new call coming in always shows in full
+  if (mini && st.phase === 'incoming') setMini(false);
 
   const accept = async () => {
     stopTones();
@@ -663,8 +671,26 @@ export function CallLayer() {
     },
   };
   return (
-    <div className={showVideo ? 'cx-call is-video' : 'cx-call'} role="dialog" aria-label={`Call with ${st.peer.name}`}>
+    <>
+    {mini &&
+      document.getElementById('cx-bars') &&
+      createPortal(
+        <button type="button" className={`cx-call-mini${netLine ? ' is-warn' : ''}`} onClick={() => setMini(false)}>
+          <Icon name={st.video ? 'cam' : 'phone'} size={16} />
+          <span>
+            {st.peer.name} · {netLine ?? shownStatus}
+          </span>
+          <small>Tap to return</small>
+        </button>,
+        document.getElementById('cx-bars')!,
+      )}
+    <div className={`${showVideo ? 'cx-call is-video' : 'cx-call'}${mini ? ' is-mini' : ''}`} role="dialog" aria-label={`Call with ${st.peer.name}`} aria-hidden={mini || undefined}>
       <audio ref={remoteAudio} autoPlay />
+      {st.phase !== 'incoming' && (
+        <button type="button" className="cx-call-min" onClick={() => setMini(true)} aria-label="Back to Connect (the call carries on)">
+          <Icon name="down" size={24} />
+        </button>
+      )}
       {st.video && (
         <video
           ref={remoteVideo}
@@ -749,5 +775,6 @@ export function CallLayer() {
         )}
       </div>
     </div>
+    </>
   );
 }

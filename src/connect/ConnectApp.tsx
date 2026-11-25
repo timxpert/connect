@@ -7,6 +7,7 @@ import { onVisitorChange, visitorChosen } from './visitor';
 import { play, setSoundOn, soundOn } from './sounds';
 import { alertsAllowed, alertsSupported, askForAlerts, notify, pushOn, registerAlerts } from './alerts';
 import { startPresence } from './presence';
+import { TopBars } from './topbars';
 import { keyboardOver, useKeyboardOverlay } from './keyboard';
 import { guardDevice } from './device';
 import { CHAT_COLORS, useAppearance } from './appearance';
@@ -494,6 +495,7 @@ function Shell({ route }: { route: Route }) {
 
   return (
     <div className={[(route.name === 'chat' || route.name === 'group') && member ? 'cx is-chat' : 'cx', strict ? 'is-locked' : ''].filter(Boolean).join(' ')} style={lookStyle} data-wall={look.wall === 'photo' && !look.photo ? 'plain' : look.wall} data-pattern={look.wall === 'photo' && look.photo ? 'none' : look.pattern}>
+      {me && <TopBars />}
       {api.mode === 'demo' && (
         <p className="cx-preview-bar">Preview with sample members. Nothing here is real until the database is connected.</p>
       )}

@@ -9,6 +9,7 @@ import { presenceLabel, useOnline } from './presence';
 import { useDragToClose } from './drag';
 import type { Attachment, Conversation, GroupRow, Message, Profile } from './types';
 import { peek } from './cache';
+import { useVn, vnSeek, vnToggle } from './vn';
 import { coalesce } from './coalesce';
 import { useHidden } from './hidden';
 import { A, Avatar, Empty, Icon, Loading, BeltBadge, TeamRole, type IconName } from './ui';
@@ -287,24 +288,24 @@ function MessageInfo({ m, onClose }: { m: Message; onClose: () => void }) {
 }
 
 /* ---------- Voice note player ---------- */
-function Voice({ src, duration, onFirstPlay }: { src: string | null | undefined; duration?: number | null; onFirstPlay?: () => void }) {
+// The sound plays through the app-wide player (vn.ts), so it carries on
+// outside the chat and during calls.
+function Voice({ id, src, duration, who, onFirstPlay }: { id: string; src: string | null | undefined; duration?: number | null; who: string; onFirstPlay?: () => void }) {
   const told = useRef(false);
-  const audio = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [at, setAt] = useState(0);
-  const [len, setLen] = useState(duration ?? 0);
+  const vn = useVn();
+  const mineNow = vn.track?.id === id;
+  const playing = mineNow && vn.playing;
+  const at = mineNow ? vn.at : 0;
+  const len = (mineNow && vn.len) || duration || 0;
   const toggle = () => {
-    const a = audio.current;
-    if (!a || !src) return;
-    if (a.paused) {
-      // only one voice note plays at a time
-      document.querySelectorAll('audio').forEach((x) => x !== a && x.pause());
-      a.play().catch(() => {});
-      if (!told.current) {
-        told.current = true;
-        onFirstPlay?.();
-      }
-    } else a.pause();
+    if (!src) return;
+    const path = window.location.pathname + window.location.hash;
+    const name = who || document.querySelector('.cx-ch-name')?.textContent?.trim() || 'Voice message';
+    vnToggle({ id, src, who: name, path, duration });
+    if (!told.current) {
+      told.current = true;
+      onFirstPlay?.();
+    }
   };
   return (
     <div className="cx-voice">
@@ -320,31 +321,9 @@ function Voice({ src, duration, onFirstPlay }: { src: string | null | undefined;
         value={at}
         aria-label="Position"
         style={{ '--p': `${len ? (at / len) * 100 : 0}%` } as React.CSSProperties}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          if (audio.current) audio.current.currentTime = v;
-          setAt(v);
-        }}
+        onChange={(e) => vnSeek(id, Number(e.target.value))}
       />
       <span className="cx-voice-time">{clock(playing || at ? at : len)}</span>
-      {src && (
-        <audio
-          ref={audio}
-          src={src}
-          preload="none"
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onEnded={() => {
-            setPlaying(false);
-            setAt(0);
-          }}
-          onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
-          onLoadedMetadata={(e) => {
-            const d = e.currentTarget.duration;
-            if (Number.isFinite(d) && d > 0) setLen(d);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -868,7 +847,7 @@ function BubbleView({
           <span>{quote.text}</span>
         </button>
       )}
-      {kind === 'voice' && <Voice src={m.media_url} duration={m.duration} onFirstPlay={!mine && onPlayed ? () => onPlayed(m) : undefined} />}
+      {kind === 'voice' && <Voice id={m.id} src={m.media_url} duration={m.duration} who={mine ? 'You' : ((m as { sender?: { name?: string } }).sender?.name ?? '')} onFirstPlay={!mine && onPlayed ? () => onPlayed(m) : undefined} />}
       {(kind === 'image' || kind === 'video') &&
         (ready && m.media_url ? (
           kind === 'image' ? (
