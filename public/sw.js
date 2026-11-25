@@ -54,7 +54,9 @@ self.addEventListener('fetch', (e) => {
 });
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || '/';
+  let url = (e.notification.data && e.notification.data.url) || '/';
+  // "Reply": open the chat with the message box ready to type in
+  if (e.action === 'reply') url += (url.includes('?') ? '&' : '?') + 'reply=1';
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const c of list) {
@@ -106,6 +108,8 @@ self.addEventListener('push', (e) => {
         // Android shows this small one in white: the Motion Dojo mark
         badge: '/assets/badge-96.png',
         data: { url: d.url || '/', lines },
+        // Android web notifications can't take typing inside them, so Reply opens the chat ready to type
+        actions: d.call || d.force ? [] : [{ action: 'reply', title: 'Reply' }],
       });
     })(),
   );

@@ -10152,9 +10152,10 @@ html[data-cx-theme='dark'] .cx-work-meta .cx-link-btn {
   color: #fff;
 }
 
-/* A play triangle looks off-centre in a circle; nudge it right */
+/* The play triangle's path already sits a little right of centre, which is
+   what looks centred in a circle; no extra nudge */
 .play-icon {
-  transform: translateX(15%);
+  transform: none;
 }
 
 /* Assignment brief: links as plain rows with a readable name */

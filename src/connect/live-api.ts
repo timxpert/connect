@@ -959,7 +959,7 @@ export function createLiveApi(url: string, anonKey: string, redirectTo: string):
     },
     async getLesson(id) {
       const { data, error } = await sb.rpc('get_lesson', { lid: id });
-      if (error) throw new Error(/members_only|locked|not_found/.exec(error.message)?.[0] ?? error.message);
+      if (error) throw new Error(/members_only|banned|locked|not_found/.exec(error.message)?.[0] ?? error.message);
       const r = ((data ?? []) as { id: string; phase: number; lesson_position: number; title: string; summary: string; duration: string; video_url: string; notes: string; files: Lesson['files']; published: boolean; done: boolean; is_open: boolean; size_mb: number | null; portrait?: boolean; images?: string[] | null; section?: string | null }[])[0];
       if (!r) throw new Error('not_found');
       return { id: r.id, phase: r.phase, position: r.lesson_position, title: r.title, summary: r.summary, duration: r.duration, published: r.published, has_video: Boolean(r.video_url), done: r.done, open: r.is_open, size_mb: r.size_mb ?? null, portrait: r.portrait ?? true, images: r.images ?? [], section: r.section ?? '', video_url: r.video_url, notes: r.notes, files: r.files ?? [] };

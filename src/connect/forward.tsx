@@ -11,7 +11,7 @@ import type { Attachment, Message, Profile } from './types';
 import { Avatar, Icon } from './ui';
 
 const MAX = 5;
-type Target = { key: string; name: string; sub?: string; group?: boolean; photo?: string | null; person?: Profile; conversationId?: string };
+type Target = { key: string; name: string; sub?: string; group?: boolean; gid?: string; photo?: string | null; person?: Profile; conversationId?: string };
 
 async function blobOf(m: Message) {
   const kept = await keptFile(m.id).catch(() => null);
@@ -33,17 +33,20 @@ export function ForwardSheet({ m, onClose }: { m: Message; onClose: () => void }
   useEffect(() => {
     let live = true;
     (async () => {
-      const [convs, status, group, connections] = await Promise.all([
+      const [convs, status, group, connections, groups] = await Promise.all([
         api.listConversations().catch(() => []),
         api.groupStatus().catch(() => 'none' as const),
         api.groupPreview().catch(() => null),
         api.listConnections().catch(() => [] as Profile[]),
+        api.myGroups().catch(() => []),
       ]);
       // people you're connected with (the Grand Sensei can forward to anyone he has a chat with)
       const connected = new Set(connections.map((p) => p.id));
       const allowed = (id: string) => connected.has(id) || Boolean(me?.is_sensei);
       const list: Target[] = [];
       if (status === 'member') list.push({ key: 'group', name: group?.name || 'Dojo group', group: true, photo: group?.photo_url ?? null });
+      // the groups the Grand Sensei made that you're in
+      for (const g of groups) list.push({ key: `g:${g.id}`, name: g.name, group: true, gid: g.id, photo: g.photo_url });
       const inChats = new Set<string>();
       for (const c of convs) {
         if (!allowed(c.other.id)) continue;
@@ -82,8 +85,8 @@ export function ForwardSheet({ m, onClose }: { m: Message; onClose: () => void }
       for (const t of picked) {
         try {
           if (t.group) {
-            if (a) await api.sendGroupAttachment(a, m.body, null, undefined, true);
-            else await api.sendGroupMessage(m.body, null, true);
+            if (a) await api.sendGroupAttachment(a, m.body, null, undefined, true, t.gid ?? null);
+            else await api.sendGroupMessage(m.body, null, true, t.gid ?? null);
           } else {
             const id = t.conversationId ?? (await api.openConversation(t.person!.id));
             if (a) await api.sendAttachment(id, a, m.body, undefined, true);

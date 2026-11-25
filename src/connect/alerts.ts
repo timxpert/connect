@@ -68,7 +68,7 @@ export async function notify(title: string, body: string, url: string, tag: stri
   if (!alertsAllowed() || pushOn()) return; // with push on, the server's notification covers it
   try {
     const reg = await navigator.serviceWorker.ready;
-    await reg.showNotification(title, { body, tag, data: { url }, icon: '/assets/icon-192.png', badge: '/assets/badge-96.png' } as NotificationOptions);
+    await reg.showNotification(title, { body, tag, data: { url }, actions: [{ action: 'reply', title: 'Reply' }], icon: '/assets/icon-192.png', badge: '/assets/badge-96.png' } as NotificationOptions);
   } catch {
     /* some browsers block notifications from pages; the in-app alert still shows */
   }

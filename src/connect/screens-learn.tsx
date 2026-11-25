@@ -37,23 +37,47 @@ export function embedSrc(url: string) {
 /* ---------- Helpers ---------- */
 
 /** Phase 0 is the orientation: open to every member, whatever their phase */
+/** "Preview" in the title: open to everyone and not part of the course (no number, no progress, never locks anything) */
+export const isPreview = (l: { title: string }) => /\bpreview\b/i.test(l.title);
+const counted = (l: Lesson) => l.published && !isPreview(l);
 const phaseLabel = (p: number) => (p === 0 ? 'Orientation' : `Phase ${p}`);
 const phaseName = (p: number) => (p === 0 ? 'Watch this first' : PHASES[p - 1]);
 /** Lessons in course order: phase by phase, in the order set on each phase */
 const courseOrder = (list: Lesson[]) => [0, 1, 2, 3, 4].flatMap((p) => list.filter((l) => l.phase === p));
 /** A lesson's number in the whole course (1, 2, 3… across sections and phases); drafts have none */
-const lessonNo = (list: Lesson[], l: Lesson) => (l.published ? courseOrder(list).filter((x) => x.published).findIndex((x) => x.id === l.id) + 1 : 0);
+const lessonNo = (list: Lesson[], l: Lesson) => (counted(l) ? courseOrder(list).filter(counted).findIndex((x) => x.id === l.id) + 1 : 0);
 /** Course progress: each phase (1–4) is a quarter, filled lesson by lesson; phases before yours count as done */
 function courseProgress(list: Lesson[], cur: number | null) {
   let pct = 0;
   for (let p = 1; p <= PHASES.length; p++) {
-    const pub = list.filter((l) => l.phase === p && l.published);
+    const pub = list.filter((l) => l.phase === p && counted(l));
     const share = 100 / PHASES.length;
     if (cur && p < cur) pct += share;
     else if (pub.length) pct += (share * pub.filter((l) => l.done).length) / pub.length;
   }
   return Math.min(100, pct);
 }
+
+/** Banned from the Dojo group: no lessons (previews still play) */
+function useBanned() {
+  const { api, me } = useConnect();
+  const team = Boolean(me?.is_sensei || me?.is_moderator);
+  const [banned, setBanned] = useState(false);
+  useEffect(() => {
+    if (!me || team) return;
+    let live = true;
+    api
+      .groupStatus()
+      .then((s) => live && setBanned(s === 'banned'))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [api, me, team]);
+  return banned;
+}
+const BANNED_TITLE = 'You’ve been banned';
+const BANNED_TEXT = 'You can’t access this course. If you think this is a mistake, message the Grand Sensei.';
 
 function useLessons() {
   const { api, me } = useConnect();
@@ -127,7 +151,7 @@ function phaseStatus(lessons: Lesson[], mine: Assignment[], phase: number, cur?:
   if (latest?.status === 'pending') return 'pending';
   // the Grand Sensei placed them in a later phase: no assignment needed here
   if (cur && phase < cur) return 'placed';
-  const pub = lessons.filter((l) => l.phase === phase && l.published);
+  const pub = lessons.filter((l) => l.phase === phase && counted(l));
   if (pub.length === 0 || pub.some((l) => !l.done)) return 'locked';
   return latest?.status === 'changes' ? 'changes' : 'due';
 }
@@ -173,22 +197,38 @@ function AssignmentRow({ phase, status }: { phase: number; status: PhaseStatus }
 export function Learn() {
   const { api, me, signedIn } = useConnect();
   const { list, setList, error } = useLessons();
+  const banned = useBanned();
   const team = Boolean(me?.is_sensei || me?.is_moderator);
   const learner = Boolean(me && (me.is_student || team));
 
   // students: progress counts from the phase they're in
   const cur = !team && me?.is_student ? (me.phase ?? null) : null;
-  const published = useMemo(() => (list ?? []).filter((l) => l.published && (!cur || l.phase >= cur)), [list, cur]);
+  const published = useMemo(() => (list ?? []).filter((l) => counted(l) && (!cur || l.phase >= cur)), [list, cur]);
   const done = published.filter((l) => l.done).length;
   const pct = useMemo(() => courseProgress(list ?? [], cur), [list, cur]);
   const next = published.find((l) => l.open && !l.done);
   // the orientation comes first: nothing else opens until it's watched
-  const oriented = (list ?? []).filter((l) => l.phase === 0 && l.published).every((l) => l.done);
+  const oriented = (list ?? []).filter((l) => l.phase === 0 && counted(l)).every((l) => l.done);
   const mine = useAssignments(learner && !team);
   const status = (phase: number) => phaseStatus(list ?? [], mine, phase, cur);
   const unplaced = Boolean(me?.is_student && !team && !me.phase);
   const due = PHASES.map((_, i) => i + 1).find((p) => ['due', 'changes'].includes(status(p)));
   const waiting = PHASES.map((_, i) => i + 1).find((p) => status(p) === 'pending');
+
+  // Back from a lesson: open the list at that lesson's section, not at the top
+  const backTo = useRef(false);
+  useEffect(() => {
+    if (!list || backTo.current) return;
+    backTo.current = true;
+    let id: string | null = null;
+    try {
+      id = sessionStorage.getItem('cx-last-lesson');
+    } catch {
+      /* storage blocked */
+    }
+    const row = id ? document.querySelector(`[data-lesson="${id}"]`) : null;
+    if (row) requestAnimationFrame(() => row.scrollIntoView({ block: 'center' }));
+  }, [list]);
 
   const move = async (l: Lesson, dir: -1 | 1) => {
     await api.moveLesson(l.id, dir).catch(() => {});
@@ -197,6 +237,12 @@ export function Learn() {
 
   if (error && !list) return <Empty title="Lessons can’t load right now">{<p>Check your connection. Connect will try again by itself.</p>}</Empty>;
   if (!list) return <Loading label="Loading lessons" />;
+  if (banned)
+    return (
+      <div className="cx-col cx-learn">
+        <Empty title={BANNED_TITLE}>{<p>{BANNED_TEXT}</p>}</Empty>
+      </div>
+    );
 
   return (
     <div className="cx-col cx-learn">
@@ -283,7 +329,7 @@ export function Learn() {
           const name = phaseName(phase);
           const items = list.filter((l) => l.phase === phase);
           if (items.length === 0) return null;
-          const pub = items.filter((l) => l.published);
+          const pub = items.filter(counted);
           const finished = pub.filter((l) => l.done).length;
           return (
             <section key={phase} className="cx-ln-phase">
@@ -304,14 +350,16 @@ export function Learn() {
                   const sec = (l.section ?? '').trim();
                   const newSec = sec && sec !== (items[n - 1]?.section ?? '').trim();
                   const num = lessonNo(list, l) || '–';
+                  const pv = isPreview(l) && l.published;
+                  const open = l.open || pv;
                   const body = (
                     <>
-                      <span className={`cx-ln-mark${l.done ? ' is-done' : l.open ? ' is-open' : ''}`} aria-hidden="true">
-                        {l.done ? <Icon name="check" size={18} /> : l.open ? <Icon name="play" size={14} filled /> : <Icon name="lock" size={16} />}
+                      <span className={`cx-ln-mark${l.done && !pv ? ' is-done' : open ? ' is-open' : ''}`} aria-hidden="true">
+                        {l.done && !pv ? <Icon name="check" size={18} /> : open ? <Icon name="play" size={14} filled /> : <Icon name="lock" size={16} />}
                       </span>
                       <span className="cx-ln-text">
                         <b>
-                          <span className="cx-ln-no">{num}.</span> {l.title}
+                          {!pv && <span className="cx-ln-no">{num}.</span>} {l.title}
                         </b>
                         <small>
                           {[l.duration || (l.has_video ? 'Video' : 'No video yet'), l.size_mb ? `${l.size_mb} MB` : ''].filter(Boolean).join(' · ')}
@@ -319,14 +367,14 @@ export function Learn() {
                           {team && !l.has_video && <em className="cx-ln-tag">No video</em>}
                         </small>
                       </span>
-                      <span className="sr-only">{l.done ? 'Done' : l.open ? 'Open' : 'Locked'}</span>
+                      <span className="sr-only">{pv ? 'Preview, open to everyone' : l.done ? 'Done' : open ? 'Open' : 'Locked'}</span>
                     </>
                   );
                   return (
                     <React.Fragment key={l.id}>
                     {newSec && <li className="cx-ln-section">{sec}</li>}
-                    <li className={l.open ? '' : 'is-locked'}>
-                      {l.open ? (
+                    <li className={open ? '' : 'is-locked'} data-lesson={l.id}>
+                      {open ? (
                         <A path={`/learn/${l.id}`} className="cx-ln-row">
                           {body}
                         </A>
@@ -553,6 +601,7 @@ export function LessonScreen({ id }: { id: string }) {
   const { api, me, signedIn } = useConnect();
   const team = Boolean(me?.is_sensei || me?.is_moderator);
   const { list, setList } = useLessons();
+  const banned = useBanned();
   const [lesson, setLesson] = useState<Lesson | null>(() => peek<Lesson>('getLesson', id) ?? null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -570,6 +619,14 @@ export function LessonScreen({ id }: { id: string }) {
     };
   }, [api, id, me]);
 
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('cx-last-lesson', id);
+    } catch {
+      /* storage blocked */
+    }
+  }, [id]);
+
   const order = useMemo(() => (list ?? []).filter((l) => l.published || team), [list, team]);
   const i = order.findIndex((l) => l.id === id);
   const prev = i > 0 ? order[i - 1] : null;
@@ -577,7 +634,7 @@ export function LessonScreen({ id }: { id: string }) {
 
   // The orientation can't be ticked off by hand: it ticks itself once the
   // student has really watched it (skipped parts don't count)
-  const mustWatch = Boolean(lesson && lesson.phase === 0 && !lesson.done && !team && me?.is_student && youtubeId(lesson.video_url ?? ''));
+  const mustWatch = Boolean(lesson && !isPreview(lesson) && lesson.phase === 0 && !lesson.done && !team && me?.is_student && youtubeId(lesson.video_url ?? ''));
   const [watched, setWatched] = useState(0);
   const ticking = useRef(false);
   const watchedSome = useCallback(
@@ -617,8 +674,15 @@ export function LessonScreen({ id }: { id: string }) {
     </A>
   );
 
+  if ((error === 'banned' || banned) && !(lesson && isPreview(lesson)))
+    return (
+      <div className="cx-col cx-lesson">
+        {back}
+        <Empty title={BANNED_TITLE}>{<p>{BANNED_TEXT}</p>}</Empty>
+      </div>
+    );
   // visitors can watch the orientation; everything else is for members
-  if (error === 'members_only' || (!signedIn && me !== undefined && lesson && lesson.phase !== 0)) {
+  if (error === 'members_only' || (!signedIn && me !== undefined && lesson && lesson.phase !== 0 && !isPreview(lesson))) {
     return (
       <div className="cx-col">
         {back}
@@ -663,7 +727,7 @@ export function LessonScreen({ id }: { id: string }) {
 
       <div className="cx-ln-head">
         <p className="cx-ln-where">
-          {lesson.phase === 0 ? 'Orientation' : `Phase ${lesson.phase} · ${lesson.section?.trim() || PHASES[lesson.phase - 1]}`}
+          {isPreview(lesson) ? 'Preview' : lesson.phase === 0 ? 'Orientation' : `Phase ${lesson.phase} · ${lesson.section?.trim() || PHASES[lesson.phase - 1]}`}
           {n > 0 && ` · Lesson ${n}`}
           {lesson.duration && ` · ${lesson.duration}`}
           {!lesson.published && <em className="cx-ln-tag">Draft</em>}
@@ -673,7 +737,7 @@ export function LessonScreen({ id }: { id: string }) {
       </div>
 
       <div className="cx-ln-actions">
-        {!me?.is_student && !team ? (
+        {isPreview(lesson) && (me?.is_student || team) ? null : !me?.is_student && !team ? (
           <a href={`${MAIN_SITE}/blackbelt`} className="btn btn-lime btn-sm">
             Become a member
           </a>

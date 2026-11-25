@@ -352,6 +352,23 @@ function Shell({ route }: { route: Route }) {
   }, [inChat]);
   // installed app: keyboard over the page instead of shrinking the window (no flash)
   useKeyboardOverlay();
+  // "Reply" on a notification opens the chat with ?reply=1: put the cursor in the message box
+  useEffect(() => {
+    if (!route) return;
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('reply') !== '1') return;
+    u.searchParams.delete('reply');
+    window.history.replaceState(window.history.state, '', u.pathname + (u.search === '?' ? '' : u.search) + u.hash);
+    let tries = 0;
+    const t = window.setInterval(() => {
+      const box = document.querySelector<HTMLTextAreaElement>('#msg-box, #group-box');
+      if (box) {
+        box.focus();
+        window.clearInterval(t);
+      } else if (++tries > 30) window.clearInterval(t);
+    }, 100);
+    return () => window.clearInterval(t);
+  }, [route]);
   // "typing…" in my private chats
   useTypingRoom(api, me?.id ? `u:${me.id}` : null, me?.id);
   // Alerts already allowed: make sure this phone gets messages when Connect is closed
