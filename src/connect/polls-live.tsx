@@ -318,12 +318,17 @@ export function LiveSheet({ onClose, onSend, now = false }: { onClose: () => voi
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
   const at = now ? new Date() : new Date(`${day}T${time}`);
-  const goodLink = /^https:\/\/meet\.google\.com\/[a-z0-9-]+/i.test(link.trim());
+  // the Meet app copies links without "https://", so that's added when missing
+  const meetLink = (() => {
+    const v = link.trim().replace(/^http:\/\//i, 'https://');
+    return /^https:\/\//i.test(v) ? v : `https://${v}`;
+  })();
+  const goodLink = /^https:\/\/meet\.google\.com\/[a-z0-9-]+/i.test(meetLink);
   const ok = t.trim() && !Number.isNaN(at.getTime()) && goodLink;
   const send = async () => {
     setBusy(true);
     try {
-      await onSend(JSON.stringify({ t: t.trim().slice(0, 120), at: at.toISOString(), mins: now ? 60 : mins, link: link.trim(), ...(now ? { call: true } : {}) }));
+      await onSend(JSON.stringify({ t: t.trim().slice(0, 120), at: at.toISOString(), mins: now ? 60 : mins, link: meetLink, ...(now ? { call: true } : {}) }));
       onClose();
     } finally {
       setBusy(false);
